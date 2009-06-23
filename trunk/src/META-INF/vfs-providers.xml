@@ -1,0 +1,5 @@
+<providers>
+    <provider class-name="com.newatlanta.commons.vfs.provider.gae.GaeFileProvider">
+        <scheme name="gae"/>
+    </provider>
+</providers>
