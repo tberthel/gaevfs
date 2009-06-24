@@ -28,7 +28,20 @@ In summary, the Combined Local option of GaeVFS allows you to write code that re
 
 = Details =
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+The GaeVFS file system is initialized by invoking the `GaeVFS.getManager()` method, which returns a `GaeFileSystemManager` instance that implements the `FileSystemManager` interface:
+
+{{{
+import org.apache.commons.vfs.FileSystemManager;
+import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+    .
+    .
+    FileSystemManager fsManager = GaeVFS.getManager();
+    .
+    .
+}}}
+
+The Combined Local option can be enabled or disabled at any time via the `GaeFileSystemManager.setCombinedLocal( boolean )` method. References to `GaeVFS.getManager()` always return the same static `GaeFileSystemManager` instance:
+
+{{{
+    GaeVFS.getManager().setCombinedLocal( false );
+}}}
