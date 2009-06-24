@@ -38,6 +38,20 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 
 == Clearing the File Cache ==
 
+It's very important that you clear the GaeVFS file cache at the end of every servlet request via the `GaeVFS.clearFilesCache()` method, best placed within a `finally` clause:
+
+{{{
+    public void doGet( HttpServletRequest req, HttpServletResponse res ) throws ServletException, IOException {
+        try {
+            // ...process the GET request...
+        } finally {
+            GaeVFS.clearFilesCache(); // this is important!
+        }
+    }
+}}}
+
+See the comments within the [http://code.google.com/p/gaevfs/source/browse/trunk/src/com/newatlanta/commons/vfs/cache/GaeMemcacheFilesCache.java GaeMemcacheFilesCache source code] if you're interested in details regarding why this is important.
+
 = Additional Information =
 
 Read about the [CombinedLocalOption Combined Local Option] for more details about using GaeVFS.
