@@ -25,7 +25,9 @@ import org.apache.commons.vfs.provider.UriParser;
 import com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache;
 
 /**
- * Implements the "combined local" option for GaeVFS.
+ * Implements the Combined Local option for GaeVFS. See the following:
+ * 
+ *      http://code.google.com/p/gaevfs/wiki/CombinedLocalOption
  * 
  * @author Vince Bonfanti <vbonfanti@gmail.com>
  */
@@ -66,7 +68,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             throws FileSystemException {
         // let the specified provider handle it
         if ( !isCombinedLocal || isSchemeSpecified( uri ) ) {
-            // baseFile should be null if scheme specified (?)
+            // baseFile should be null if scheme specified (do we care?)
             return super.resolveFile( baseFile, uri, opts );
         }
 
