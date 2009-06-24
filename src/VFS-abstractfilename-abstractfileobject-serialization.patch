@@ -1,0 +1,249 @@
+Index: core/src/main/java/org/apache/commons/vfs/FilesCache.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/FilesCache.java	(revision 787371)
++++ core/src/main/java/org/apache/commons/vfs/FilesCache.java	(working copy)
+@@ -59,6 +59,13 @@
+      * @param name       filename
+      */
+     void removeFile(final FileSystem filesystem, final FileName name);
++    
++    /**
++     * removes a file from cache
++     *
++     * @param file the file
++     */
++    void removeFile(final FileObject file);
+ 
+     /**
+      * if the cache uses timestamps it could use this method to handle
+Index: core/src/main/java/org/apache/commons/vfs/cache/AbstractFilesCache.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/cache/AbstractFilesCache.java	(revision 787371)
++++ core/src/main/java/org/apache/commons/vfs/cache/AbstractFilesCache.java	(working copy)
+@@ -16,6 +16,7 @@
+  */
+ package org.apache.commons.vfs.cache;
+ 
++import org.apache.commons.vfs.FileObject;
+ import org.apache.commons.vfs.FilesCache;
+ import org.apache.commons.vfs.provider.AbstractVfsComponent;
+ 
+@@ -27,4 +28,13 @@
+  */
+ public abstract class AbstractFilesCache extends AbstractVfsComponent implements FilesCache
+ {
++	/**
++     * removes a file from cache
++     *
++     * @param file the file to remove
++     */
++    public void removeFile(final FileObject file)
++    {
++    	removeFile(file.getFileSystem(), file.getName());
++    }
+ }
+Index: core/src/main/java/org/apache/commons/vfs/provider/AbstractFileObject.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/provider/AbstractFileObject.java	(revision 787371)
++++ core/src/main/java/org/apache/commons/vfs/provider/AbstractFileObject.java	(working copy)
+@@ -26,6 +26,7 @@
+ import java.io.InputStream;
+ import java.io.OutputStream;
+ import java.io.FileNotFoundException;
++import java.io.Serializable;
+ import java.net.MalformedURLException;
+ import java.net.URL;
+ import java.security.AccessController;
+@@ -49,31 +50,33 @@
+  * @todo Check caps in methods like getChildren(), etc, and give better error messages
+  * (eg 'this file type does not support listing children', vs 'this is not a folder')
+  */
+-public abstract class AbstractFileObject implements FileObject
++public abstract class AbstractFileObject implements FileObject, Serializable, Comparable
+ {
++	private static final long serialVersionUID = 1L;
++	
+     // private static final FileObject[] EMPTY_FILE_ARRAY = {};
+     private static final FileName[] EMPTY_FILE_ARRAY = {};
+ 
+     private final AbstractFileName name;
+-    private final AbstractFileSystem fs;
++    private transient AbstractFileSystem fs;
+ 
+-    private FileContent content;
++    private transient FileContent content;
+ 
+     // Cached info
+-    private boolean attached;
+-    private FileType type;
+-    private FileObject parent;
++    private transient boolean attached;
++    private transient FileType type;
++    private transient FileObject parent;
+ 
+     // Changed to hold only the name of the children and let the object
+     // go into the global files cache
+     // private FileObject[] children;
+-    private FileName[] children;
+-    private List objects;
++    private transient FileName[] children;
++    private transient List objects;
+ 
+     /**
+      * FileServices instance.
+      */
+-    private FileOperations operations;
++    private transient FileOperations operations;
+ 
+     protected AbstractFileObject(final FileName name,
+                                  final AbstractFileSystem fs)
+@@ -82,6 +85,42 @@
+         this.fs = fs;
+         fs.fileObjectHanded(this);
+     }
++    
++    /**
++     * Returns the hashcode for this file object, which is the same as the
++     * hashcode for its FileName. According to the Javadocs for Object.hashcode(),
++     * it's OK for two objects that are not equal to generate the same hashcode
++     * (such as the AbstractFileObject and its FileName).
++     */
++    public int hashCode()
++    {
++        return name.hashCode();
++    }
++
++    /**
++     * Determines if this object is equal to another.
++     */
++    public boolean equals(final Object obj)
++    {
++    	if (this == obj)
++    	{
++    		return true;
++    	}
++        if (!(obj instanceof AbstractFileObject))
++        {
++            return false;
++        }
++        // two AbstractFileObjects are equal if they have the same FileName
++        return name.equals( ((AbstractFileObject)obj).name );
++    }
++    
++    /**
++     * Sort based on FileName.
++     */
++    public int compareTo( Object obj )
++    {
++		return name.compareTo( ((AbstractFileObject)obj).name );
++	}
+ 
+     /**
+      * Attaches this file object to its file resource.  This method is called
+@@ -392,6 +431,11 @@
+     {
+         return fs;
+     }
++    
++    void setFileSystem(AbstractFileSystem _fs)
++    {
++    	fs = _fs;
++    }
+ 
+     /**
+      * Returns a URL representation of the file.
+Index: core/src/main/java/org/apache/commons/vfs/provider/AbstractFileName.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/provider/AbstractFileName.java	(revision 787371)
++++ core/src/main/java/org/apache/commons/vfs/provider/AbstractFileName.java	(working copy)
+@@ -16,6 +16,8 @@
+  */
+ package org.apache.commons.vfs.provider;
+ 
++import java.io.Serializable;
++
+ import org.apache.commons.vfs.FileName;
+ import org.apache.commons.vfs.FileSystemException;
+ import org.apache.commons.vfs.FileType;
+@@ -29,8 +31,9 @@
+  * @version $Revision$ $Date$
+  */
+ public abstract class AbstractFileName
+-    implements FileName
++    implements FileName, Serializable, Comparable
+ {
++	private static final long serialVersionUID = 1L;
+ 
+     private final String scheme;
+     private final String absPath;
+@@ -76,7 +79,7 @@
+     {
+         if (calculateHashCode)
+         {
+-            calculatedHashCode = (getRootURI().hashCode() ^ getPath().hashCode());
++            calculatedHashCode = (scheme.hashCode() ^ absPath.hashCode());
+             calculateHashCode = false;
+         }
+         return calculatedHashCode;
+@@ -87,12 +90,16 @@
+      */
+     public boolean equals(final Object obj)
+     {
++    	if (this == obj)
++    	{
++    		return true;
++    	}
+         if (!(obj instanceof AbstractFileName))
+         {
+             return false;
+         }
+         final AbstractFileName name = (AbstractFileName) obj;
+-        return (getRootURI().equals(name.getRootURI()) && getPath().equals(name.getPath()));
++        return (scheme.equals(name.scheme) && absPath.equals(name.absPath));
+     }
+ 
+     /**
+Index: core/src/main/java/org/apache/commons/vfs/provider/AbstractFileSystem.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/provider/AbstractFileSystem.java	(revision 787371)
++++ core/src/main/java/org/apache/commons/vfs/provider/AbstractFileSystem.java	(working copy)
+@@ -214,7 +214,12 @@
+      */
+     protected FileObject getFileFromCache(final FileName name)
+     {
+-        return getCache().getFile(this, name);
++    	FileObject fileObject = getCache().getFile(this, name);
++    	if ((fileObject != null) && (fileObject.getFileSystem() == null) && (fileObject instanceof AbstractFileObject)) {
++    		// for FilesCache implementations that use serialization
++    		((AbstractFileObject)fileObject).setFileSystem( this );
++    	}
++    	return fileObject;
+         // return (FileObject) files.get(name);
+     }
+ 
+Index: core/src/main/java/org/apache/commons/vfs/FileType.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/FileType.java	(revision 787371)
++++ core/src/main/java/org/apache/commons/vfs/FileType.java	(working copy)
+@@ -16,15 +16,19 @@
+  */
+ package org.apache.commons.vfs;
+ 
++import java.io.Serializable;
++
+ /**
+  * An enumerated type that represents a file's type.
+  *
+  * @author <a href="mailto:adammurdoch@apache.org">Adam Murdoch</a>
+  * @version $Revision$ $Date$
+  */
+-public final class FileType
++public final class FileType implements Serializable
+ {
+-    /**
++	private static final long serialVersionUID = 1L;
++
++	/**
+      * A folder.  May contain other files, and have attributes, but does not
+      * have any data content.
+      */
