@@ -38,8 +38,9 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
     private GaeMemcacheFilesCache filesCache;
     private boolean isCombinedLocal = true;
 
-    public void setCombinedLocal( boolean combinedLocal ) {
+    public GaeFileSystemManager setCombinedLocal( boolean combinedLocal ) {
         isCombinedLocal = combinedLocal;
+        return this;
     }
 
     public boolean isCombinedLocal() {
