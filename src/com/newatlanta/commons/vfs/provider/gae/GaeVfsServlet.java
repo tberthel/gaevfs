@@ -45,7 +45,6 @@ import org.apache.commons.vfs.FileSystemException;
  * directory listings of GaeVFS folders. Here's sample web.xml configuration for
  * this servlet:
  * 
- * <pre>
  *  <servlet>
  *      <servlet-name>gaevfs</servlet-name>
  *      <servlet-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServlet</servlet-class>
@@ -66,7 +65,6 @@ import org.apache.commons.vfs.FileSystemException;
  *      <servlet-name>gaevfs</servlet-name>
  *      <url-pattern>/gaevfs/*</url-pattern>
  *  </servlet-mapping>
- * </pre>
  * 
  * The <url-pattern> within the <servlet-mapping> element is very important
  * because it determines which incoming requests get processed by this servlet.
@@ -74,7 +72,7 @@ import org.apache.commons.vfs.FileSystemException;
  * with this URL pattern. For example, if you upload a file named "picture.jpg"
  * with a "path" of "/gaevfs/images", then the following URL will serve it:
  * 
- * http://www.myhost.com/gaevfs/images/picture.jpg
+ *      http://www.myhost.com/gaevfs/images/picture.jpg
  * 
  * If you upload "picture.jpg" with any path that doesn't start with "/gaevfs"
  * then it will never get served because this servlet won't get invoked. You can
@@ -181,7 +179,7 @@ public class GaeVfsServlet extends HttpServlet {
     /**
      * Copied from:
      * 
-     * http://www.docjar.com/html/api/org/mortbay/util/Resource.java.html
+     *      http://www.docjar.com/html/api/org/mortbay/util/Resource.java.html
      * 
      * Modified to support GAE virtual file system. Return the directory listing
      * for the specified GaeVFS folder.
@@ -245,7 +243,7 @@ public class GaeVfsServlet extends HttpServlet {
     /**
      * Copied from:
      * 
-     * http://code.google.com/appengine/kb/java.html#fileforms
+     *      http://code.google.com/appengine/kb/java.html#fileforms
      * 
      * Modified to write the uploaded file to the GAE virtual file system
      * (GaeVFS).
