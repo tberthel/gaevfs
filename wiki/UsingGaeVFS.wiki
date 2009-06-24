@@ -1,0 +1,18 @@
+#summary One-sentence summary of this page.
+
+= Introduction =
+
+Before using GaeVFS you should review the [http://commons.apache.org/vfs/api.html Commons VFS API documentation]. The GaeVFS jar file contains a `vfs-providers.xml` configuration file that binds GaeVFS to the scheme `gae`. The URI format supported by GaeVFS is:
+
+ gae://_path_
+
+Where _path_ is a UNIX-style (or URI-style) absolute or relative path. If _path_ is a relative path (it does not start with "/"), then GaeVFS translates it to an absolute path using "/" as the root path. In practical terms, this means that relative paths and absolute paths are equivalent (the relative path `gae://mypath` is equivalent to
+the absolute path `gae:///mypath`). There is currently no mechanism for specifying a root path other than "/" for translating relative paths, but this may change in future versions of GaeVFS.
+
+
+= Details =
+
+Add your content here.  Format your content with:
+  * Text in *bold* or _italic_
+  * Headings, paragraphs, and lists
+  * Automatic links to other wiki pages
