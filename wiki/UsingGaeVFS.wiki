@@ -64,3 +64,6 @@ public void destroy() {
 = Additional Information =
 
 Read about the [CombinedLocalOption Combined Local Option] for more details about using GaeVFS.
+
+----
+Copyright 2009 [http://www.newatlanta.com/ New Atlanta Communications, LLC]
