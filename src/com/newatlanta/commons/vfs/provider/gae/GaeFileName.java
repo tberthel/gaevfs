@@ -6,7 +6,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
-
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,23 +24,22 @@ import org.apache.commons.vfs.provider.AbstractFileName;
  * (see GaeMemcacheFileCache).
  *
  * @author Vince Bonfanti <vbonfanti@gmail.com>
- * @version $Revision: 1.2 $ $Date: 2009/06/23 20:51:24 $
  */
 public class GaeFileName extends AbstractFileName {
-	
-	private static final long serialVersionUID = 1L;
-	
-	public GaeFileName( String scheme, String absPath, FileType type ) {
-		super( scheme, absPath, type );
-	}
 
-	@Override
-	protected void appendRootUri( StringBuffer buffer, boolean addPassword ) {
-		buffer.append( getScheme() ).append( "://" );
-	}
+    private static final long serialVersionUID = 1L;
 
-	@Override
-	public FileName createName( String absPath, FileType type ) {
-		return new GaeFileName( getScheme(), absPath, type );
-	}
+    public GaeFileName( String scheme, String absPath, FileType type ) {
+        super( scheme, absPath, type );
+    }
+
+    @Override
+    protected void appendRootUri( StringBuffer buffer, boolean addPassword ) {
+        buffer.append( getScheme() ).append( "://" );
+    }
+
+    @Override
+    public FileName createName( String absPath, FileType type ) {
+        return new GaeFileName( getScheme(), absPath, type );
+    }
 }
