@@ -295,7 +295,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     private void putEntity() throws FileSystemException {
         entity.setProperty( FILETYPE, getType().getName() );
-        doSetLastModifiedTime( System.currentTimeMillis() );
+        doSetLastModTime( System.currentTimeMillis() );
         datastore.put( entity );
         getFileSystem().getFileSystemManager().getFilesCache().putFile( this );
     }
@@ -312,8 +312,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * Sets the last modified time of this file.
      */
     @Override
-    protected void doSetLastModifiedTime( final long modtime ) {
+    protected boolean doSetLastModTime( final long modtime ) {
         entity.setProperty( LAST_MODIFIED, Long.valueOf( modtime ) );
+        return true;
     }
 
     /**
