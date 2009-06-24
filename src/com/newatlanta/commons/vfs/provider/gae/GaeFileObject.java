@@ -42,7 +42,7 @@ import com.google.appengine.api.datastore.Query;
  * Does the work of interacting with the GAE datastore. Every "file" and "folder"
  * within the GAE datastore is saved as an Entity; this class is basically a
  * wrapper around the Entity. The parent-child relationships of files and folders
- * is stored within the Entity keys.
+ * are represented within the Entity keys.
  *
  * @author Vince Bonfanti <vbonfanti@gmail.com>
  */
@@ -229,14 +229,13 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected void doRename( FileObject newfile ) throws FileSystemException {
-        if ( this.getType().hasChildren() ) {
-            for ( FileObject child : this.getChildren() ) { // rename the
-                // children
+        if ( this.getType().hasChildren() ) { // rename the children
+            for ( FileObject child : this.getChildren() ) {
                 String newChildPath = child.getName().getPath().replace( this.getName().getPath(), newfile.getName().getPath() );
                 child.moveTo( resolveFile( newChildPath ) );
             }
-            newfile.createFolder(); // newfile gets detached when renaming
-            // children, this makes sure it gets created
+            // newfile gets detached when renaming children, so make sure it gets created
+            newfile.createFolder();
         } else {
             // copy contents to the new file
             ( (GaeFileObject)newfile ).entity.setProperty( CONTENT_BLOB, this.entity.getProperty( CONTENT_BLOB ) );
