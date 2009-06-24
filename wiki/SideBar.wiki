@@ -1,3 +1,3 @@
   * [UsingGaeVFS Using GaeVFS]
-  * [CombinedLocalOption CombinedLocalOption]
+  * [CombinedLocalOption Combined Local Option]
   * [ApplicationPortability Writing Portable Code]
