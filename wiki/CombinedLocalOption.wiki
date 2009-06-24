@@ -28,10 +28,10 @@ In summary, the Combined Local option of GaeVFS allows you to write code that re
 
 = Details =
 
-The GaeVFS file system is initialized by invoking the `GaeVFS.getManager()` method, which returns a `GaeFileSystemManager` instance that implements the `FileSystemManager` interface:
+The GaeVFS file system is initialized by invoking the `GaeVFS.getManager()` method, which returns a `GaeFileSystemManager` instance that implements the `FileSystemManager` interface. References to `GaeVFS.getManager()` always return the same static `GaeFileSystemManager` instance:
 
 {{{
-import org.apache.commons.vfs.FileSystemManager;
+import org.apache.commons.vfs.*;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
     .
     .
@@ -40,8 +40,15 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
     .
 }}}
 
-The Combined Local option can be enabled or disabled at any time via the `GaeFileSystemManager.setCombinedLocal( boolean )` method. References to `GaeVFS.getManager()` always return the same static `GaeFileSystemManager` instance:
+The Combined Local option can be enabled or disabled at any time via the `GaeFileSystemManager.setCombinedLocal( boolean )` method, which return the `GaeFileSystemManager` instance to allow for method chaining.
+
+The `FileSystemManager.resolveFile()` method, in it's various overloaded forms, is used to locate file system resources. If the Combined Local option is disabled, the `FileSystemManager.resolveFile()` method behaves exactly as described in the [http://commons.apache.org/vfs/apidocs/index.html Commons VFS API documentation]. That is, if the Combined Local option is disabled, you must specify the `gae://` scheme to reference GaeVFS file system resources, and may either specify or omit the `file://` scheme to reference local file system resources. For example:
 
 {{{
-    GaeVFS.getManager().setCombinedLocal( false );
+    FileSystemManager fsManager = GaeVFS.getManager().setCombinedLocal( false );
+    FileObject gaeFile = fsManager.resolveFile( "gae:///home/someuser/somedir/gfile.txt" ):
+    FileObject localFile = fsManager.resolveFile( "file:///home/someuser/somedir/afile.txt" );
+    FileObject anotherLocalFile = fsManager.resolveFile( "/home/someuser/somedir/bfile.txt" );
 }}}
+
+If the Combined Local option is enabled--which is the default--then you may omit the scheme and `FileSystemManager.resolveFile()` will search both the local file system and the GaeVFS file system when searching for files.
