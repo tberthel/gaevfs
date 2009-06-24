@@ -56,4 +56,7 @@ public class ExampleServlet extends HttpServlet
         }
     }
 }
-}}} 
+}}}
+
+----
+Copyright 2009 [http://www.newatlanta.com/ New Atlanta Communications, LLC]
