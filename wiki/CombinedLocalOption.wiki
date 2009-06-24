@@ -51,4 +51,10 @@ The `FileSystemManager.resolveFile()` method, in it's various overloaded forms, 
     FileObject anotherLocalFile = fsManager.resolveFile( "/home/someuser/somedir/bfile.txt" );
 }}}
 
-If the Combined Local option is enabled--which is the default--then you may omit the scheme and `FileSystemManager.resolveFile()` will search both the local file system and the GaeVFS file system when searching for files.
+If the Combined Local option is enabled--which is the default--then you may omit the scheme and `FileSystemManager.resolveFile()` will search both the local file system and the GaeVFS file system when searching for resources. You won't know whether the `FileObject` returned by `FileSystemManager.resolveFile()` is a local or GaeVFS resource, except that local file system resources are read-only. Specifically:
+
+  * if `FileObject.exists()` returns `true`, it may be either a local or GaeVFS resource
+  * if `FileObject.exists()` returns `false`, then invoking `FileObject.createFile()` or `FileObject.createFolder()` creates a GaeVFS resource
+  * the `FileObject.isWriteable()` method returns `true` for GaeVFS resources, and `false` for local file system resources
+  * the `FileObject.delete()` method throws and exception for local file system resources
+  * all other `FileObject` methods work as you'd expect them to
