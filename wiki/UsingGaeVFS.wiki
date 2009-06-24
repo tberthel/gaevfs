@@ -1,4 +1,4 @@
-#summary One-sentence summary of this page.
+#summary Getting started with GaeVFS.
 
 = Introduction =
 
@@ -6,13 +6,32 @@ Before using GaeVFS you should review the [http://commons.apache.org/vfs/api.htm
 
  gae://_path_
 
-Where _path_ is a UNIX-style (or URI-style) absolute or relative path. If _path_ is a relative path (it does not start with "/"), then GaeVFS translates it to an absolute path using "/" as the root path. In practical terms, this means that relative paths and absolute paths are equivalent (the relative path `gae://mypath` is equivalent to
-the absolute path `gae:///mypath`). There is currently no mechanism for specifying a root path other than "/" for translating relative paths, but this may change in future versions of GaeVFS.
+Where _path_ is a UNIX-style (or URI-style) absolute or relative path. If _path_ is a relative path (it does not start with "/"), then GaeVFS translates it to an absolute path using "/" as the root path. In practical terms, this means that relative paths and absolute paths are equivalent (the relative path `gae://mypath` is equivalent to the absolute path `gae:///mypath`). There is currently no mechanism for specifying a root path other than "/" for translating relative paths, but this may change in a future version of GaeVFS.
 
+Examples:
+
+  * `gae:///myfile.zip`
+  * `gae:///images/picture.jpg`
+  * `gae://docs/mydocument.pdf` (gets translated to `gae:///docs/mydocument.pdf` by GaeVFS)
+
+Directory paths may be specified either with or without a trailing "/".
 
 = Details =
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+In order to use GaeVFS, you *must* invoke the `GaeVFS.getManager()` static method to obtain a `FileSystemManager` instance. Then use the [http://commons.apache.org/vfs/api.html Commons VFS API] as you normally would; for example:
+
+{{{
+import org.apache.commons.vfs.FileSystemManager;
+import org.apache.commons.vfs.FileObject;
+import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+    .
+    .
+    FileSystemManager fsManager = GaeVFS.getManager();
+    FileObject tmpFolder = fsManager.resolveFile( "gae:///tmp" );
+    if ( !tmpFolder.exists() ) {
+        tmpFolder.createFolder();
+    }
+}}}
+
+*WARNING!* Do not use the `VFS.getManager()` method provided by Commons VFS to get a
+`FileSystemManager` when running within GAE. Commons VFS will fail to initialize and it will not work!
