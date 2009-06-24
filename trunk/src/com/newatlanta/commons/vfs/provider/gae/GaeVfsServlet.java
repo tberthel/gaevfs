@@ -34,7 +34,7 @@ import org.apache.commons.vfs.*;
  * out again. It can also be configured to optionally return directory listings of GaeVFS folders.
  * Here's sample web.xml configuration for this servlet:
  * 
- * <servlet>
+ *	<servlet>
  *		<servlet-name>gaevfs</servlet-name>
  *		<servlet-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServlet</servlet-class>
  *		<init-param>
@@ -56,7 +56,7 @@ import org.apache.commons.vfs.*;
  *	</servlet-mapping>
  *
  * The <url-pattern> within the <servlet-mapping> element is very important because it determines
- * which incoming requests gets processed by this servlet. When uploading a file, be sure to
+ * which incoming requests get processed by this servlet. When uploading a file, be sure to
  * specify a "path" form parameter that starts with this URL pattern. For example, if you upload a
  * file named "picture.jpg" with a "path" of "/gaevfs/images", then the following URL will serve it:
  * 
@@ -83,17 +83,18 @@ import org.apache.commons.vfs.*;
  * uploaded, so you should specify "uploadRedirect" if you disable directory listings.
  * 
  * @author Vince Bonfanti <vbonfanti@gmail.com>
- * @version $Revision: 1.7 $ $Date: 2009/06/23 20:51:24 $
  */
 @SuppressWarnings("serial")
 public class GaeVfsServlet extends HttpServlet
 {	
 	private boolean dirListingAllowed;
 	private String uploadRedirect;
+	private int rootPathLen;
 	
 	@Override
 	public void init() throws ServletException
 	{
+		rootPathLen = this.getServletContext().getRealPath( "/" ).length();
 		dirListingAllowed = Boolean.parseBoolean( getInitParameter( "dirListingAllowed" ) );
 		uploadRedirect = getInitParameter( "uploadRedirect" );
 		
@@ -136,7 +137,7 @@ public class GaeVfsServlet extends HttpServlet
 			
 			if ( fileObject.getType().hasChildren() ) { // it's a directory
 				if ( dirListingAllowed ) {
-					res.getWriter().write( getListHTML( req.getRequestURI(), fileObject ) );
+					res.getWriter().write( getListHTML( fileObject ) );
 					res.flushBuffer();
 				} else {
 					res.sendError( HttpServletResponse.SC_FORBIDDEN, "Directory listing not allowed" );
@@ -166,9 +167,9 @@ public class GaeVfsServlet extends HttpServlet
      * Modified to support GAE virtual file system. Return the directory listing for the
      * specified GaeVFS folder.
 	 */
-	private String getListHTML( String requestUri, FileObject fileObject ) throws IOException
+	private String getListHTML( FileObject fileObject ) throws IOException
 	{
-		String title = "Directory: " + requestUri;
+		String title = "Directory: " + fileObject.getName().getPath().substring( rootPathLen );
 
 		StringBuffer buf = new StringBuffer( 4096 );
 		buf.append( "<HTML><HEAD><TITLE>" );
@@ -179,7 +180,7 @@ public class GaeVfsServlet extends HttpServlet
 
 		if ( fileObject.getParent() != null ) {
 			buf.append( "<TR><TD><A HREF='" );
-			String parentPath = fileObject.getParent().getName().getPath();
+			String parentPath = fileObject.getParent().getName().getPath().substring( rootPathLen );
 			buf.append( parentPath );
 			if ( !parentPath.endsWith( "/" ) ) {
 				buf.append(  "/" );
@@ -199,7 +200,7 @@ public class GaeVfsServlet extends HttpServlet
 			buf.append( "<tr><th align='left'>Name</th><th>Size</th><th aligh='left'>Type</th><th align='left'>Date modified</th></tr>" );
 			for ( FileObject child : children ) {
 				buf.append( "<TR><TD><A HREF=\"" );
-				buf.append( child.getName().getPath() );
+				buf.append( child.getName().getPath().substring( rootPathLen ) );
 				buf.append( "\">" );
 				buf.append( StringEscapeUtils.escapeHtml( child.getName().getBaseName() ) );
 				if ( child.getType().hasChildren() ) {
@@ -231,9 +232,10 @@ public class GaeVfsServlet extends HttpServlet
 	 * 
 	 * Modified to write the uploaded file to the GAE virtual file system (GaeVFS).
 	 * 
-	 * The "path" form parameter specifies the "absolute path" within the GaeVFS to save the
-	 * file. All folders within the path hierarchy are created (if they don't already exist)
-	 * when the file is saved.
+	 * The "path" form parameter specifies a relative path within the web application. The relative
+	 * path is translated to a full path using ServletContext.getRealPath() for storing with GaeVFS.
+	 * All directories within the path hierarchy are created (if they don't already exist) when the
+	 * file is saved.
 	 */
 	@Override
 	public void doPost( HttpServletRequest req, HttpServletResponse res ) throws ServletException, IOException
