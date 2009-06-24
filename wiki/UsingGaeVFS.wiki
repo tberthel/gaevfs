@@ -34,7 +34,7 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 }}}
 
 *WARNING!* Do not use the `VFS.getManager()` method provided by Commons VFS to get a
-`FileSystemManager` when running within GAE. Commons VFS will fail to initialize and it will not work!
+`FileSystemManager` when running within GAE. If you do, Commons VFS will fail to initialize and it will not work!
 
 == Clearing the File Cache ==
 
