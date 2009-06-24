@@ -20,9 +20,9 @@ The scheme `gae://` is used by GaeVFS to reference virtual file system resources
 The Combined Local option--which is enabled by default--combines the local and GaeVFS file systems to allow you to treat them as a single file system. Specifically, the Combined Local option:
 
   # allows you to reference either local or GaeVFS file system resources without specifying the `file://` or `gae://` schemes
-  # allows you to store both local and GaeVFS files within the same directory paths
-  # treats local file system resources as read-only, while allowing you to both read and write GaeVFS file system resources
-  # allows you to reference a specific file system by using the `file://` or `gae://` scheme
+  # allows both local and GaeVFS file systems resources to use the same parent directory paths
+  # treats local file system resources as read-only, while providing both read and write access to GaeVFS file system resources
+  # allows you to explicitly reference a file system by specifying the `file://` or `gae://` scheme within URIs
 
 In summary, the Combined Local option of GaeVFS allows you to write code that references both local and GaeVFS file system resources without knowing or caring which file system actually contains the resources.
 
