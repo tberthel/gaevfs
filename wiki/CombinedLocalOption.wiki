@@ -51,10 +51,46 @@ The `FileSystemManager.resolveFile()` method, in it's various overloaded forms, 
     FileObject anotherLocalFile = fsManager.resolveFile( "/home/someuser/somedir/bfile.txt" );
 }}}
 
-If the Combined Local option is enabled--which is the default--then you may omit the scheme and `FileSystemManager.resolveFile()` will search both the local file system and the GaeVFS file system when searching for resources. You won't know whether the `FileObject` returned by `FileSystemManager.resolveFile()` is a local or GaeVFS resource, except that local file system resources are read-only. Specifically:
+If the Combined Local option is enabled--which is the default--then you may omit the scheme and `FileSystemManager.resolveFile()` will search both the local file system and the GaeVFS file system when searching for resources. If you don't specify the scheme, you won't know whether the `FileObject` returned by `FileSystemManager.resolveFile()` is a local or GaeVFS resource, except that local file system resources are read-only. Specifically:
 
   * if `FileObject.exists()` returns `true`, it may be either a local or GaeVFS resource
   * if `FileObject.exists()` returns `false`, then invoking `FileObject.createFile()` or `FileObject.createFolder()` creates a GaeVFS resource
   * the `FileObject.isWriteable()` method returns `true` for GaeVFS resources, and `false` for local file system resources
-  * the `FileObject.delete()` method throws and exception for local file system resources
+  * the `FileObject.delete()` method throws an exception for local file system resources
   * all other `FileObject` methods work as you'd expect them to
+
+For example:
+
+{{{
+    FileSystemManager fsManager = GaeVFS.getManager(); // Combined Local is true by default
+    FileObject fileObject = fsManager.resolveFile( "/home/someuser/somedir/somefile.txt" );
+    if ( !fileObject.exists() ) {
+        fileObject.createFile(); // create GaeVFS file
+    }
+}}}
+
+Local and GaeVFS resources may share directory paths. For example, a file on the local file system can be specified by the URI `file:///home/someuser/somedir/localfile.txt` and a file on the GaeVFS file system may be specified by `gae:///home/someuser/somedir/gaefile.txt`. If the Combined Local option is enabled, then listing the contents of the `/home/someuser/somedir` directory lists both the local and GaeVFS resources with that parent directory path. For example, consider the following code:
+
+{{{
+    FileSystemManager fsManager = GaeVFS.getManager(); // Combined Local is true by default
+    FileObject fileObject = fsManager.resolveFile( "/home/someuser/somedir" );
+    if ( fileObject.exists() ) {
+        FileObject[] children = fileObject.listChildren();
+        System.out.println( "number of children: " + children.length );
+        for ( FileObject child : children ) {
+            System.out.println( child.getName().getBaseName() );
+        }
+    }
+}}}
+
+The output of the above code is:
+
+{{{
+    number of children: 2
+    localfile.txt
+    gaefile.txt
+}}}
+
+An example use of the Combined Local option might be to create a `/images` directory for your GAE-hosted web application that is populated with an initial set of image files that reside within the local file system. You could then provide a mechanism for uploading additional images--maybe using the !GaeVfsServlet--which would be stored within the GaeVFS file system. You could then serve both local and GaeVFS images from the same directory path--again, possibly using the GaeVfsServlet--without having to differentiate between the two file systems. Of course, uploaded image files cannot overwrite or replace images that reside on the local file system, which are read-only and cannot be renamed or deleted.
+
+Finally, if the Combined Local option is enabled, you may still specify the scheme to restrict `FileSystemManager.resolveFile()` to the local or GaeVFS file system (or any file system supported by Commons VFS). 
