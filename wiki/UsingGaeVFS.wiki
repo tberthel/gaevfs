@@ -33,8 +33,7 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
     }
 }}}
 
-*WARNING!* Do not use the `VFS.getManager()` method provided by Commons VFS to get a
-`FileSystemManager` when running within GAE. If you do, Commons VFS will fail to initialize and it will not work!
+<font color="red">*IMPORTANT!*</font> Do not use the `VFS.getManager()` method provided by Commons VFS to get a `FileSystemManager` when running within GAE. If you do, Commons VFS will fail to initialize and it will not work!
 
 == Clearing the File Cache ==
 
@@ -61,9 +60,6 @@ public void destroy() {
     GaeVFS.close(); // this is not strictly required, but good practice
 }
 }}}
-= Additional Information =
-
-Read about the [CombinedLocalOption Combined Local Option] for more details about using GaeVFS.
 
 ----
 Copyright 2009 [http://www.newatlanta.com/ New Atlanta Communications, LLC]
