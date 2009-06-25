@@ -1,10 +1,8 @@
 #summary Writing code that runs unmodified in either GAE or non-GAE environments.
 
-= Introduction =
+= Writing Portable Code =
 
 The primary goal of GaeVFS is to provide a portability layer that allows you to write application code to access the file system--both reads and writes--that runs unmodified in either GAE or non-GAE servlet environments.
-
-= Details =
 
 Key to achieving application portability is the fact that Commons VFS has the ability to access the local file system as an alternative API to `java.io.*`. Also important is the GaeVFS [CombinedLocalOption Combined Local option]--enabled by default--that allows you to reference either local or virtual file system resources without specifying the file system scheme (normally, `file://` for local resources and `gae://` for virtual resources).
 
@@ -57,6 +55,8 @@ public class ExampleServlet extends HttpServlet
     }
 }
 }}}
+
+<font color="red">*IMPORTANT!*</font> Do not use the `VFS.getManager()` method provided by Commons VFS to get a `FileSystemManager` when running within GAE. If you do, Commons VFS will fail to initialize and it will not work!
 
 ----
 Copyright 2009 [http://www.newatlanta.com/ New Atlanta Communications, LLC]
