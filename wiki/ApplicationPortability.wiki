@@ -8,7 +8,10 @@ Key to achieving application portability is the fact that Commons VFS has the ab
 
 As illustrated in the example servlet code below, the basic strategy to achieve portability is to get a static `FileSystemManager` instance either from GaeVFS (if running within GAE) or from Commons VFS (if not running within GAE), and then perform all file system reads and writes via the `FileSytemManager` and [http://commons.apache.org/vfs/api.html Commons VFS API] instead of using `java.io.*` classes.
 
+<font color="red">*IMPORTANT!*</font> Do not use the `VFS.getManager()` method provided by Commons VFS to get a `FileSystemManager` when running within GAE. If you do, Commons VFS will fail to initialize and it will not work!
+
 (NOTE: the Google code formatter doesn't render properly in IE, or IE doesn't render the Google code formatter properly. Whatever. Try another browser, such as Firefox, if you're having trouble reading the following code in IE. This is also the case when [http://code.google.com/p/gaevfs/source/browse/#svn/trunk/src/com/newatlanta/commons/vfs/provider/gae browsing the source code].)
+
 {{{
 import javax.servlet.*;
 import javax.servlet.http.*;
@@ -55,8 +58,6 @@ public class ExampleServlet extends HttpServlet
     }
 }
 }}}
-
-<font color="red">*IMPORTANT!*</font> Do not use the `VFS.getManager()` method provided by Commons VFS to get a `FileSystemManager` when running within GAE. If you do, Commons VFS will fail to initialize and it will not work!
 
 ----
 Copyright 2009 [http://www.newatlanta.com/ New Atlanta Communications, LLC]
