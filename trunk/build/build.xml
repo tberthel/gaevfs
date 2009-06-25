@@ -1,0 +1,55 @@
+<project name="gaevfs" default="jar" basedir="..">
+
+	<!-- global properties -->
+	<property name="build.number" value="0.2"/>
+	<property name="build.name" value="gaevfs-${build.number}"/>
+	<property name="src.dir" value="./src/"/>
+	<property name="classes.dir" value="./war/WEB-INF/classes/"/>
+	<property name="project.lib.dir" value="./lib"/>
+	<property name="webinf.lib.dir" value="./war/WEB-INF/lib"/>
+	
+	<target name="clean">
+		<delete dir="${classes.dir}"/>
+		<delete file="${build.name}.jar"/>
+		<delete file="${build.name}.zip"/>
+	</target>
+	
+	<target name="init">
+		<mkdir dir="${classes.dir}"/>
+	</target>
+
+	<target name="compile" depends="init">
+		<javac srcdir="${src.dir}" destdir="${classes.dir}" debug="true"
+				deprecation="true" listfiles="true">
+			<classpath>
+				<pathelement path="${project.lib.dir}/servlet23.jar"/>
+				<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.1.jar"/>
+				<pathelement path="${webinf.lib.dir}/commons-fileupload-1.2.1.jar"/>
+				<pathelement path="${webinf.lib.dir}/commons-io-1.4.jar"/>
+				<pathelement path="${webinf.lib.dir}/commons-lang-2.4.jar"/>
+				<pathelement path="${webinf.lib.dir}/commons-vfs-2.0-SNAPSHOT.jar"/>
+			</classpath>
+		</javac>
+	</target>
+	
+	<target name="jar" depends="compile" description="build the JAR file">
+		<jar jarfile="${build.name}.jar">
+			<metainf dir="${src.dir}META-INF" includes="vfs-providers.xml"/>
+			<fileset dir="${classes.dir}" includes="**/*.class"/>
+		</jar>
+	</target>
+	
+	<target name="dist" depends="clean,jar" description="create the download package">
+		<zip destfile="${build.name}.zip" filesonly="true">
+			<zipfileset dir="." prefix="${build.name}">
+				<include name="src/**/*"/>
+				<include name="war/upload.html"/>
+				<include name="war/WEB-INF/web.xml"/>
+				<include name="${build.name}.jar"/>
+				<include name="*.txt"/>
+			</zipfileset>
+			<zipfileset dir="." includes="war/WEB-INF/lib/commons-vfs-2.0-SNAPSHOT.jar"
+								fullpath="${build.name}/commons-vfs-2.0-SNAPSHOT.jar"/>
+		</zip>
+	</target>
+</project>
