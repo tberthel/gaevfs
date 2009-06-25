@@ -16,7 +16,7 @@ Examples:
 
 Directory paths may be specified either with or without a trailing "/".
 
-*NOTE.* The [CombinedLocalOption Combined Local Option] allows you to access GaeVFS by specifying URIs that omit the `gae` scheme.
+*NOTE:* the [CombinedLocalOption Combined Local Option] allows you to access GaeVFS file system resources by specifying URIs that omit the `gae` scheme.
 
 = Details =
 
