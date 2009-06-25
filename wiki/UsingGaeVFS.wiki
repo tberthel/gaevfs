@@ -16,6 +16,8 @@ Examples:
 
 Directory paths may be specified either with or without a trailing "/".
 
+*NOTE.* The [CombinedLocalOption Combined Local Option] allows you to access GaeVFS by specifying URIs that omit the `gae` scheme.
+
 = Details =
 
 In order to use GaeVFS, you *must* invoke the `GaeVFS.getManager()` static method to obtain a `FileSystemManager` instance. Then use the [http://commons.apache.org/vfs/api.html Commons VFS API] as you normally would; for example:
