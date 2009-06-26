@@ -22,7 +22,9 @@ Examples:
 
 = Details =
 
-In order to use GaeVFS, you *must* invoke the `GaeVFS.getManager()` static method to obtain a `FileSystemManager` instance. Then use the [http://commons.apache.org/vfs/api.html Commons VFS API] as you normally would; for example:
+In order to use GaeVFS, you *must* first set the webapp root path via the `GaeVFS.setRootPath()` static method as illustrated below. It's probably best to do this within your servlet's `init()` method. If you don't pass the correct webapp root directory, you may get unexpected errors.
+
+After setting the webapp root path, invoke the `GaeVFS.getManager()` static method to obtain a `FileSystemManager` instance. Then use the [http://commons.apache.org/vfs/api.html Commons VFS API] as you normally would; for example:
 
 {{{
 import org.apache.commons.vfs.FileSystemManager;
