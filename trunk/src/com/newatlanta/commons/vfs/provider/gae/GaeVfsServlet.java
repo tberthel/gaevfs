@@ -109,17 +109,25 @@ public class GaeVfsServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
 
-        rootPathLen = this.getServletContext().getRealPath( "/" ).length();
         dirListingAllowed = Boolean.parseBoolean( getInitParameter( "dirListingAllowed" ) );
         uploadRedirect = getInitParameter( "uploadRedirect" );
+        
+		String rootPath = getServletContext().getRealPath( "/" );
+		rootPathLen = rootPath.length();
+		
+		// for development on Windows
+		if ( System.getProperty( "os.name" ).startsWith( "Windows" ) ) {
+		    rootPathLen++;
+		}
 
+        GaeVFS.setRootPath( rootPath );
+        
         try {
             String initDirs = getInitParameter( "initDirs" );
             if ( initDirs != null ) {
                 StringTokenizer st = new StringTokenizer( initDirs, "," );
                 while ( st.hasMoreTokens() ) {
-                    FileObject fileObject = GaeVFS.resolveFile( "gae://"
-                            + getServletContext().getRealPath( st.nextToken() ) );
+                    FileObject fileObject = GaeVFS.resolveFile( "gae://" + st.nextToken() );
                     if ( !fileObject.exists() ) {
                         fileObject.createFolder();
                     }
@@ -145,7 +153,7 @@ public class GaeVfsServlet extends HttpServlet {
     @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res ) throws ServletException, IOException {
         try {
-            FileObject fileObject = GaeVFS.resolveFile( getServletContext().getRealPath( req.getRequestURI() ) );
+            FileObject fileObject = GaeVFS.resolveFile( req.getRequestURI() );
             if ( !fileObject.exists() ) {
                 res.sendError( HttpServletResponse.SC_NOT_FOUND );
                 return;
@@ -185,7 +193,7 @@ public class GaeVfsServlet extends HttpServlet {
      * for the specified GaeVFS folder.
      */
     private String getListHTML( FileObject fileObject ) throws IOException {
-        String title = "Directory: " + fileObject.getName().getPath().substring( rootPathLen );
+        String title = "Directory: " + getRelativePath( fileObject );
 
         StringBuffer buf = new StringBuffer( 4096 );
         buf.append( "<HTML><HEAD><TITLE>" );
@@ -196,7 +204,7 @@ public class GaeVfsServlet extends HttpServlet {
 
         if ( fileObject.getParent() != null ) {
             buf.append( "<TR><TD><A HREF='" );
-            String parentPath = fileObject.getParent().getName().getPath().substring( rootPathLen );
+            String parentPath = getRelativePath( fileObject.getParent() );
             buf.append( parentPath );
             if ( !parentPath.endsWith( "/" ) ) {
                 buf.append( "/" );
@@ -216,7 +224,7 @@ public class GaeVfsServlet extends HttpServlet {
             buf.append( "<tr><th align='left'>Name</th><th>Size</th><th aligh='left'>Type</th><th align='left'>Date modified</th></tr>" );
             for ( FileObject child : children ) {
                 buf.append( "<TR><TD><A HREF=\"" );
-                buf.append( child.getName().getPath().substring( rootPathLen ) );
+                buf.append( getRelativePath( child ) );
                 buf.append( "\">" );
                 buf.append( StringEscapeUtils.escapeHtml( child.getName().getBaseName() ) );
                 if ( child.getType().hasChildren() ) {
@@ -238,6 +246,10 @@ public class GaeVfsServlet extends HttpServlet {
         buf.append( "</BODY></HTML>\n" );
 
         return buf.toString();
+    }
+    
+    private String getRelativePath( FileObject fileObject ) {
+        return fileObject.getName().getPath().substring( rootPathLen - 1 );
     }
 
     /**
@@ -275,8 +287,7 @@ public class GaeVfsServlet extends HttpServlet {
                         }
                     }
                 } else {
-                    FileObject fileObject = GaeVFS.resolveFile( "gae://"
-                            + getServletContext().getRealPath( path + item.getName() ) );
+                    FileObject fileObject = GaeVFS.resolveFile( "gae://" + path + item.getName() );
                     copyAndClose( item.openStream(), fileObject.getContent().getOutputStream() );
                 }
             }

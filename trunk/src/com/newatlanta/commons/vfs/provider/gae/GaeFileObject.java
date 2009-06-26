@@ -75,19 +75,31 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected void doAttach() throws FileSystemException {
+        Key key = createKey( true );
         try {
             if ( entity == null ) {
-                entity = datastore.get( createKey( true ) );
+                entity = datastore.get( key );
             }
             injectType( getEntityFileType() );
         } catch ( EntityNotFoundException e ) {
-            entity = new Entity( ENTITY_KIND, getName().getPath(), getParentKey() );
+            entity = new Entity( ENTITY_KIND, key.getName(), key.getParent() );
             injectType( FileType.IMAGINARY ); // file doesn't exist
         }
     }
 
     private Key createKey( boolean includeParent ) throws FileSystemException {
-        return KeyFactory.createKey( includeParent ? getParentKey() : null, ENTITY_KIND, getName().getPath() );
+        return KeyFactory.createKey( includeParent ? getParentKey() : null, ENTITY_KIND, getKeyName() );
+    }
+    
+    /**
+     * Key names are relative paths from the webapp root directory
+     */
+    private String getKeyName() {
+        String rootPath = getFileSystem().getRootName().getPath();
+        if ( rootPath.equals( getName().getPath() ) ) {
+            return "/";
+        }
+        return getName().getPath().substring( rootPath.length() );
     }
 
     /**

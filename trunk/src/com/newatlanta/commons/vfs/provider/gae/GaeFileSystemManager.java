@@ -18,7 +18,6 @@ package com.newatlanta.commons.vfs.provider.gae;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.FileSystemOptions;
-import org.apache.commons.vfs.FileType;
 import org.apache.commons.vfs.impl.StandardFileSystemManager;
 import org.apache.commons.vfs.provider.UriParser;
 
@@ -51,13 +50,18 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
         filesCache.clear();
     }
 
-    @Override
-    public void init() throws FileSystemException {
+    public void init( String rootPath ) throws FileSystemException {   
         filesCache = new GaeMemcacheFilesCache();
-        this.setFilesCache( filesCache );
+        setFilesCache( filesCache );
+        
         // make sure our superclass initializes properly
         super.setConfiguration( getClass().getSuperclass().getResource( CONFIG_RESOURCE ) );
         super.init();
+        
+        if ( !rootPath.startsWith( "/" ) ) {
+            rootPath = "/" + rootPath;
+        }
+        setBaseFile( new java.io.File( rootPath ) );
     }
 
     /**
@@ -65,11 +69,10 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
      * configuration
      */
     @Override
-    public FileObject resolveFile( final FileObject baseFile, final String uri, final FileSystemOptions opts )
+    public FileObject resolveFile( final FileObject baseFile, String uri, final FileSystemOptions opts )
             throws FileSystemException {
         // let the specified provider handle it
         if ( !isCombinedLocal || isSchemeSpecified( uri ) ) {
-            // baseFile should be null if scheme specified (do we care?)
             return super.resolveFile( baseFile, uri, opts );
         }
 
@@ -77,8 +80,11 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
         FileObject gaeFile;
 
         if ( baseFile != null ) {
+            if ( uri.startsWith( "/" ) ) {
+                uri = uri.substring( 1 ); // create relative uri
+            }
             FileObject fileObject = baseFile.resolveFile( uri );
-            if ( fileObject.exists() && ( fileObject.getType() == FileType.FILE ) ) {
+            if ( fileObject.exists() && ( fileObject.getType().hasContent() ) ) {
                 return fileObject; // return existing file
             }
             // fileObject doesn't exist or is a folder, check other file system
@@ -87,18 +93,16 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
                 localFile = super.resolveFile( null, "file://" + baseFile.getName().getPath() + "/" + uri, opts );
             } else {
                 localFile = fileObject;
-                StringBuffer basePath = new StringBuffer();
-                UriParser.extractScheme( baseFile.getName().getURI(), basePath );
-                gaeFile = super.resolveFile( null, "gae:" + basePath + "/" + uri, opts );
+                gaeFile = super.resolveFile( null, "gae://" + GaeFileNameParser.getBasePath( baseFile ) + "/" + uri, opts );
             }
         } else {
             // neither scheme nor baseFile specified, check local first
             localFile = super.resolveFile( null, uri, opts );
-            if ( localFile.exists() && ( localFile.getType() == FileType.FILE ) ) {
+            if ( localFile.exists() && ( localFile.getType().hasContent() ) ) {
                 // return existing local files
                 return localFile;
             }
-            // localFile doesn't exist or is a folder, check the GAE file system
+            // localFile doesn't exist or is a folder, check GAE file system
             gaeFile = super.resolveFile( null, "gae://" + uri, opts );
         }
 
