@@ -83,6 +83,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             // if uri starts with "/", determine if it includes the base path;
             // if it doesn't, then remove the leading "/" to create a relative path
             uri = checkRelativity( baseFile, uri );
+            
             FileObject fileObject = super.resolveFile( baseFile, uri, opts );
             if ( fileObject.exists() && ( fileObject.getType().hasContent() ) ) {
                 return fileObject; // return existing file
