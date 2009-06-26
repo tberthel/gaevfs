@@ -19,7 +19,6 @@ import java.util.Collection;
 
 import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
-import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.FileSystemOptions;
 import org.apache.commons.vfs.provider.AbstractFileSystem;
 
@@ -32,16 +31,6 @@ public class GaeFileSystem extends AbstractFileSystem {
 
     protected GaeFileSystem( FileName rootName, FileSystemOptions fileSystemOptions ) {
         super( rootName, null, fileSystemOptions );
-    }
-
-    @Override
-    public void init() throws FileSystemException {
-        super.init();
-
-        // make sure the root folder exists (why?!)
-        if ( !getRoot().exists() ) {
-            getRoot().createFolder();
-        }
     }
 
     @SuppressWarnings("unchecked")
