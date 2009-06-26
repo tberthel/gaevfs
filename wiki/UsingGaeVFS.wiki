@@ -28,11 +28,16 @@ import org.apache.commons.vfs.FileObject;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
     .
     .
+    GaeVFS.setRootPath( getServletContext.getRealPath( "/" ) );
+    .
+    .
     FileSystemManager fsManager = GaeVFS.getManager();
     FileObject tmpFolder = fsManager.resolveFile( "gae:///tmp" );
     if ( !tmpFolder.exists() ) {
         tmpFolder.createFolder();
     }
+    .
+    .
 }}}
 
 <font color="red">*IMPORTANT!*</font> Do not use the `VFS.getManager()` method provided by Commons VFS to get a `FileSystemManager` when running within GAE. If you do, Commons VFS will fail to initialize and it will not work!
