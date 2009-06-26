@@ -90,7 +90,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             // fileObject doesn't exist or is a folder, check other file system
             if ( fileObject.getName().getScheme().equals( "gae" ) ) {
                 gaeFile = fileObject;
-                localFile = super.resolveFile( baseFile, "file://" + uri, opts );
+                localFile = super.resolveFile( null, "file://" + baseFile.getName().getPath() + "/" + uri, opts );
             } else {
                 localFile = fileObject;
                 gaeFile = super.resolveFile( baseFile, "gae://" + uri, opts );
