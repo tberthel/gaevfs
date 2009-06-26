@@ -66,10 +66,7 @@ public class GaeFileNameParser extends AbstractFileNameParser {
         return new GaeFileName( scheme, name.toString(), fileType );
     }
     
-    public static String getBasePath( FileObject baseFile ) {
-        if ( baseFile == null ) {
-            return null;
-        }
+    public String getBasePath( FileObject baseFile ) {
         StringBuffer basePath = new StringBuffer();
         String scheme = UriParser.extractScheme( baseFile.getName().getURI(), basePath );
         if ( scheme.equals( "file" ) ) {
