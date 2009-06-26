@@ -12,7 +12,7 @@ Absolute paths must be within the webapp root directory. Any path that is not wi
 
 It's probably easiest to just use relative paths and let GaeVFS handle the path translations transparently. The exception might be in cases where you're [ApplicationPortability writing portable code] to run in both GAE and non-GAE environments. 
 
-*NOTE:* the [CombinedLocalOption Combined Local Option] allows you to access GaeVFS file system resources by specifying URIs that omit the `gae` scheme.
+*NOTE:* the [CombinedLocalOption Combined Local Option] allows you to access GaeVFS file system resources by specifying URIs that omit the `gae://` scheme.
 
 = Details =
 
