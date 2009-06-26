@@ -15,38 +15,51 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import javax.servlet.ServletException;
+
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 
 /**
  * Creates and initializes a GaeFileSystemManager.
  * 
- * IMPORTANT! Servlets that use GaeVFS must clear the ThreadLocal cache at the
- * end of every request via the GaeVFS.clearFilesCache() method. See additional
- * comments within the GaeMemcacheFilesCache class.
+ * IMPORTANT! You must set the path to the webapp root directory via the
+ * GaeVFS.setRootPath() method before invoking GaeVFS.getManager().
+ * 
+ * IMPORTANT! You must clear the ThreadLocal cache at the end of every request
+ * via the GaeVFS.clearFilesCache() method. See additional comments within the
+ * GaeMemcacheFilesCache class.
  *
  * @author Vince Bonfanti <vbonfanti@gmail.com>
  */
 public class GaeVFS {
 
     static {
-        // GAE doesn't set these values; set them here so Commons VFS will
-        // initialize properly
+        // GAE doesn't set these values; Commons VFS will fail to
+        // initialize if they're not set
         System.setProperty( "os.arch", "" );
         System.setProperty( "os.version", "" );
     }
 
     private static GaeFileSystemManager fsManager;
+    private static String rootPath;
 
-    public static GaeFileSystemManager getManager() throws FileSystemException {
+    public static GaeFileSystemManager getManager() throws FileSystemException, ServletException {
         if ( fsManager == null ) {
+            if ( rootPath == null ) {
+                throw new ServletException( "root path not defined" ); // should be FileSystemException?
+            }
             fsManager = new GaeFileSystemManager();
-            fsManager.init();
+            fsManager.init( rootPath );
         }
         return fsManager;
     }
+    
+    public static void setRootPath( String _rootPath ) {
+        rootPath = _rootPath;
+    }
 
-    public static FileObject resolveFile( String name ) throws FileSystemException {
+    public static FileObject resolveFile( String name ) throws FileSystemException, ServletException {
         return getManager().resolveFile( name );
     }
 

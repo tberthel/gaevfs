@@ -15,16 +15,15 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
-import org.apache.commons.vfs.FileName;
-import org.apache.commons.vfs.FileType;
-import org.apache.commons.vfs.provider.local.GenericFileNameParser;
+import org.apache.commons.vfs.*;
+import org.apache.commons.vfs.provider.*;
 
 /**
- * Creates GaeFileName instances.
+ * Parses GAE URIs and creates GaeFileName instances.
  *  
  * @author Vince Bonfanti <vbonfanti@gmail.com>
  */
-public class GaeFileNameParser extends GenericFileNameParser {
+public class GaeFileNameParser extends AbstractFileNameParser {
 
     private static GaeFileNameParser instance = new GaeFileNameParser();
 
@@ -32,8 +31,50 @@ public class GaeFileNameParser extends GenericFileNameParser {
         return instance;
     }
 
-    @Override
-    protected FileName createFileName( String scheme, String rootFile, String path, FileType type ) {
-        return new GaeFileName( scheme, path, type );
+    /**
+     * This method copied from LocalFileNameParser and modified for GaeVFS. The
+     * main point is to make sure we always have a path beneath the webapp root.
+     */
+    public FileName parseUri( VfsComponentContext context, FileName ignore, String filename )
+            throws FileSystemException
+    {
+        StringBuffer name = new StringBuffer();
+
+        // Extract the scheme
+        String scheme = UriParser.extractScheme( filename, name );
+        if ( scheme == null ) { // this should never happen
+            scheme = "gae";
+        }
+
+        // Remove encoding, and adjust the separators
+        UriParser.canonicalizePath( name, 0, name.length(), this );
+        UriParser.fixSeparators( name );
+
+        // Normalise the path
+        FileType fileType = UriParser.normalisePath( name );
+        
+        // all GAE files *must* be relative to the base file, which must be the
+        // webapp root (though we have no way of enforcing this); if given a uri
+        // that doesn't start with the base path, add the base path
+        FileObject baseFile = context.getFileSystemManager().getBaseFile();
+        if ( baseFile != null ) {
+            String basePath = getBasePath( baseFile );
+            if( name.indexOf( basePath ) != 0 ) { // if ( !name.startsWith( basePath ) )
+                name.insert( 0, basePath );
+            }
+        }
+        return new GaeFileName( scheme, name.toString(), fileType );
+    }
+    
+    public static String getBasePath( FileObject baseFile ) {
+        if ( baseFile == null ) {
+            return null;
+        }
+        StringBuffer basePath = new StringBuffer();
+        String scheme = UriParser.extractScheme( baseFile.getName().getURI(), basePath );
+        if ( scheme.equals( "file" ) ) {
+            basePath.delete( 0, 2 ); // remove leading "//"
+        }
+        return basePath.toString().intern();
     }
 }
