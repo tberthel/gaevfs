@@ -111,14 +111,14 @@ public class GaeVfsServlet extends HttpServlet {
 
         dirListingAllowed = Boolean.parseBoolean( getInitParameter( "dirListingAllowed" ) );
         uploadRedirect = getInitParameter( "uploadRedirect" );
-        
-		String rootPath = getServletContext().getRealPath( "/" );
-		rootPathLen = rootPath.length();
-		
-		// for development on Windows
-		if ( System.getProperty( "os.name" ).startsWith( "Windows" ) ) {
-		    rootPathLen++;
-		}
+
+        String rootPath = getServletContext().getRealPath( "/" );
+        rootPathLen = rootPath.length();
+
+        // for development on Windows
+        if ( System.getProperty( "os.name" ).startsWith( "Windows" ) ) {
+            rootPathLen++;
+        }
 
         GaeVFS.setRootPath( rootPath );
         
