@@ -28,11 +28,14 @@ In summary, the Combined Local option of GaeVFS allows you to write code that re
 
 = Details =
 
-The GaeVFS file system is initialized by invoking the `GaeVFS.getManager()` method, which returns a `GaeFileSystemManager` instance that implements the `FileSystemManager` interface. References to `GaeVFS.getManager()` always return the same static `GaeFileSystemManager` instance:
+The GaeVFS file system is initialized by invoking the `GaeVFS.getManager()` method, which returns a `GaeFileSystemManager` instance that implements the `FileSystemManager` interface. (You must first set the webapp root path via the `GaeVFS.setRootPath()` method before invoking `GaeVFS.getManager()` the first time. You only need to invoke `GaeVFS.setRootPath()` once, probably within your servlet's `init()` method.) References to `GaeVFS.getManager()` always return the same static `GaeFileSystemManager` instance:
 
 {{{
 import org.apache.commons.vfs.*;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+    .
+    .
+    GaeVFS.setRootPath( getServletContext.getRealPath( "/" ) );
     .
     .
     FileSystemManager fsManager = GaeVFS.getManager();
@@ -45,6 +48,7 @@ The Combined Local option can be enabled or disabled at any time via the `GaeFil
 The `FileSystemManager.resolveFile()` method, in it's various overloaded forms, is used to locate file system resources. If the Combined Local option is disabled, the `FileSystemManager.resolveFile()` method behaves exactly as described in the [http://commons.apache.org/vfs/apidocs/index.html Commons VFS API documentation]. That is, if the Combined Local option is disabled, you must specify the `gae://` scheme to reference GaeVFS file system resources, and may either specify or omit the `file://` scheme to reference local file system resources. For example:
 
 {{{
+    GaeVFS.setRootPath( getServletContext.getRealPath( "/" ) );
     FileSystemManager fsManager = GaeVFS.getManager().setCombinedLocal( false );
     FileObject gaeFile = fsManager.resolveFile( "gae:///home/someuser/somedir/gfile.txt" ):
     FileObject localFile = fsManager.resolveFile( "file:///home/someuser/somedir/afile.txt" );
@@ -62,6 +66,7 @@ If the Combined Local option is enabled--which is the default--then you may omit
 For example:
 
 {{{
+    GaeVFS.setRootPath( getServletContext.getRealPath( "/" ) );
     FileSystemManager fsManager = GaeVFS.getManager(); // Combined Local is true by default
     FileObject fileObject = fsManager.resolveFile( "/home/someuser/somedir/somefile.txt" );
     if ( !fileObject.exists() ) {
@@ -72,6 +77,7 @@ For example:
 Local and GaeVFS resources may share directory paths. For example, a file on the local file system can be specified by the URI `file:///home/someuser/somedir/localfile.txt` and a file on the GaeVFS file system may be specified by `gae:///home/someuser/somedir/gaefile.txt`. If the Combined Local option is enabled, then listing the contents of the `/home/someuser/somedir` directory lists both the local and GaeVFS resources with that parent directory path. For example, consider the following code:
 
 {{{
+    GaeVFS.setRootPath( getServletContext.getRealPath( "/" ) );
     FileSystemManager fsManager = GaeVFS.getManager(); // Combined Local is true by default
     FileObject fileObject = fsManager.resolveFile( "/home/someuser/somedir" );
     if ( fileObject.exists() ) {
