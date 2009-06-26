@@ -45,6 +45,7 @@
 				<include name="src/**/*"/>
 				<include name="war/upload.html"/>
 				<include name="war/WEB-INF/web.xml"/>
+				<include name="war/WEB-INF/datastore-indexes.xml"/>
 				<include name="${build.name}.jar"/>
 				<include name="*.txt"/>
 			</zipfileset>
