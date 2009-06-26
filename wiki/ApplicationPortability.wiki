@@ -28,7 +28,12 @@ public class ExampleServlet extends HttpServlet
         // determine if we're running within GAE and get the appropriate FileSystemManager
         isGoogleAppEngine = getServletContext().getServerInfo().contains( "Google" );
         try {
-            fsManager = isGoogleAppEngine ? GaeVFS.getManager() : VFS.getManager();
+            if ( isGoogleAppEngine ) {
+                GaeVFS.setRootPath( getServletContext.getRealPath( "/" ) );
+                fsManager = GaeVFS.getManager();
+            } else {
+                fsManager = VFS.getManager();
+            }
         } catch ( FileSystemException fse ) {
             throw new ServletException( fse );
         }
