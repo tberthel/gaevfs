@@ -70,7 +70,8 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
      */
     @Override
     public FileObject resolveFile( final FileObject baseFile, String uri, final FileSystemOptions opts )
-            throws FileSystemException {
+            throws FileSystemException
+    {
         // let the specified provider handle it
         if ( !isCombinedLocal || isSchemeSpecified( uri ) ) {
             return super.resolveFile( baseFile, uri, opts );
