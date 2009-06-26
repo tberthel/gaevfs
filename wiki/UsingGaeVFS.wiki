@@ -10,7 +10,7 @@ Where _path_ is a UNIX-style (or URI-style) absolute or relative path. Any path 
 
 Absolute paths must be within the webapp root directory. Any path that is not within the webapp root directory is interpreted to be a relative path from the webapp root directory, regardless of whether it starts with a "/" or not. 
 
-It's probably easiest to just use relative paths and let GaeVFS handle the path translations transparently. The exception might be in cases where you're writing portable code to run in both GAE and non-GAE environments. 
+It's probably easiest to just use relative paths and let GaeVFS handle the path translations transparently. The exception might be in cases where you're [ApplicationPortability writing portable code] to run in both GAE and non-GAE environments. 
 
 *NOTE:* the [CombinedLocalOption Combined Local Option] allows you to access GaeVFS file system resources by specifying URIs that omit the `gae` scheme.
 
