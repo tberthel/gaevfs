@@ -22,7 +22,7 @@
 		<javac srcdir="${src.dir}" destdir="${classes.dir}" debug="true"
 				deprecation="true" listfiles="true">
 			<classpath>
-				<pathelement path="${project.lib.dir}/servlet23.jar"/>
+				<pathelement path="${project.lib.dir}/geronimo-servlet_2.5_spec-1.2.jar"/>
 				<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.1.jar"/>
 				<pathelement path="${webinf.lib.dir}/commons-fileupload-1.2.1.jar"/>
 				<pathelement path="${webinf.lib.dir}/commons-io-1.4.jar"/>
