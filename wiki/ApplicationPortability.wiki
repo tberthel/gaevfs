@@ -10,7 +10,7 @@ As illustrated in the example servlet code below, the basic strategy to achieve 
 
 <font color="red">*IMPORTANT!*</font> Do not use the `VFS.getManager()` method provided by Commons VFS to get a `FileSystemManager` when running within GAE. If you do, Commons VFS will fail to initialize and it will not work!
 
-(NOTE: the Google code formatter doesn't render properly in IE, or IE doesn't render the Google code formatter properly. Whatever. Try another browser, such as Firefox, if you're having trouble reading the following code in IE. This is also the case when [http://code.google.com/p/gaevfs/source/browse/#svn/trunk/src/com/newatlanta/commons/vfs/provider/gae browsing the source code].)
+(NOTE: the Google code formatter doesn't render properly in IE, or IE doesn't render the Google code formatter properly. Whatever. Try another browser, such as Firefox, if you're having trouble reading the following code in IE.)
 
 {{{
 import javax.servlet.*;
