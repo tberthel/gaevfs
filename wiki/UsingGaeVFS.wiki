@@ -8,7 +8,7 @@ Before using GaeVFS you should review the [http://commons.apache.org/vfs/api.htm
 
 Where _path_ is a UNIX-style (or URI-style) absolute or relative path. Paths that do not start with "/" are interpreted as relative paths from the webapp root directory. Paths that start with "/" are interpreted (initially) as full absolute paths.
 
-Absolute paths must specify sub-directories of the webapp root directory. Any absolute path that does not specify such a sub-directory is interpreted to be a relative path from the webapp root directory, regardless of the fact that it starts with a "/". 
+Absolute paths must specify sub-directories of the webapp root directory. Any absolute path that does not specify such a sub-directory is interpreted to be a relative path from the webapp root directory, regardless of the fact that it starts with "/". 
 
 It's probably easiest to just use relative paths and let GaeVFS handle the path translations transparently. The exception might be in cases where you're [ApplicationPortability writing portable code] to run in both GAE and non-GAE environments.
 
