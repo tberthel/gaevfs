@@ -1,6 +1,6 @@
 #summary Getting started with GaeVFS.
 
-= Introduction =
+= Getting Started =
 
 Before using GaeVFS you should review the [http://commons.apache.org/vfs/api.html Commons VFS API documentation]. The GaeVFS jar file contains a `vfs-providers.xml` configuration file that binds GaeVFS to the scheme `gae`. The URI format supported by GaeVFS is:
 
@@ -20,7 +20,7 @@ Examples:
 
 *NOTE:* the [CombinedLocalOption Combined Local Option] allows you to access GaeVFS file system resources by specifying URIs that omit the `gae://` scheme.
 
-= Details =
+== Initializing GaeVFS ==
 
 In order to use GaeVFS, you *must* first set the webapp root directory path via the `GaeVFS.setRootPath()` static method as illustrated below. It's best to do this within your servlet's `init()` method. If you don't specify the correct webapp root directory, you may get unexpected errors.
 
