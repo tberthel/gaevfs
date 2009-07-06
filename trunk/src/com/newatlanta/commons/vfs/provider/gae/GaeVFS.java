@@ -15,8 +15,6 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
-import javax.servlet.ServletException;
-
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 
@@ -44,10 +42,10 @@ public class GaeVFS {
     private static GaeFileSystemManager fsManager;
     private static String rootPath;
 
-    public static GaeFileSystemManager getManager() throws FileSystemException, ServletException {
+    public static GaeFileSystemManager getManager() throws FileSystemException {
         if ( fsManager == null ) {
             if ( rootPath == null ) {
-                throw new ServletException( "root path not defined" ); // should be FileSystemException?
+                throw new FileSystemException( "root path not defined" );
             }
             fsManager = new GaeFileSystemManager();
             fsManager.init( rootPath );
@@ -59,7 +57,7 @@ public class GaeVFS {
         rootPath = _rootPath;
     }
 
-    public static FileObject resolveFile( String name ) throws FileSystemException, ServletException {
+    public static FileObject resolveFile( String name ) throws FileSystemException {
         return getManager().resolveFile( name );
     }
 
