@@ -25,8 +25,10 @@ import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.FileType;
+import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.provider.AbstractFileObject;
 import org.apache.commons.vfs.provider.AbstractFileSystem;
+import org.apache.commons.vfs.util.RandomAccessMode;
 
 import com.google.appengine.api.datastore.Blob;
 import com.google.appengine.api.datastore.DatastoreService;
@@ -61,11 +63,17 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     private Entity entity; // the wrapped GAE datastore entity
 
+    private boolean isCombinedLocal;
+    
     private transient byte[] contentBytes; // for reading from the file
     private transient ByteArrayOutputStream bytesOut; // for writing
 
     protected GaeFileObject( FileName name, AbstractFileSystem fs ) {
         super( name, fs );
+    }
+    
+    public void setCombinedLocal( boolean b ) {
+        isCombinedLocal = b;
     }
 
     /**
@@ -109,8 +117,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     private Key getParentKey() throws FileSystemException {
         FileObject parent = getParent();
-        if ( parent == null ) { // true for root file
-            return null;
+        if ( parent == null ) { // root directory
+            return KeyFactory.createKey( ENTITY_KIND, "GaeVFS" );
         }
         return ( (GaeFileObject)parent ).createKey( false );
     }
@@ -125,9 +133,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             if ( typeName.equals( FileType.FOLDER.getName() ) ) {
                 return FileType.FOLDER;
             }
-            if ( typeName.equals( FileType.FILE_OR_FOLDER.getName() ) ) {
-                return FileType.FILE_OR_FOLDER;
-            }
         }
         return FileType.IMAGINARY;
     }
@@ -139,7 +144,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * reused later, so should be able to be reattached.
      */
     @Override
-    protected void doDetach() {
+    protected void doDetach() throws FileSystemException {
+        putEntity(); // write entity to the datastore
         entity = null;
         contentBytes = null;
         bytesOut = null;
@@ -216,8 +222,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
 
     private FileObject[] getLocalChildren() throws FileSystemException {
-        GaeFileSystemManager fsManager = (GaeFileSystemManager)getFileSystem().getFileSystemManager();
-        if ( fsManager.isCombinedLocal() ) {
+        if ( isCombinedLocal ) {
+            GaeFileSystemManager fsManager = (GaeFileSystemManager)getFileSystem().getFileSystemManager();
             FileObject localFile = fsManager.resolveFile( "file://" + getName().getPath() );
             if ( localFile.exists() ) {
                 return localFile.getChildren();
@@ -282,23 +288,13 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         if ( entity == null ) { // should always attached to an entity
             return;
         }
-        if ( getType() == FileType.IMAGINARY ) { // file is being deleted
+        if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
             getFileSystem().getFileSystemManager().getFilesCache().removeFile( this );
             datastore.delete( entity.getKey() );
             entity = null;
-            return;
+        } else { // file/folder is being created or modified
+            putEntity();
         }
-        FileType entityFileType = getEntityFileType();
-        if ( entityFileType.hasChildren() ) {
-            return; // contents of folders don't change
-        }
-        if ( ( bytesOut != null ) && ( bytesOut.size() > 0 ) ) {
-            entity.setProperty( CONTENT_BLOB, new Blob( bytesOut.toByteArray() ) );
-            bytesOut = null;
-        } else if ( entityFileType.hasContent() ) {
-            return; // don't put files if content hasn't changed
-        }
-        putEntity();
     }
 
     /**
@@ -306,6 +302,17 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * correctly and update the last modified time.
      */
     private void putEntity() throws FileSystemException {
+        FileType entityFileType = getEntityFileType();
+        if ( entityFileType.hasChildren() ) {
+            return; // contents of folders don't change
+        }
+        if ( ( bytesOut != null ) && ( bytesOut.size() > 0 ) ) {
+            entity.setProperty( CONTENT_BLOB, new Blob( bytesOut.toByteArray() ) );
+            bytesOut = null;
+            contentBytes = null;
+        } else if ( entityFileType.hasContent() ) {
+            return; // don't put files if content hasn't changed
+        }
         entity.setProperty( FILETYPE, getType().getName() );
         doSetLastModTime( System.currentTimeMillis() );
         datastore.put( entity );
@@ -334,7 +341,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected long doGetContentSize() {
-        return getContents().length;
+        return getContentBytes().length;
     }
 
     /**
@@ -344,17 +351,27 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected InputStream doGetInputStream() {
-        return new ByteArrayInputStream( getContents() );
+        return new ByteArrayInputStream( getContentBytes() );
     }
 
-    private byte[] getContents() {
+    private byte[] getContentBytes() {
         if ( contentBytes == null ) {
-            contentBytes = ( (Blob)entity.getProperty( CONTENT_BLOB ) ).getBytes();
-            if ( contentBytes == null ) {
-                contentBytes = new byte[ 0 ];
-            }
+            Blob contentBlob = (Blob)entity.getProperty( CONTENT_BLOB );
+            contentBytes = ( contentBlob != null ? contentBlob.getBytes() : new byte[ 0 ] );
         }
         return contentBytes;
+    }
+    
+    /**
+     * Creates access to the file for random i/o. Is only called if doGetType()
+     * returns FileType.FILE
+     * 
+     * It is guaranteed that there are no open output streams for this file
+     * when this method is called.
+     */
+    protected RandomAccessContent doGetRandomAccessContent( RandomAccessMode mode ) {
+        bytesOut = new GaeRandomAccessContent( getContentBytes(), mode );
+        return (RandomAccessContent)bytesOut;
     }
 
     /**
@@ -367,7 +384,11 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected OutputStream doGetOutputStream( boolean bAppend ) {
-        bytesOut = new ByteArrayOutputStream( 8 * 1024 ); // 8KB initial size
+        if ( bAppend && ( doGetContentSize() > 0 ) ) {
+            bytesOut = new GaeRandomAccessContent( getContentBytes(), RandomAccessMode.READWRITE );
+        } else {
+            bytesOut = new ByteArrayOutputStream( 8 * 1024 ); // 8KB initial size
+        }
         return bytesOut;
     }
 
