@@ -83,15 +83,17 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected void doAttach() throws FileSystemException {
-        Key key = createKey( true );
+        if ( entity == null ) {
+            entity = getEntity( createKey( true ) );
+        }
+        injectType( getEntityFileType() );
+    }
+    
+    private static Entity getEntity( Key key ) {
         try {
-            if ( entity == null ) {
-                entity = datastore.get( key );
-            }
-            injectType( getEntityFileType() );
+            return datastore.get( key );
         } catch ( EntityNotFoundException e ) {
-            entity = new Entity( ENTITY_KIND, key.getName(), key.getParent() );
-            injectType( FileType.IMAGINARY ); // file doesn't exist
+            return new Entity( ENTITY_KIND, key.getName(), key.getParent() );
         }
     }
 
@@ -120,7 +122,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         if ( parent == null ) { // root directory
             return KeyFactory.createKey( ENTITY_KIND, "GaeVFS" );
         }
-        return ( (GaeFileObject)parent ).createKey( false );
+        return ((GaeFileObject)parent).createKey( false );
     }
 
     // this is needed because FileType is not a valid property type
@@ -160,13 +162,23 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected FileType doGetType() {
         try {
             // the only way to check if the entity exists is to try to read it
-            // from the datastore
             if ( ( entity != null ) && ( datastore.get( entity.getKey() ) != null ) ) {
                 return getName().getType();
             }
         } catch ( EntityNotFoundException e ) {
         }
         return FileType.IMAGINARY; // file doesn't exist
+    }
+    
+    /**
+     * Because GaeVFS uses CacheStrategy.MANUAL we must clear the children cache
+     * of our superclass before resolving the children. With the default
+     * CacheStrategy.ON_RESOLVE this would have been done for us.
+     */
+    @Override
+    public FileObject[] getChildren() throws FileSystemException {
+        super.refresh(); // clear the children cache
+        return super.getChildren();
     }
 
     /**
@@ -252,12 +264,11 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                 String newChildPath = child.getName().getPath().replace( this.getName().getPath(), newfile.getName().getPath() );
                 child.moveTo( resolveFile( newChildPath ) );
             }
-            // newfile gets detached when renaming children, so make sure it gets created
             newfile.createFolder();
         } else {
             // copy contents to the new file
-            ( (GaeFileObject)newfile ).entity.setProperty( CONTENT_BLOB, this.entity.getProperty( CONTENT_BLOB ) );
-            newfile.createFile(); // make sure parent folders get created
+            ((GaeFileObject)newfile).entity.setProperty( CONTENT_BLOB, this.entity.getProperty( CONTENT_BLOB ) );
+            newfile.createFile();
         }
     }
 
@@ -324,7 +335,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected long doGetLastModifiedTime() {
-        return ( (Long)entity.getProperty( LAST_MODIFIED ) ).longValue();
+        return ((Long)entity.getProperty( LAST_MODIFIED )).longValue();
     }
 
     /**
