@@ -34,15 +34,19 @@ import org.apache.commons.vfs.provider.AbstractOriginatingFileProvider;
 public class GaeFileProvider extends AbstractOriginatingFileProvider {
 
     public final static Collection<Capability> capabilities = Collections.unmodifiableCollection( Arrays.asList(
+            Capability.APPEND_CONTENT,
             Capability.CREATE,
             Capability.DELETE,
             Capability.GET_LAST_MODIFIED,
             Capability.GET_TYPE,
             Capability.LAST_MODIFIED,
             Capability.LIST_CHILDREN,
+            Capability.RANDOM_ACCESS_READ,
+            Capability.RANDOM_ACCESS_WRITE,
             Capability.READ_CONTENT,
             Capability.RENAME,
             Capability.SET_LAST_MODIFIED_FILE,
+            Capability.SET_LAST_MODIFIED_FOLDER,
             Capability.URI,
             Capability.WRITE_CONTENT ) );
 
