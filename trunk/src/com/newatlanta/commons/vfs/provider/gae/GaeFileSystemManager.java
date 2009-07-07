@@ -15,6 +15,7 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import org.apache.commons.vfs.CacheStrategy;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.FileSystemOptions;
@@ -53,6 +54,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
     public void init( String rootPath ) throws FileSystemException {   
         filesCache = new GaeMemcacheFilesCache();
         setFilesCache( filesCache );
+        setCacheStrategy( CacheStrategy.MANUAL );
         
         // make sure our superclass initializes properly
         super.setConfiguration( getClass().getSuperclass().getResource( CONFIG_RESOURCE ) );
@@ -108,6 +110,8 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             gaeFile = super.resolveFile( null, "gae://" + uri, opts );
         }
 
+        ((GaeFileObject)gaeFile).setCombinedLocal( true );
+        
         // when we get here we either have a non-existing file, or a folder;
         // return the GAE file/folder if it exists
         if ( gaeFile.exists() ) {
