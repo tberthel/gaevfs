@@ -292,13 +292,11 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
 
     /**
-     * Called when the type or content of this file changes, or when it is created or deleted.
+     * Called when the type or content of this file changes, or when it is created
+     * or deleted.
      */
     @Override
     protected void onChange() throws FileSystemException {
-        if ( entity == null ) { // should always attached to an entity
-            return;
-        }
         if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
             getFileSystem().getFileSystemManager().getFilesCache().removeFile( this );
             datastore.delete( entity.getKey() );
