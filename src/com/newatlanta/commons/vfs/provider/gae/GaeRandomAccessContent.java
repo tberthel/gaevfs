@@ -15,25 +15,21 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
+import java.io.OutputStream;
 
+import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
+import com.google.appengine.api.datastore.Blob;
+import com.google.appengine.api.datastore.Entity;
+
 /**
- * Implements random access to a byte array by:
- * 
- *  1) Extending java.io.ByteArrayOutputStream and manipulating its "count" field
- *     when writing so that it writes from the file pointer position.
- *     
- *  2) Creating a java.io.ByteArrayInputStream that wraps the superclass "buf"
- *     field for reading.
- *     
- *  The class mimics java.io.RandomAccessFile, which has this description:
+ * The class mimics java.io.RandomAccessFile, which has this description:
  *  
  *    "Instances of this class support both reading and writing to a random access
  *  file. A random access file behaves like a large array of bytes stored in the
@@ -55,63 +51,105 @@ import org.apache.commons.vfs.util.RandomAccessMode;
  *     
  * @author Vince Bonfanti <vbonfanti@gmail.com>
  */
-public class GaeRandomAccessContent extends ByteArrayOutputStream implements RandomAccessContent {
-
-    private RandomAccessMode mode;
-    private long filePointer;
-    private InputStream in;
+public class GaeRandomAccessContent extends OutputStream implements RandomAccessContent {
+ 
+    // TODO: allow BUFFER_SIZE to be configured globally and per-file
+    private static final int BUFFER_SIZE = 1024 * 32; // cannot exceed 1024 * 1024
+    private static final String CONTENT_BLOB = "content-blob";
     
-    /**
-     * if given an empty buffer, initialize to an 8KB buffer; otherwise,
-     * start with the buffer that was passed in
-     */
-    public GaeRandomAccessContent( byte[] b, RandomAccessMode m ) {
-        super( b.length > 0 ? 0 : 8 * 1024 );
-        if ( b.length > 0 ) {
-            super.buf = b;
-            super.count = b.length;
-        }
+    private GaeFileObject fileObject;
+    
+    private Entity currentEntity; // the current entity
+    private int entityIndex; // index of the current entity
+    private boolean writeEntity; // current entity needs to be written?
+    
+    private long filePointer; // absolute position within the file
+    
+    private byte[] buffer; // current entity buffer
+    private int bufferOffset; // relative position within buffer
+    
+    private RandomAccessMode mode;
+    
+    private DataOutputStream dataOutput;
+    private DataInputStream dataInput;
+    
+    public GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m ) throws FileSystemException {
+        this( gfo, m, 0 );
+    }
+    
+    public GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, long startPos )
+            throws FileSystemException {
+        fileObject = gfo;
         mode = m;
+        seek( startPos );
+        
+        dataOutput = new DataOutputStream( this );
+        dataInput = new DataInputStream( new GaeInputStream( this ) );
     }
     
     public long getFilePointer() {
         return filePointer;
     }
-
-    /**
-     * Notice: If you use seek(long) you must re-get the InputStream.
-     */
-    public synchronized InputStream getInputStream() throws IOException {
-        if ( in == null ) {
-            in = new ByteArrayInputStream( super.buf );
-            in.skip( filePointer );
+    
+    @Override
+    public synchronized void close() throws IOException {
+        flush();
+        entityIndex = 0;
+        filePointer = 0;
+        bufferOffset = 0;
+    }
+    
+    @Override
+    public synchronized void flush() {
+        if ( mode.requestWrite() && writeEntity ) {
+            fileObject.writeContentEntity( currentEntity );
+            currentEntity = null;
+            buffer = null;
+            writeEntity = false;
         }
-        return in;
+    }
+
+    public InputStream getInputStream() throws IOException {
+        return dataInput;
     }
 
     public long length() {
-        return super.count;
+        return fileObject.doGetContentSize();
     }
 
     /**
-     * Sets the file-pointer offset, measured from the beginning of this
-     * file, at which the next read or write occurs.  The offset may be
+     *   "Sets the file-pointer offset, measured from the beginning of this
+     * file, at which the next read or write occurs. The offset may be
      * set beyond the end of the file. Setting the offset beyond the end
-     * of the file does not change the file length.  The file length will
+     * of the file does not change the file length. The file length will
      * change only by writing after the offset has been set beyond the end
-     * of the file.
-     * 
-     * Notice: If you use getInputStream() you must re-get the InputStream
-     * after calling seek(long)
+     * of the file."
      */
     public synchronized void seek( long pos ) {
+        if ( filePointer == pos ) {
+            return;
+        }
+        if ( pos < 0 ) {
+            throw new IllegalArgumentException( "invalid offset: " + pos );
+        }
         filePointer = pos;
-        in = null;
+        int oldEntityIndex = entityIndex;
+        entityIndex = calcEntityIndex( filePointer );
+        if ( entityIndex != oldEntityIndex ) {
+            flush();
+        }
+        bufferOffset = (int)filePointer - ( entityIndex * BUFFER_SIZE );
     }
     
     /**
-     * This method mimics java.io.RandomAccessFile.setLength(), which has this
-     * description:
+     * Given an absolute index within the file, calculate the entity index.
+     */
+    private static int calcEntityIndex( long i ) {
+        return ( (int)i / BUFFER_SIZE );
+    }
+    
+    /**
+     * From the java.io.RandomAccessFile.setLength() javadocs:
      * 
      *   "If the present length of the file as returned by the length method is
      * greater than the newLength argument then the file will be truncated. In this
@@ -121,174 +159,292 @@ public class GaeRandomAccessContent extends ByteArrayOutputStream implements Ran
      * 
      *   "If the present length of the file as returned by the length method is
      * smaller than the newLength argument then the file will be extended. In this
-     * case, the contents of the extended portion of the file are not defined." 
+     * case, the contents of the extended portion of the file are not defined."
      */
     public synchronized void setLength( long newLength ) throws IOException {
-        if ( super.count > newLength ) { // truncate
-            Arrays.fill( super.buf, (int)newLength, super.count, (byte)0 );
-            super.count = (int)newLength;
+        if ( this.length() > newLength ) { // truncate
+            fileObject.deleteContentEntities( calcEntityIndex( newLength ) );
             if ( filePointer > newLength ) {
-                filePointer = newLength;
-                in = null;
+                seek( newLength );
             }
-        } else if ( super.count < newLength ) { // extend
-            int len = (int)newLength - super.count;
-            super.write( new byte[ len ], 0, len );
-            // leave file pointer where it is
         }
+        fileObject.updateContentSize( newLength, true );
     }
 
     /**
-     * All writes must be done via the following two methods.
-     * 
-     * Trick the base class into writing at the file pointer by setting its count
-     * field; then set it back after the write.
+     * The following two write methods are the primary methods via which all
+     * other internal and external methods should write to the buffer.
      */
     @Override
-    public synchronized void write( int b ) {
-        int origCount = doBeforeWrite();
-        super.write( b );
-        doAfterWrite( origCount, 1 );
+    public synchronized void write( int b ) throws IOException {
+        if ( !mode.requestWrite() ) {
+            throw new FileSystemException( "vfs.provider/write-read-only.error" );
+        }
+        if ( buffer == null ) {
+            initBuffer();
+        }
+        buffer[ bufferOffset ] = (byte)b;
+        fileObject.updateContentSize( filePointer + 1 );
+        seek( filePointer + 1 );
     }
     
     @Override
-    public synchronized void write( byte[] b, int off, int len ) {
-        int origCount = doBeforeWrite();
-        super.write( b, off, len );
-        doAfterWrite( origCount, len );
-    }
-    
-    private synchronized int doBeforeWrite() {
+    public synchronized void write( byte[] b, int off, int len ) throws IOException {
         if ( !mode.requestWrite() ) {
-            throw new UnsupportedOperationException( "file opened read-only" );
+            throw new FileSystemException( "vfs.provider/write-read-only.error" );
         }
-        int origCount = super.count;
-        super.count = (int)filePointer;
-        return origCount;
+        if ( b == null ) {
+            throw new NullPointerException();
+        } else if ( ( off < 0 ) || ( off > b.length ) || ( len < 0 ) ||
+                    ( ( off + len ) > b.length ) || ( ( off + len ) < 0 ) ) {
+            throw new IndexOutOfBoundsException();
+        } else if ( ( b.length == 0 ) || ( len == 0 ) ) {
+            return;
+        }
+        internalWrite( b, off, len );
+    }
+        
+    private synchronized void internalWrite( byte[] b, int off, int len ) throws IOException {
+        if ( buffer == null ) {
+            initBuffer();
+        }
+        
+        long newPos = filePointer + len;
+        
+        if ( calcEntityIndex( newPos ) == entityIndex ) { // writing within current entity
+            System.arraycopy( b, off, buffer, bufferOffset, len );
+            writeEntity = true;
+            fileObject.updateContentSize( newPos );
+            seek( newPos );
+        } else {
+            // fill the current buffer
+            int bytesAvailable = buffer.length - bufferOffset;
+            System.arraycopy( b, off, buffer, bufferOffset, bytesAvailable );
+            writeEntity = true;
+            
+            // move file pointer to beginning of next buffer
+            seek( filePointer + bytesAvailable );
+            
+            // recursively write the rest of the output
+            internalWrite( b, off + bytesAvailable, len - bytesAvailable );
+        }
     }
     
-    private synchronized void doAfterWrite( int origCount, int len ) {
-        filePointer += len;
-        super.count = (int)( filePointer < origCount ? origCount : filePointer );
-        if ( in != null ) {
-            try {
-                in.skip( len );
-            } catch ( IOException e ) {
-                // this should never happen
-                e.printStackTrace( System.err );
-            }
+    private synchronized void initBuffer() throws FileSystemException {
+        if ( currentEntity == null ) {
+            currentEntity = fileObject.getContentEntity( entityIndex );
+            writeEntity = false;
+        }
+        Blob contentBlob = (Blob)currentEntity.getProperty( CONTENT_BLOB );
+        if ( contentBlob != null ) {
+            buffer = contentBlob.getBytes();
+        } else {
+            buffer = new byte[ BUFFER_SIZE ];
+            currentEntity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
         }
     }
     
-    public void writeBoolean( boolean v ) {
-        write( v ? 1 : 0 );
+    public void writeBoolean( boolean v ) throws IOException {
+        dataOutput.writeBoolean( v );
     }
 
-    public void writeByte( int v ) {
-        write( v );
+    public void writeByte( int v ) throws IOException {
+        dataOutput.writeByte( v );
     }
 
     public void writeBytes( String s ) throws IOException {
-        write( s.getBytes() );
+        dataOutput.writeBytes( s );
     }
 
-    public void writeChar( int v ) {
-        write( v );
+    public void writeChar( int v ) throws IOException {
+        dataOutput.writeChar( v );
     }
 
     public void writeChars( String s ) throws IOException {
-        write( s.getBytes() );
+        dataOutput.writeChars( s );
     }
 
-    public void writeDouble( double v ) {
-        write( (int)v );
+    public void writeDouble( double v ) throws IOException {
+        dataOutput.writeDouble( v );
     }
 
-    public void writeFloat( float v ) {
-        write( (int)v );
+    public void writeFloat( float v ) throws IOException {
+        dataOutput.writeFloat( v );
     }
 
-    public void writeInt( int v ) {
-        write( v );
+    public void writeInt( int v ) throws IOException {
+        dataOutput.writeInt( v );
     }
 
-    public void writeLong( long v ) {
-        write( (int)v );
+    public void writeLong( long v ) throws IOException {
+        dataOutput.writeLong( v );
     }
 
-    public void writeShort( int v ) {
-        write( v );
+    public void writeShort( int v ) throws IOException {
+        dataOutput.writeShort( v );
     }
 
     public void writeUTF( String str ) throws IOException {
-        write( str.getBytes() );
+        dataOutput.writeUTF( str );
     }
-
-    /**
-     * All reads must be done via the following two methods.
-     */
-    public synchronized int readInt() throws IOException {
-        int c = getInputStream().read();
-        filePointer++;
+    
+    private synchronized int read() {
+        if ( filePointer >= length() ) {
+            return -1;
+        }
+        int c = buffer[ bufferOffset ] & 0xff;
+        seek( filePointer + 1 );
         return c;
     }
     
-    public synchronized void readFully( byte[] b, int off, int len ) throws IOException {
-        getInputStream().read( b, off, len );
-        filePointer += len;
+    private synchronized int read( byte[] b, int off, int len ) throws IOException {
+        if ( b == null ) {
+            throw new NullPointerException();
+        } else if ( ( off < 0 ) || ( off > b.length ) || ( len < 0 ) ||
+                ( ( off + len ) > b.length ) || ( ( off + len ) < 0 ) ) {
+            throw new IndexOutOfBoundsException();
+        } else if ( ( b.length == 0 ) || ( len == 0 ) ) {
+            return 0;
+        }
+        
+        if ( buffer == null ) {
+            initBuffer();
+        }
+        
+        long count = length();
+        if ( filePointer >= count ) {
+            return -1;
+        }
+        if ( filePointer + len > count) {
+            len = (int)( count - filePointer );
+        }
+        if ( len <= 0 ) {
+            return 0;
+        }
+        
+        int bytesRead = 0;
+        long newPos = filePointer + len;
+        
+        if ( calcEntityIndex( newPos ) == entityIndex ) { // reading within current entity
+            System.arraycopy( buffer, bufferOffset, b, off, len );
+            seek( newPos );
+            return len;
+        } else {
+            // read to the end of the current buffer
+            int bytesAvailable = buffer.length - bufferOffset;
+            System.arraycopy( buffer, bufferOffset, b, off, bytesAvailable );
+            bytesRead += len;
+            
+            // move file pointer to beginning of next buffer
+            seek( filePointer + bytesAvailable );
+            
+            // recursively read the rest of the input
+            bytesRead += read( b, off + bytesAvailable, len - bytesAvailable );
+            return bytesRead;
+        }
     }
     
     public void readFully( byte[] b ) throws IOException {
-        readFully( b, 0, b.length );
+        dataInput.readFully( b );
+    }
+    
+    public void readFully( byte[] b, int off, int len ) throws IOException {
+        dataInput.readFully( b, off, len );
     }
     
     public boolean readBoolean() throws IOException {
-        return ( readInt() == 0 ? false : true );
+        return dataInput.readBoolean();
     }
 
     public byte readByte() throws IOException {
-        return (byte)readInt();
+        return dataInput.readByte();
     }
 
     public char readChar() throws IOException {
-        return (char)readInt();
+        return dataInput.readChar();
     }
 
     public double readDouble() throws IOException {
-        return readInt();
+        return dataInput.readDouble();
     }
 
     public float readFloat() throws IOException {
-        return readInt();
+        return dataInput.readFloat();
     }
 
+    @Deprecated
     public String readLine() throws IOException {
-        throw new UnsupportedOperationException();
+        return dataInput.readLine();
+    }
+    
+    public int readInt() throws IOException {
+        return dataInput.readInt();
     }
 
     public long readLong() throws IOException {
-        return readInt();
+        return dataInput.readLong();
     }
 
     public short readShort() throws IOException {
-        return (short)readInt();
+        return dataInput.readShort();
     }
 
     public String readUTF() throws IOException {
-        throw new UnsupportedOperationException();
+        return dataInput.readUTF();
     }
 
     public int readUnsignedByte() throws IOException {
-        return readInt();
+        return dataInput.readUnsignedByte();
     }
 
     public int readUnsignedShort() throws IOException {
-        return readInt();
+        return dataInput.readUnsignedShort();
     }
 
     public synchronized int skipBytes( int n ) throws IOException {
-        long skipped = getInputStream().skip( n );
-        filePointer += skipped;
-        return (int)skipped;
+        long count = length();
+        if ( filePointer >= count ) {
+            return 0;
+        }
+        if ( filePointer + n > count) {
+            n = (int)( count - filePointer );
+        }
+        if ( n <= 0 ) {
+            return 0;
+        }
+        seek( filePointer + n );
+        return n;
+    }
+    
+    /**
+     * This inner class exists because we can't extend both OutputStream and
+     * InputStream. It just makes callbacks to the outer class.
+     */
+    private class GaeInputStream extends InputStream {
+
+        private GaeRandomAccessContent raContent;
+        
+        private GaeInputStream( GaeRandomAccessContent content ) {
+            raContent = content;
+        }
+        
+        @Override
+        public int read() throws IOException {
+            return raContent.read();
+        }
+        
+        @Override
+        public synchronized int read( byte[] b, int off, int len ) throws IOException {
+            return raContent.read( b, off, len );
+        }
+        
+        @Override
+        public long skip( long n ) throws IOException {
+            return raContent.skipBytes( (int)n );
+        }
+        
+        @Override
+        public void close() throws IOException {
+        }
     }
 }
