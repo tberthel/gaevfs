@@ -298,6 +298,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void onChange() throws FileSystemException {
         if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
             getFileSystem().getFileSystemManager().getFilesCache().removeFile( this );
+            datastore.delete( getContentKeys() );
             datastore.delete( entity.getKey() );
             entity = null;
         } else { // file/folder is being created or modified
@@ -428,7 +429,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
     
     void writeContentEntity( Entity contentEntity ) {
-        datastore.put( contentEntity );
+        if ( contentEntity != null ) {
+            datastore.put( contentEntity );
+        }
     }
     
     /**
@@ -436,7 +439,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     void deleteContentEntities( int stopIndex ) {
         List<Key> contentKeys = getContentKeys();
-        if ( contentKeys != null ) {
+        if ( ( contentKeys != null ) && ( contentKeys.size() > ( stopIndex + 1 ) ) ) {
             List<Key> deleteKeyList = new ArrayList<Key>();
             for ( int i = contentKeys.size() - 1; i > stopIndex; i-- ) {
                 deleteKeyList.add( contentKeys.remove( i ) );
