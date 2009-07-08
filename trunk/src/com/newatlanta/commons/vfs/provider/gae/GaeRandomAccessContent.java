@@ -422,25 +422,25 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
      */
     private class GaeInputStream extends InputStream {
 
-        private GaeRandomAccessContent raContent;
+        private GaeRandomAccessContent outer;
         
         private GaeInputStream( GaeRandomAccessContent content ) {
-            raContent = content;
+            outer = content;
         }
         
         @Override
         public int read() throws IOException {
-            return raContent.read();
+            return outer.read();
         }
         
         @Override
         public synchronized int read( byte[] b, int off, int len ) throws IOException {
-            return raContent.read( b, off, len );
+            return outer.read( b, off, len );
         }
         
         @Override
         public long skip( long n ) throws IOException {
-            return raContent.skipBytes( (int)n );
+            return outer.skipBytes( (int)n );
         }
         
         @Override
