@@ -15,11 +15,12 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
@@ -30,7 +31,6 @@ import org.apache.commons.vfs.provider.AbstractFileObject;
 import org.apache.commons.vfs.provider.AbstractFileSystem;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
-import com.google.appengine.api.datastore.Blob;
 import com.google.appengine.api.datastore.DatastoreService;
 import com.google.appengine.api.datastore.DatastoreServiceFactory;
 import com.google.appengine.api.datastore.Entity;
@@ -59,14 +59,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     // entity property names
     private static final String FILETYPE = "filetype";
     private static final String LAST_MODIFIED = "last-modified";
-    private static final String CONTENT_BLOB = "content";
+    private static final String CONTENT_KEY_LIST = "content-key-list";
+    private static final String CONTENT_SIZE = "content-size";
 
     private Entity entity; // the wrapped GAE datastore entity
 
     private boolean isCombinedLocal;
-    
-    private transient byte[] contentBytes; // for reading from the file
-    private transient ByteArrayOutputStream bytesOut; // for writing
 
     protected GaeFileObject( FileName name, AbstractFileSystem fs ) {
         super( name, fs );
@@ -149,8 +147,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void doDetach() throws FileSystemException {
         putEntity(); // write entity to the datastore
         entity = null;
-        contentBytes = null;
-        bytesOut = null;
     }
 
     /**
@@ -261,13 +257,16 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void doRename( FileObject newfile ) throws FileSystemException {
         if ( this.getType().hasChildren() ) { // rename the children
             for ( FileObject child : this.getChildren() ) {
-                String newChildPath = child.getName().getPath().replace( this.getName().getPath(), newfile.getName().getPath() );
+                String newChildPath = child.getName().getPath().replace( this.getName().getPath(),
+                                                                         newfile.getName().getPath() );
                 child.moveTo( resolveFile( newChildPath ) );
             }
             newfile.createFolder();
         } else {
             // copy contents to the new file
-            ((GaeFileObject)newfile).entity.setProperty( CONTENT_BLOB, this.entity.getProperty( CONTENT_BLOB ) );
+            // TODO: what about parent keys for content entities? transactions (entity groups)?
+            ((GaeFileObject)newfile).entity.setProperty( CONTENT_KEY_LIST, this.entity.getProperty( CONTENT_KEY_LIST ) );
+            ((GaeFileObject)newfile).entity.setProperty( CONTENT_SIZE, this.entity.getProperty( CONTENT_SIZE ) );
             newfile.createFile();
         }
     }
@@ -315,13 +314,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         if ( entityFileType.hasChildren() ) {
             return; // contents of folders don't change
         }
-        if ( ( bytesOut != null ) && ( bytesOut.size() > 0 ) ) {
-            entity.setProperty( CONTENT_BLOB, new Blob( bytesOut.toByteArray() ) );
-            bytesOut = null;
-            contentBytes = null;
-        } else if ( entityFileType.hasContent() ) {
-            return; // don't put files if content hasn't changed
-        }
         entity.setProperty( FILETYPE, getType().getName() );
         doSetLastModTime( System.currentTimeMillis() );
         datastore.put( entity );
@@ -333,7 +325,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected long doGetLastModifiedTime() {
-        return ((Long)entity.getProperty( LAST_MODIFIED )).longValue();
+        Long lastModified = (Long)entity.getProperty( LAST_MODIFIED );
+        return ( lastModified != null ? lastModified.longValue() : 0 );
     }
 
     /**
@@ -350,7 +343,22 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected long doGetContentSize() {
-        return getContentBytes().length;
+        Long contentSize = (Long)entity.getProperty( CONTENT_SIZE );
+        return ( contentSize != null ? contentSize.longValue() : 0 );
+    }
+    
+    void updateContentSize( long newSize ) {
+        updateContentSize( newSize, false );
+    }
+    
+    void updateContentSize( long newSize, boolean force ) {
+        if ( !force ) {
+            long oldSize = doGetContentSize();
+            if ( newSize <= oldSize ) {
+                return;
+            }
+        }
+        entity.setProperty( CONTENT_SIZE, Long.valueOf( newSize ) );
     }
 
     /**
@@ -359,16 +367,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * The returned stream does not have to be buffered.
      */
     @Override
-    protected InputStream doGetInputStream() {
-        return new ByteArrayInputStream( getContentBytes() );
-    }
-
-    private byte[] getContentBytes() {
-        if ( contentBytes == null ) {
-            Blob contentBlob = (Blob)entity.getProperty( CONTENT_BLOB );
-            contentBytes = ( contentBlob != null ? contentBlob.getBytes() : new byte[ 0 ] );
-        }
-        return contentBytes;
+    protected InputStream doGetInputStream() throws IOException {
+        return new GaeRandomAccessContent( this, RandomAccessMode.READ ).getInputStream();
     }
     
     /**
@@ -378,9 +378,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * It is guaranteed that there are no open output streams for this file
      * when this method is called.
      */
-    protected RandomAccessContent doGetRandomAccessContent( RandomAccessMode mode ) {
-        bytesOut = new GaeRandomAccessContent( getContentBytes(), mode );
-        return (RandomAccessContent)bytesOut;
+    protected RandomAccessContent doGetRandomAccessContent( RandomAccessMode mode )
+            throws FileSystemException {
+        return new GaeRandomAccessContent( this, mode );
     }
 
     /**
@@ -389,16 +389,60 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * It is guaranteed that there are no open stream (input or output) for
      * this file when this method is called.
      * 
-     * The returned stream does not have to be buffered.
+     * The returned stream does not have to be buffered. 
      */
     @Override
-    protected OutputStream doGetOutputStream( boolean bAppend ) {
-        if ( bAppend && ( doGetContentSize() > 0 ) ) {
-            bytesOut = new GaeRandomAccessContent( getContentBytes(), RandomAccessMode.READWRITE );
-        } else {
-            bytesOut = new ByteArrayOutputStream( 8 * 1024 ); // 8KB initial size
+    protected OutputStream doGetOutputStream( boolean bAppend ) throws FileSystemException {
+        return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE, doGetContentSize() );
+    }
+    
+    Entity getContentEntity( int i ) throws FileSystemException {
+        List<Key> contentKeys = getContentKeys();
+        if ( contentKeys == null ) {
+            contentKeys = new ArrayList<Key>();
+            entity.setProperty( CONTENT_KEY_LIST, contentKeys );
+        } else if ( i < contentKeys.size() ) {
+            try {
+                return datastore.get( contentKeys.get( i ) );
+            } catch ( EntityNotFoundException e ) {
+                return createContentEntity( contentKeys, i );
+            }
         }
-        return bytesOut;
+        Entity contentEntity = null;
+        for ( int j = contentKeys.size(); j <= i; j++ ) {
+            contentEntity = createContentEntity( contentKeys, j );
+        }
+        return contentEntity;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Key> getContentKeys() {
+        return (List<Key>)entity.getProperty( CONTENT_KEY_LIST );
+    }
+
+    private Entity createContentEntity( List<Key> contentKeys, int i ) throws FileSystemException {
+        Key parentKey = createKey( false );
+        String keyName = parentKey.getName() + ".content." + i;
+        contentKeys.add( i, KeyFactory.createKey( parentKey, ENTITY_KIND, keyName ) );
+        return new Entity( ENTITY_KIND, keyName, parentKey );
+    }
+    
+    void writeContentEntity( Entity contentEntity ) {
+        datastore.put( contentEntity );
+    }
+    
+    /**
+     * Truncate the content entities up to but exclusive of the specified index.
+     */
+    void deleteContentEntities( int stopIndex ) {
+        List<Key> contentKeys = getContentKeys();
+        if ( contentKeys != null ) {
+            List<Key> deleteKeyList = new ArrayList<Key>();
+            for ( int i = contentKeys.size() - 1; i > stopIndex; i-- ) {
+                deleteKeyList.add( contentKeys.remove( i ) );
+            }
+            datastore.delete( deleteKeyList );
+        }
     }
 
     /**
