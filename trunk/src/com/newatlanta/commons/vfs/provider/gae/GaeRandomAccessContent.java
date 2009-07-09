@@ -20,6 +20,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 
 import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.RandomAccessContent;
@@ -72,6 +73,10 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     
     private DataOutputStream dataOutput;
     private DataInputStream dataInput;
+    
+    static void copyContent( Entity oldEntity, Entity newEntity ) {
+        newEntity.setProperty( CONTENT_BLOB, oldEntity.getProperty( CONTENT_BLOB ) );
+    }
     
     public GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m )
             throws FileSystemException        
@@ -177,10 +182,11 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
      * case, the contents of the extended portion of the file are not defined."
      */
     public synchronized void setLength( long newLength ) throws IOException {
-        if ( this.length() > newLength ) { // truncate
+        if ( length() > newLength ) { // truncate
             fileObject.deleteContentEntities( calcEntityIndex( newLength ) );
             if ( filePointer > newLength ) {
                 seek( newLength );
+                Arrays.fill( buffer, bufferOffset, buffer.length, (byte)0 );
             }
         }
         fileObject.updateContentSize( newLength, true );
