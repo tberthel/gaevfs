@@ -145,7 +145,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected void doDetach() throws FileSystemException {
-        putEntity(); // write entity to the datastore
+        if ( getType() != FileType.IMAGINARY ) {
+            putEntity(); // write entity to the datastore
+        }
         entity = null;
     }
 
@@ -311,6 +313,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * correctly and update the last modified time.
      */
     private void putEntity() throws FileSystemException {
+        // if entity file type exists (is not imaginary), then this entity
+        // already exists in the datastore; if it doesn't exist, then we're
+        // writing the entity for the first time
         FileType entityFileType = getEntityFileType();
         if ( entityFileType.hasChildren() ) {
             return; // contents of folders don't change
@@ -353,13 +358,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
     
     void updateContentSize( long newSize, boolean force ) {
-        if ( !force ) {
-            long oldSize = doGetContentSize();
-            if ( newSize <= oldSize ) {
-                return;
-            }
+        if ( force || ( newSize > doGetContentSize() ) ) {
+            entity.setProperty( CONTENT_SIZE, Long.valueOf( newSize ) );
         }
-        entity.setProperty( CONTENT_SIZE, Long.valueOf( newSize ) );
     }
 
     /**
@@ -428,10 +429,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return new Entity( ENTITY_KIND, keyName, parentKey );
     }
     
-    void writeContentEntity( Entity contentEntity ) {
-        if ( contentEntity != null ) {
-            datastore.put( contentEntity );
+    void writeContentEntity( Entity contentEntity ) throws FileSystemException {
+        if ( !this.exists() ) { 
+            injectType( FileType.FILE );
+            putEntity();
         }
+        datastore.put( contentEntity );
     }
     
     /**
