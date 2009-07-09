@@ -15,6 +15,8 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.copyContent;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -266,9 +268,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             newfile.createFolder();
         } else {
             // copy contents to the new file
-            // TODO: what about parent keys for content entities? transactions (entity groups)?
-            ((GaeFileObject)newfile).entity.setProperty( CONTENT_KEY_LIST, this.entity.getProperty( CONTENT_KEY_LIST ) );
-            ((GaeFileObject)newfile).entity.setProperty( CONTENT_SIZE, this.entity.getProperty( CONTENT_SIZE ) );
+            List<Key> contentKeys = getContentKeys();
+            for ( int i = 0; i < contentKeys.size(); i++  ) {
+                Entity newContent = ((GaeFileObject)newfile).getContentEntity( i );
+                copyContent( getContentEntity( i ), newContent );
+                writeContentEntity( newContent );
+            }
+            ((GaeFileObject)newfile).entity.setProperty( CONTENT_SIZE,
+                                        this.entity.getProperty( CONTENT_SIZE ) );
             newfile.createFile();
         }
     }
