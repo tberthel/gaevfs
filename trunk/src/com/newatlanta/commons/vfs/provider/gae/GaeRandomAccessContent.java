@@ -224,18 +224,18 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         
         long newPos = filePointer + len;
         if ( calcEntityIndex( newPos ) == entityIndex ) { // within current entity
-            writeAndSeek( b, off, len, newPos );
+            doWriteThenSeek( b, off, len, newPos );
         } else {
             // fill the current buffer
             int bytesAvailable = buffer.length - bufferOffset;
-            writeAndSeek( b, off, bytesAvailable, filePointer + bytesAvailable );
+            doWriteThenSeek( b, off, bytesAvailable, filePointer + bytesAvailable );
             
             // recursively write the rest of the output
             internalWrite( b, off + bytesAvailable, len - bytesAvailable );
         }
     }
 
-    private void writeAndSeek( byte[] b, int off, int len, long newPos ) throws FileSystemException {
+    private void doWriteThenSeek( byte[] b, int off, int len, long newPos ) throws FileSystemException {
         System.arraycopy( b, off, buffer, bufferOffset, len );
         writeEntity = true;
         fileObject.updateContentSize( newPos );
