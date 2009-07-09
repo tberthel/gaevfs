@@ -235,7 +235,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         }
     }
 
-    private void doWriteThenSeek( byte[] b, int off, int len, long newPos ) throws FileSystemException {
+    private synchronized void doWriteThenSeek( byte[] b, int off, int len, long newPos ) throws FileSystemException {
         System.arraycopy( b, off, buffer, bufferOffset, len );
         writeEntity = true;
         fileObject.updateContentSize( newPos );
