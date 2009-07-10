@@ -382,6 +382,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return ( contentSize != null ? contentSize.longValue() : 0 );
     }
     
+    /**
+     * Intended for use by GaeRandomAccessContent.
+     */
     void updateContentSize( long newSize ) {
         updateContentSize( newSize, false );
     }
@@ -428,6 +431,10 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                                              bAppend ? doGetContentSize() : 0 );
     }
     
+    /**
+     * The following methods related to content entities are for use by
+     * GaeRandomAccessContent.
+     */
     Entity getContentEntity( int i ) throws FileSystemException {
         List<Key> contentKeys = getContentKeys();
         if ( contentKeys == null ) {
