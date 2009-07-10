@@ -65,7 +65,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String CONTENT_SIZE = "content-size";
     private static final String BLOCK_SIZE = "block-size";
     
-    private static final int DEFAULT_BLOCK_SIZE = 1024 * 32; // 32K bytes
+    private static final int DEFAULT_BLOCK_SIZE = 1024 * 32; // max 1024 x 1023
 
     private Entity entity; // the wrapped GAE datastore entity
 
