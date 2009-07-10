@@ -424,7 +424,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected OutputStream doGetOutputStream( boolean bAppend ) throws FileSystemException {
-        return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE, doGetContentSize() );
+        return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE,
+                                             bAppend ? doGetContentSize() : 0 );
     }
     
     Entity getContentEntity( int i ) throws FileSystemException {
