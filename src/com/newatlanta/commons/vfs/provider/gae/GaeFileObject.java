@@ -63,17 +63,50 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String LAST_MODIFIED = "last-modified";
     private static final String CONTENT_KEY_LIST = "content-key-list";
     private static final String CONTENT_SIZE = "content-size";
+    private static final String BLOCK_SIZE = "block-size";
+    
+    private static final int DEFAULT_BLOCK_SIZE = 1024 * 32; // 32K bytes
 
     private Entity entity; // the wrapped GAE datastore entity
 
+    private int blockSize;
     private boolean isCombinedLocal;
 
-    protected GaeFileObject( FileName name, AbstractFileSystem fs ) {
+    public GaeFileObject( FileName name, AbstractFileSystem fs ) {
         super( name, fs );
+        blockSize = DEFAULT_BLOCK_SIZE;
+    }
+    public GaeFileObject( FileName name, AbstractFileSystem fs, int size ) {
+        super( name, fs );
+        blockSize = size;
     }
     
     public void setCombinedLocal( boolean b ) {
         isCombinedLocal = b;
+    }
+    
+    public int getBlockSize() {
+        Long size = (Long)entity.getProperty( BLOCK_SIZE );
+        return ( size != null ? size.intValue() : blockSize );
+    }
+    
+    @SuppressWarnings("unchecked")
+    private List<Key> getContentKeys() {
+        return (List<Key>)entity.getProperty( CONTENT_KEY_LIST );
+    }
+    
+    // FileType is not a valid property type, so store the name
+    private FileType getEntityFileType() {
+        String typeName = (String)entity.getProperty( FILETYPE );
+        if ( typeName != null ) {
+            if ( typeName.equals( FileType.FILE.getName() ) ) {
+                return FileType.FILE;
+            }
+            if ( typeName.equals( FileType.FOLDER.getName() ) ) {
+                return FileType.FOLDER;
+            }
+        }
+        return FileType.IMAGINARY;
     }
 
     /**
@@ -123,20 +156,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             return KeyFactory.createKey( ENTITY_KIND, "GaeVFS" );
         }
         return ((GaeFileObject)parent).createKey( false );
-    }
-
-    // this is needed because FileType is not a valid property type
-    private FileType getEntityFileType() {
-        String typeName = (String)entity.getProperty( FILETYPE );
-        if ( typeName != null ) {
-            if ( typeName.equals( FileType.FILE.getName() ) ) {
-                return FileType.FILE;
-            }
-            if ( typeName.equals( FileType.FOLDER.getName() ) ) {
-                return FileType.FOLDER;
-            }
-        }
-        return FileType.IMAGINARY;
     }
 
     /**
@@ -328,6 +347,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             return; // contents of folders don't change
         }
         entity.setProperty( FILETYPE, getType().getName() );
+        if ( getType().hasContent() ) {
+            entity.setProperty( BLOCK_SIZE, Long.valueOf( blockSize ) );
+        }
         doSetLastModTime( System.currentTimeMillis() );
         datastore.put( entity );
         getFileSystem().getFileSystemManager().getFilesCache().putFile( this );
@@ -422,11 +444,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             contentEntity = createContentEntity( contentKeys, j );
         }
         return contentEntity;
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Key> getContentKeys() {
-        return (List<Key>)entity.getProperty( CONTENT_KEY_LIST );
     }
 
     private Entity createContentEntity( List<Key> contentKeys, int i ) throws FileSystemException {

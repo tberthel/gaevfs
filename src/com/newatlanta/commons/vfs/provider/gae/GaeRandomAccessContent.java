@@ -54,20 +54,18 @@ import com.google.appengine.api.datastore.Entity;
  */
 public class GaeRandomAccessContent extends OutputStream implements RandomAccessContent {
  
-    // TODO: allow BUFFER_SIZE to be configured globally and per-file
-    private static final int BUFFER_SIZE = 1024 * 32; // cannot exceed 1024 * 1024
-    private static final String CONTENT_BLOB = "content-blob";
+    private static final String CONTENT_BLOB = "content-blob"; // property key
     
     private GaeFileObject fileObject;
     
-    private Entity currentEntity; // the current entity
-    private int entityIndex; // index of the current entity
-    private boolean writeEntity; // current entity needs to be written?
+    private Entity entity;  // the current content entity
+    private int index;      // index of the current entity
+    private boolean write;  // current entity needs to be written?
     
     private long filePointer; // absolute position within the file
     
-    private byte[] buffer; // current entity buffer
-    private int bufferOffset; // relative position within buffer
+    private byte[] buffer;  // current entity buffer
+    private int offset;     // relative position within buffer
     
     private RandomAccessMode mode;
     
@@ -102,31 +100,31 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     @Override
     public synchronized void close() throws IOException {
         flush();
-        entityIndex = 0;
+        index = 0;
         filePointer = 0;
-        bufferOffset = 0;
+        offset = 0;
     }
     
     @Override
     public synchronized void flush() throws FileSystemException {
-        if ( mode.requestWrite() && writeEntity ) {
+        if ( mode.requestWrite() && write ) {
             int fileLen = (int)length();
             // if this is the last entity for the file, and the buffer is less
             // than half full, only write out the actual number of bytes
-            if ( calcEntityIndex( fileLen ) == entityIndex ) {
+            if ( calcEntityIndex( fileLen ) == index ) {
                 // calculate EOF offset within current buffer
-                int eofoffset = fileLen - ( entityIndex * BUFFER_SIZE );
-                if ( eofoffset < ( BUFFER_SIZE >> 1 ) ) { // less than half full
+                int eofoffset = calcBufferOffset( fileLen );
+                if ( eofoffset < ( fileObject.getBlockSize() >> 1 ) ) { // less than half full
                     byte[] outbuf = new byte[ eofoffset ];
-                    System.arraycopy( this.buffer, 0, outbuf, 0, eofoffset );
-                    currentEntity.setProperty( CONTENT_BLOB, new Blob( outbuf ) );
+                    System.arraycopy( buffer, 0, outbuf, 0, eofoffset );
+                    entity.setProperty( CONTENT_BLOB, new Blob( outbuf ) );
                 }
             }
-            fileObject.writeContentEntity( currentEntity );
+            fileObject.writeContentEntity( entity );
         }
-        currentEntity = null;
+        entity = null;
         buffer = null;
-        writeEntity = false;
+        write = false;
     }
 
     public InputStream getInputStream() throws IOException {
@@ -152,20 +150,24 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         if ( pos < 0 ) {
             throw new IllegalArgumentException( "invalid offset: " + pos );
         }
-        int newEntityIndex = calcEntityIndex( pos );
-        if ( newEntityIndex != entityIndex ) {
+        int newIndex = calcEntityIndex( pos );
+        if ( newIndex != index ) {
             flush();
-            entityIndex = newEntityIndex;
+            index = newIndex;
         }
         filePointer = pos;
-        bufferOffset = (int)filePointer - ( entityIndex * BUFFER_SIZE );
+        offset = calcBufferOffset( filePointer );
     }
     
     /**
      * Given an absolute index within the file, calculate the entity index.
      */
-    private static int calcEntityIndex( long i ) {
-        return ( (int)i / BUFFER_SIZE );
+    private int calcEntityIndex( long i ) {
+        return (int)( i / fileObject.getBlockSize() );
+    }
+    
+    private int calcBufferOffset( long i ) {
+        return (int)( i - ( index * fileObject.getBlockSize() ) );
     }
     
     /**
@@ -186,7 +188,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             fileObject.deleteContentEntities( calcEntityIndex( newLength ) );
             if ( filePointer > newLength ) {
                 seek( newLength );
-                Arrays.fill( buffer, bufferOffset, buffer.length, (byte)0 );
+                Arrays.fill( buffer, offset, buffer.length, (byte)0 );
             }
         }
         fileObject.updateContentSize( newLength, true );
@@ -202,7 +204,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             throw new FileSystemException( "vfs.provider/write-read-only.error" );
         }
         initBuffer();
-        buffer[ bufferOffset ] = (byte)b;
+        buffer[ offset ] = (byte)b;
         fileObject.updateContentSize( filePointer + 1 );
         seek( filePointer + 1 );
     }
@@ -229,11 +231,11 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         initBuffer();
         
         long newPos = filePointer + len;
-        if ( calcEntityIndex( newPos ) == entityIndex ) { // within current entity
+        if ( calcEntityIndex( newPos ) == index ) { // within current entity
             doWriteThenSeek( b, off, len, newPos );
         } else {
             // fill the current buffer
-            int bytesAvailable = buffer.length - bufferOffset;
+            int bytesAvailable = buffer.length - offset;
             doWriteThenSeek( b, off, bytesAvailable, filePointer + bytesAvailable );
             
             // recursively write the rest of the output
@@ -242,8 +244,8 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     }
 
     private synchronized void doWriteThenSeek( byte[] b, int off, int len, long newPos ) throws FileSystemException {
-        System.arraycopy( b, off, buffer, bufferOffset, len );
-        writeEntity = true;
+        System.arraycopy( b, off, buffer, offset, len );
+        write = true;
         fileObject.updateContentSize( newPos );
         seek( newPos );
     }
@@ -252,23 +254,24 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         if ( buffer != null ) {
             return;
         }
-        if ( currentEntity == null ) {
-            currentEntity = fileObject.getContentEntity( entityIndex );
-            writeEntity = false;
+        if ( entity == null ) {
+            entity = fileObject.getContentEntity( index );
+            write = false;
         }
-        Blob contentBlob = (Blob)currentEntity.getProperty( CONTENT_BLOB );
+        Blob contentBlob = (Blob)entity.getProperty( CONTENT_BLOB );
+        int blockSize = fileObject.getBlockSize();
         if ( contentBlob != null ) {
             buffer = contentBlob.getBytes();
-            // make sure we have a full sized buffer (see the flush method to
-            // understand why we might have only a partially full buffer)
-            if ( buffer.length < BUFFER_SIZE ) {
+            // if writing, make sure we have a full sized buffer
+            if ( mode.requestWrite() && ( buffer.length < blockSize ) ) {
                 byte[] tempBuf = buffer;
-                buffer = new byte[ BUFFER_SIZE ];
+                buffer = new byte[ blockSize ];
                 System.arraycopy( tempBuf, 0, buffer, 0, tempBuf.length );
+                entity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
             }
         } else {
-            buffer = new byte[ BUFFER_SIZE ];
-            currentEntity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
+            buffer = new byte[ blockSize ];
+            entity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
         }
     }
     
@@ -320,7 +323,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         if ( filePointer >= length() ) {
             return -1;
         }
-        int c = buffer[ bufferOffset ] & 0xff;
+        int c = buffer[ offset ] & 0xff;
         seek( filePointer + 1 );
         return c;
     }
@@ -352,18 +355,18 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             throws IOException
     {
         // len is always less than or equal to the file length, so we're
-        // always going to read len number of bytes
+        // always going to read exactly len number of bytes
         initBuffer();
         
         long newPos = filePointer + len;
-        if ( calcEntityIndex( newPos ) == entityIndex ) { // within current entity
-            System.arraycopy( buffer, bufferOffset, b, off, len );
+        if ( calcEntityIndex( newPos ) == index ) { // within current entity
+            System.arraycopy( buffer, offset, b, off, len );
             seek( newPos );
             return len; // recursive reads always end here
         } else {
             // read to the end of the current buffer
-            int bytesAvailable = buffer.length - bufferOffset;
-            System.arraycopy( buffer, bufferOffset, b, off, bytesAvailable );
+            int bytesAvailable = buffer.length - offset;
+            System.arraycopy( buffer, offset, b, off, bytesAvailable );
             
             // move file pointer to beginning of next buffer
             seek( filePointer + bytesAvailable );
