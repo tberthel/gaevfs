@@ -86,8 +86,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
     
     public int getBlockSize() {
-        Long size = (Long)entity.getProperty( BLOCK_SIZE );
-        return ( size != null ? size.intValue() : blockSize );
+        return ((Long)entity.getProperty( BLOCK_SIZE )).intValue();
     }
     
     @SuppressWarnings("unchecked")
@@ -117,16 +116,17 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected void doAttach() throws FileSystemException {
         if ( entity == null ) {
-            entity = getEntity( createKey( true ) );
+            getEntity( createKey( true ) );
         }
         injectType( getEntityFileType() );
     }
     
-    private static Entity getEntity( Key key ) {
+    private void getEntity( Key key ) throws FileSystemException {
         try {
-            return datastore.get( key );
+            entity = datastore.get( key );
         } catch ( EntityNotFoundException e ) {
-            return new Entity( ENTITY_KIND, key.getName(), key.getParent() );
+            entity = new Entity( ENTITY_KIND, key.getName(), key.getParent() );
+            entity.setProperty( BLOCK_SIZE, Long.valueOf( blockSize ) );
         }
     }
 
@@ -314,6 +314,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         // to be attached; if not attached, then onChange() doesn't get invoked
         if ( getType() != FileType.FOLDER ) {
             injectType( FileType.FOLDER ); // always inject before putEntity()
+            entity.removeProperty( BLOCK_SIZE ); // not needed for folders
         }
         // onChange() will be invoked after this to put the entity
     }
@@ -347,9 +348,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             return; // contents of folders don't change
         }
         entity.setProperty( FILETYPE, getType().getName() );
-        if ( getType().hasContent() ) {
-            entity.setProperty( BLOCK_SIZE, Long.valueOf( blockSize ) );
-        }
         doSetLastModTime( System.currentTimeMillis() );
         datastore.put( entity );
         getFileSystem().getFileSystemManager().getFilesCache().putFile( this );
