@@ -411,7 +411,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * when this method is called.
      */
     protected RandomAccessContent doGetRandomAccessContent( RandomAccessMode mode )
-            throws FileSystemException {
+            throws IOException {
         return new GaeRandomAccessContent( this, mode );
     }
 
@@ -421,10 +421,10 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * It is guaranteed that there are no open stream (input or output) for
      * this file when this method is called.
      * 
-     * The returned stream does not have to be buffered. 
+     * The returned stream does not have to be buffered.
      */
     @Override
-    protected OutputStream doGetOutputStream( boolean bAppend ) throws FileSystemException {
+    protected OutputStream doGetOutputStream( boolean bAppend ) throws IOException {
         return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE,
                                              bAppend ? doGetContentSize() : 0 );
     }

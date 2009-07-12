@@ -20,7 +20,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
 
 import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.RandomAccessContent;
@@ -77,14 +76,12 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     }
     
     public GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m )
-            throws FileSystemException        
-    {
+            throws IOException {
         this( gfo, m, 0 );
     }
     
     public GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, long pos )
-            throws FileSystemException
-    {
+            throws IOException {
         fileObject = gfo;
         mode = m;
         seek( pos );
@@ -100,6 +97,8 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     @Override
     public synchronized void close() throws IOException {
         flush();
+        entity = null;
+        buffer = null;
         index = 0;
         filePointer = 0;
         offset = 0;
@@ -107,22 +106,25 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     
     @Override
     public synchronized void flush() throws FileSystemException {
-        if ( mode.requestWrite() && write ) {
-            int fileLen = (int)length();
+        if ( write && ( entity != null ) && ( buffer != null ) ) {
+            long fileLen = length();
             // if this is the last entity for the file, only write out the actual
             // number of bytes, not the full buffer
             if ( calcEntityIndex( fileLen ) == index ) {
-                // calculate EOF offset within current buffer
-                int eofoffset = calcBufferOffset( fileLen );
-                byte[] outbuf = new byte[ eofoffset ];
-                System.arraycopy( buffer, 0, outbuf, 0, eofoffset );
+                // the EOF offset could be larger than buffer.length if setLength()
+                // is used to set the file length larger than buffer.length, but no
+                // bytes get written past buffer.length; in this case, the total of
+                // the entity buffer sizes will be smaller than the file size
+                byte[] outbuf = new byte[ Math.min( calcBufferOffset( fileLen ),
+                                                    buffer.length ) ];
+                System.arraycopy( buffer, 0, outbuf, 0, outbuf.length );
                 entity.setProperty( CONTENT_BLOB, new Blob( outbuf ) );
+            } else {
+            	entity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
             }
             fileObject.writeContentEntity( entity );
+            write = false;
         }
-        entity = null;
-        buffer = null;
-        write = false;
     }
 
     public InputStream getInputStream() throws IOException {
@@ -134,14 +136,14 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     }
 
     /**
-     *   "Sets the file-pointer offset, measured from the beginning of this
+     *  "Sets the file-pointer offset, measured from the beginning of this
      * file, at which the next read or write occurs. The offset may be
      * set beyond the end of the file. Setting the offset beyond the end
      * of the file does not change the file length. The file length will
      * change only by writing after the offset has been set beyond the end
      * of the file."
      */
-    public synchronized void seek( long pos ) throws FileSystemException {
+    public synchronized void seek( long pos ) throws IOException {
         if ( filePointer == pos ) {
             return;
         }
@@ -150,7 +152,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         }
         int newIndex = calcEntityIndex( pos );
         if ( newIndex != index ) {
-            flush();
+            close();
             index = newIndex;
         }
         filePointer = pos;
@@ -180,13 +182,15 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
      *   "If the present length of the file as returned by the length method is
      * smaller than the newLength argument then the file will be extended. In this
      * case, the contents of the extended portion of the file are not defined."
+     * 
+     * Setting the length larger than the current file length does not actually
+     * allocate any new storage for the file.
      */
     public synchronized void setLength( long newLength ) throws IOException {
         if ( length() > newLength ) { // truncate
             fileObject.deleteContentEntities( calcEntityIndex( newLength ) );
             if ( filePointer > newLength ) {
                 seek( newLength );
-                Arrays.fill( buffer, offset, buffer.length, (byte)0 );
             }
         }
         fileObject.updateContentSize( newLength, true );
@@ -227,24 +231,21 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             throws IOException
     {
         initBuffer();
-        
-        int newIndex = calcEntityIndex( filePointer + len );
-        while ( newIndex > index ) {
+        if ( calcEntityIndex( filePointer + len ) == index ) { // within current entity
+            writeBuffer( b, off, len );
+            moveFilePointer( filePointer + len );
+        } else {
             // fill the current buffer
             int bytesAvailable = fileObject.getBlockSize() - offset;
             writeBuffer( b, off, bytesAvailable );
-            
-            // move to the next entity and continue writing
             moveFilePointer( filePointer + bytesAvailable );
-            off += bytesAvailable;
-            len -= bytesAvailable;
+            
+            // recursively write the rest of the output
+            internalWrite( b, off + bytesAvailable, len - bytesAvailable );
         }
-        writeBuffer( b, off, len );
-        moveFilePointer( filePointer + len );
     }
     
     private synchronized void writeBuffer( byte[] b, int off, int len ) throws FileSystemException {
-        initBuffer();
         if ( ( offset + len ) > buffer.length ) {
             extendBuffer( offset + len );
         }
@@ -253,11 +254,10 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     }
 
     /**
-     * The preferred new size of the buffer is twice the current size, but it must
-     * be:
+     * The preferred extended buffer size is twice the current size, but it must be:
      *      - at least as large as len
-     *      - at least as large as the minimum size
-     *      - no larger than the block size
+     *      - at least as large as the minimum buffer size
+     *      - no larger than the file block size
      */
     private synchronized void extendBuffer( int len ) {
         byte[] tempBuf = buffer;
@@ -268,10 +268,9 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         // no larger than the block size
         buffer = new byte[ Math.min( newSize, fileObject.getBlockSize() ) ];
         System.arraycopy( tempBuf, 0, buffer, 0, tempBuf.length );
-        entity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
     }
 
-    private synchronized void moveFilePointer( long newPos ) throws FileSystemException {
+    private synchronized void moveFilePointer( long newPos ) throws IOException {
         fileObject.updateContentSize( newPos );
         seek( newPos );
     }
@@ -285,26 +284,21 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             write = false;
         }
         Blob contentBlob = (Blob)entity.getProperty( CONTENT_BLOB );
-        if ( contentBlob != null ) {
-            buffer = contentBlob.getBytes();
-        } else {
-            buffer = new byte[ getMinBufferSize() ];
-            entity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
-        }
+        buffer = ( contentBlob != null ? contentBlob.getBytes()
+                                       : new byte[ getMinBufferSize() ] );
     }
     
     private int getMinBufferSize() {
-        return fileObject.getBlockSize();
-        // TODO: there seems to be a bug that doesn't allow a minimum buffer
-        // size smaller than the block size; figure out what's wrong
-//        int blockSize = fileObject.getBlockSize();
-//        if ( blockSize <= ( 1024 * 64 ) ) {
-//            return 1024 * 8;
-//        } else if ( blockSize >= ( 1024 * 256 ) ) {
-//            return 1024 * 32;
-//        } else {
-//            return blockSize >> 3;
-//        }
+        int blockSize = fileObject.getBlockSize();
+        if ( blockSize <= ( 1024 * 8 ) ) {
+            return blockSize;
+        } else if ( blockSize <= ( 1024 * 32 ) ) {
+            return 1024 * 8;
+        } else if ( blockSize >= ( 1024 * 256 ) ) {
+            return 1024 * 64;
+        } else {
+            return blockSize >> 2; // one-fourth block size
+        }
     }
     
     public void writeBoolean( boolean v ) throws IOException {
@@ -355,6 +349,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         if ( filePointer >= length() ) {
             return -1;
         }
+        initBuffer();
         int c = buffer[ offset ] & 0xff;
         seek( filePointer + 1 );
         return c;
@@ -367,7 +362,6 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         } else if ( ( b.length == 0 ) || ( len == 0 ) ) {
             return 0;
         }
-        
         long fileLen = length();
         if ( filePointer >= fileLen ) {
             return -1;
@@ -386,25 +380,23 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     {
         // len is always less than or equal to the file length, so we're
         // always going to read exactly len number of bytes
-        int bytesRead = len;
-        
-        int newIndex = calcEntityIndex( filePointer + len );
-        while ( newIndex > index ) {
-            // fill the current buffer
-            initBuffer();
+        initBuffer();
+        if ( calcEntityIndex( filePointer + len ) == index ) { // within current entity
+            System.arraycopy( buffer, offset, b, off, len );
+            seek( filePointer + len );
+            return len; // recursive reads always end here
+        } else {
+            // read to the end of the current buffer
             int bytesAvailable = buffer.length - offset;
             System.arraycopy( buffer, offset, b, off, bytesAvailable );
             
-            // move to the next entity and continue writing
+            // move file pointer to beginning of next buffer
             seek( filePointer + bytesAvailable );
-            off += bytesAvailable;
-            len -= bytesAvailable;
+            
+            // recursively read the rest of the input
+            internalRead( b, off + bytesAvailable, len - bytesAvailable );
+            return len;
         }
-        initBuffer();
-        System.arraycopy( buffer, offset, b, off, len );
-        seek( filePointer + len );
-        
-        return bytesRead;
     }
     
     public void readFully( byte[] b ) throws IOException {
