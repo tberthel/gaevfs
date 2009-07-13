@@ -15,8 +15,9 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import java.io.IOException;
+
 import org.apache.commons.vfs.FileObject;
-import org.apache.commons.vfs.FileSystemException;
 
 /**
  * Creates and initializes a GaeFileSystemManager.
@@ -32,6 +33,8 @@ import org.apache.commons.vfs.FileSystemException;
  */
 public class GaeVFS {
 
+    private static final int DEFAULT_BLOCK_SIZE = 1024 * 32; // max 1024 x 1023
+    
     static {
         // GAE doesn't set these values; Commons VFS will fail to
         // initialize if they're not set
@@ -41,11 +44,12 @@ public class GaeVFS {
 
     private static GaeFileSystemManager fsManager;
     private static String rootPath;
+    private static int blockSize = DEFAULT_BLOCK_SIZE;
 
-    public static GaeFileSystemManager getManager() throws FileSystemException {
+    public static GaeFileSystemManager getManager() throws IOException {
         if ( fsManager == null ) {
             if ( rootPath == null ) {
-                throw new FileSystemException( "root path not defined" );
+                throw new IOException( "root path not defined" );
             }
             fsManager = new GaeFileSystemManager();
             fsManager.init( rootPath );
@@ -56,8 +60,28 @@ public class GaeVFS {
     public static void setRootPath( String _rootPath ) {
         rootPath = _rootPath;
     }
+    
+    public static int getBlockSize() {
+        return blockSize;
+    }
+    
+    public void setBlockSize( int size ) {
+        if ( size <= 0 ) {
+            throw new IllegalArgumentException( "invalid block size: " + size );
+        }
+        blockSize = Math.min( size, 1023 ) * 1024; // max size is 1023 * 1024
+    }
+    
+    public static void setBlockSize( FileObject fileObject, int size ) throws IOException {
+        if ( size <= 0 ) {
+            throw new IllegalArgumentException( "invalid block size: " + size );
+        }
+        if ( fileObject instanceof GaeFileObject ) {
+            ((GaeFileObject)fileObject).setBlockSize( Math.min( size, 1023 ) * 1024 );
+        }
+    }
 
-    public static FileObject resolveFile( String name ) throws FileSystemException {
+    public static FileObject resolveFile( String name ) throws IOException {
         return getManager().resolveFile( name );
     }
 

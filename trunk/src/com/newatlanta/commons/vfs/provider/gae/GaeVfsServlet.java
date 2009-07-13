@@ -37,7 +37,6 @@ import org.apache.commons.fileupload.util.Streams;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.commons.vfs.FileObject;
-import org.apache.commons.vfs.FileSystemException;
 
 /**
  * GaeVfsServlet uploads files into the GAE virtual file system (GaeVFS) and
@@ -133,7 +132,7 @@ public class GaeVfsServlet extends HttpServlet {
                     }
                 }
             }
-        } catch ( FileSystemException e ) {
+        } catch ( IOException e ) {
             throw new ServletException( e );
         } finally {
             GaeVFS.clearFilesCache();
@@ -274,6 +273,7 @@ public class GaeVfsServlet extends HttpServlet {
         }
         try {
             String path = "/";
+            int blockSize = 0;
             ServletFileUpload upload = new ServletFileUpload();
             FileItemIterator iterator = upload.getItemIterator( req );
 
@@ -285,9 +285,17 @@ public class GaeVfsServlet extends HttpServlet {
                         if ( !path.endsWith( "/" ) ) {
                             path = path + "/";
                         }
+                    } else if ( item.getFieldName().equalsIgnoreCase( "blocksize" ) ) {
+                        String s = Streams.asString( item.openStream() );
+                        if ( s.length() > 0 ) {
+                            blockSize = Integer.parseInt( s );
+                        }
                     }
                 } else {
                     FileObject fileObject = GaeVFS.resolveFile( "gae://" + path + item.getName() );
+                    if ( blockSize > 0 ) {
+                        GaeVFS.setBlockSize( fileObject, blockSize );
+                    }
                     copyAndClose( item.openStream(), fileObject.getContent().getOutputStream() );
                 }
             }
