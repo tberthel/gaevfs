@@ -1,4 +1,4 @@
-#Description of how GaeVFS uses blocks to store files.
+#summary How GaeVFS uses blocks to store files.
 
 = Block Size =
 
