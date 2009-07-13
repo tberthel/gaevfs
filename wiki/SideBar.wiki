@@ -1,3 +1,4 @@
   * [UsingGaeVFS Using GaeVFS]
+  * [BlockSize Block Size]
   * [CombinedLocalOption Combined Local Option]
   * [ApplicationPortability Writing Portable Code]
