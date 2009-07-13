@@ -1,0 +1,34 @@
+#Description of how GaeVFS uses blocks to store files.
+
+= Block Size =
+
+GaeVFS stores files as a series of blocks. Each block corresponds to a Google App Engine datastore entity and therefore has a maximum size of 1 megabyte (due to entity overhead, the actual limit is 1023 `*` 1024 = 1,047,552 bytes). The default block size is 32KB (32,768 bytes); this is an arbitrary number that may not be optimal for any particular application.
+
+The block size can be set programmatically via the GaeVFS API. It's possible to change the default block size, and to set the block size on a per-file basis. Use the static `GaeVFS.setBlockSize( int )` method:
+
+{{{
+import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+    .
+    .
+    GaeVFS.setBlockSize( 64 ); // set default block size to 64KB
+    .
+    .
+}}}
+
+All files are created using the default block size unless a block size is specifically set for the file prior to the file being created:
+
+{{{
+import org.apache.commons.vfs.FileObject;
+import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+    .
+    .
+    FileObject tempFile = GaeVFS.resolveFile( "/temp/myfile.tmp" );
+    GaeVFS.setBlockSize( tempFile, 8 ); // set block size for tempFile to 8KB
+    tempFile.createFile();
+    .
+    .
+}}}
+
+After a file is created it's not possible to change its block size. Attempting to set the block size for a file after the file is created will throw an `IOException`.
+
+The `size` parameter to both `GaeVFS.setBlockSize()` methods is an integer between 1 and 1023, and in units of KB (the value is multiplied by 1024 to determine the actual block size). If an number less than or equal to 0 is specified, an `IllegalArgumentException` is thrown; if a number larger than 1023 is specifed, the value 1023 is used.
