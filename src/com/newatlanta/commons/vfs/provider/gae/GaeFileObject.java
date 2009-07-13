@@ -64,21 +64,13 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String CONTENT_KEY_LIST = "content-key-list";
     private static final String CONTENT_SIZE = "content-size";
     private static final String BLOCK_SIZE = "block-size";
-    
-    private static final int DEFAULT_BLOCK_SIZE = 1024 * 32; // max 1024 x 1023
 
     private Entity entity; // the wrapped GAE datastore entity
 
-    private int blockSize;
     private boolean isCombinedLocal;
 
     public GaeFileObject( FileName name, AbstractFileSystem fs ) {
         super( name, fs );
-        blockSize = DEFAULT_BLOCK_SIZE;
-    }
-    public GaeFileObject( FileName name, AbstractFileSystem fs, int size ) {
-        super( name, fs );
-        blockSize = size;
     }
     
     public void setCombinedLocal( boolean b ) {
@@ -87,6 +79,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     
     public int getBlockSize() {
         return ((Long)entity.getProperty( BLOCK_SIZE )).intValue();
+    }
+    
+    public void setBlockSize( int size ) throws IOException {
+        if ( exists() ) {
+            throw new IOException( "cannot set block size after file is created" );
+        }
+        // exists() guarantees that entity != null
+        entity.setProperty( BLOCK_SIZE, Long.valueOf( size ) );
     }
     
     @SuppressWarnings("unchecked")
@@ -126,7 +126,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             entity = datastore.get( key );
         } catch ( EntityNotFoundException e ) {
             entity = new Entity( ENTITY_KIND, key.getName(), key.getParent() );
-            entity.setProperty( BLOCK_SIZE, Long.valueOf( blockSize ) );
+            entity.setProperty( BLOCK_SIZE, Long.valueOf( GaeVFS.getBlockSize() ) );
         }
     }
 
