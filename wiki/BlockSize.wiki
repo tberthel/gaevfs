@@ -34,3 +34,23 @@ After a file is created it's not possible to change its block size. Attempting t
 The `size` parameter to both `GaeVFS.setBlockSize()` methods is an integer between 1 and 1023, which specifies units of KB (the value is multiplied by 1024 to determine the actual block size). If an number less than or equal to 0 is specified, an `IllegalArgumentException` is thrown; if a number larger than 1023 is specifed, the value 1023 is used.
 
 When persisting a block to a Google App Engine datastore entity, only the actual number of bytes written to the file are persisted; that is, a partial block is persisted, not the entire block. Also, when creating a new block for writing, only a partial block is initially allocated, which is then extended as needed as bytes are written to the file. This means that small files do not suffer a penalty of either storage space in the datastore or application memory by specifying a large block size.
+
+GaeVFS supports random access (read/write) to files. The Commons VFS API calls required to open a file for random access are illustrated below:
+
+{{{
+import org.apache.commons.vfs.FileObject;
+import org.apache.commons.vfs.RandomAccessContent;
+import org.apache.commons.vfs.provider.AbstractFileObject;
+import org.apache.commons.vfs.util.FileObjectUtils;
+import org.apache.commons.vfs.util.RandomAccessMode;
+import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+    .
+    .
+    FileObject tempFile = GaeVFS.resolveFile( "/temp/myfile.tmp" );
+    AbstractFileObject abstractFile = FileObjectUtils.getAbstractFileObject( tempFile );
+    RandomAccessContent content = abstractFile.getRandomAccessContent( RandomAccessMode.READWRITE );
+    .
+    .
+}}}
+
+Whether a file is opened for reading, writing, or random access, only a single block is retained in memory at a time.
