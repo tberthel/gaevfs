@@ -32,14 +32,14 @@
 		</javac>
 	</target>
 	
-	<target name="jar" depends="compile" description="build the JAR file">
+	<target name="jar" depends="clean,compile" description="build the JAR file">
 		<jar jarfile="${build.name}.jar">
 			<metainf dir="${src.dir}META-INF" includes="vfs-providers.xml"/>
 			<fileset dir="${classes.dir}" includes="**/*.class"/>
 		</jar>
 	</target>
 	
-	<target name="dist" depends="clean,jar" description="create the download package">
+	<target name="dist" depends="jar" description="create the download package">
 		<zip destfile="${build.name}.zip" filesonly="true">
 			<zipfileset dir="." prefix="${build.name}">
 				<include name="src/**/*"/>
