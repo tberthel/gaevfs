@@ -54,3 +54,5 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 }}}
 
 Whether a file is opened for reading, writing, or random access, only a single block is retained in memory at a time.
+
+See the [http://code.google.com/p/gaevfs/source/browse/trunk/src/com/newatlanta/commons/vfs/provider/gae/GaeRandomAccessContent.java GaeRandomAccessContent source code] for details of the GaeVFS implementation of file blocks (the `GaeRandomAccessContent` class is used for reading and writing files, in addition to providing random access).
