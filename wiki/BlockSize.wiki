@@ -2,9 +2,9 @@
 
 = Block Size =
 
-GaeVFS stores files as a series of blocks. Each block corresponds to a Google App Engine datastore entity and therefore has a maximum size of 1 megabyte (due to entity overhead, the actual limit is 1023 `*` 1024 = 1,047,552 bytes). The default block size is 32KB (32,768 bytes); this is an arbitrary number that may not be optimal for any particular application.
+GaeVFS stores files as a series of blocks. Each block corresponds to a Google App Engine datastore entity and therefore has a maximum size of 1 megabyte (due to entity overhead, the actual limit is 1023 `*` 1024 = 1,047,552 bytes). The default block size is 32KB (32,768 bytes); this is an arbitrary number that may not be optimal for any particular application. Testing and experimentation will be required to determine optimal block sizes for different application scenarios.
 
-The block size can be set programmatically via the GaeVFS API. It's possible to change the default block size, and to set the block size on a per-file basis. Use the static `GaeVFS.setBlockSize( int )` method:
+The block size can be set programmatically via the GaeVFS API. It's possible to change the default block size, and to set the block size on a per-file basis using the static `GaeVFS.setBlockSize( int )` methods:
 
 {{{
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
@@ -29,9 +29,9 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
     .
 }}}
 
-After a file is created it's not possible to change its block size. Attempting to set the block size for a file after the file is created will throw an `IOException`.
+After a file is created it's not possible to change its block size. Attempting to set the block size for a file after the file is created will result in an `IOException`.
 
-The `size` parameter to both `GaeVFS.setBlockSize()` methods is an integer between 1 and 1023, which specifies units of KB (the value is multiplied by 1024 to determine the actual block size). If an number less than or equal to 0 is specified, an `IllegalArgumentException` is thrown; if a number larger than 1023 is specifed, the value 1023 is used.
+The `size` parameter for both `GaeVFS.setBlockSize()` methods is an integer between 1 and 1023, which specifies units of KB (the value is multiplied by 1024 to determine the actual block size). If an number less than or equal to 0 is specified, an `IllegalArgumentException` is thrown; if a number larger than 1023 is specifed, the value 1023 is used.
 
 When persisting a block to a Google App Engine datastore entity, only the actual number of bytes written to the file are persisted; that is, a partial block is persisted, not the entire block. Also, when creating a new block for writing, only a partial block is initially allocated, which is then extended as needed as bytes are written to the file. This means that small files do not suffer a penalty of either storage space in the datastore or application memory by specifying a large block size.
 
@@ -53,6 +53,6 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
     .
 }}}
 
-Whether a file is opened for reading, writing, or random access, only a single block is retained in memory at a time.
+When a file is opened for reading, writing, or random access, only a single block is retained in memory at a time. Currently, entity blocks are not saved in memcache, but are read directly from the datastore; memcache support is planned as a future enhancement to GaeVFS.
 
 See the [http://code.google.com/p/gaevfs/source/browse/trunk/src/com/newatlanta/commons/vfs/provider/gae/GaeRandomAccessContent.java GaeRandomAccessContent source code] for details of the GaeVFS implementation of file blocks (the `GaeRandomAccessContent` class is used for reading and writing files, in addition to providing random access).
