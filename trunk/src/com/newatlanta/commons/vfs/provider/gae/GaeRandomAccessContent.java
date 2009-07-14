@@ -71,8 +71,9 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     private DataOutputStream dataOutput;
     private DataInputStream dataInput;
     
-    static void copyContent( Entity oldEntity, Entity newEntity ) {
+    static Entity copyContent( Entity oldEntity, Entity newEntity ) {
         newEntity.setProperty( CONTENT_BLOB, oldEntity.getProperty( CONTENT_BLOB ) );
+        return newEntity;
     }
     
     public GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m )

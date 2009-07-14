@@ -292,9 +292,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             List<Key> contentKeys = getContentKeys(); // copy contents to the new file
             for ( int i = 0; i < contentKeys.size(); i++  ) {
-                Entity newContent = newGaeFile.getContentEntity( i );
-                copyContent( getContentEntity( i ), newContent );
-                writeContentEntity( newContent );
+                writeContentEntity( copyContent( getContentEntity( i ),
+                                                    newGaeFile.getContentEntity( i ) ) );
             }
             newGaeFile.entity.setProperty( CONTENT_SIZE, this.entity.getProperty( CONTENT_SIZE ) );
             newGaeFile.createFile();
