@@ -107,20 +107,24 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     @Override
     public synchronized void flush() throws FileSystemException {
         if ( write && ( entity != null ) && ( buffer != null ) ) {
+            boolean setBlobProperty = true;
             long fileLen = length();
-            // if this is the last entity for the file, only write out the actual
-            // number of bytes, not the full buffer
+            // if this is the last entity for the file, and the buffer is less than
+            // half full, only write out the actual number of bytes
             if ( calcEntityIndex( fileLen ) == index ) {
                 // the EOF offset could be larger than buffer.length if setLength()
                 // is used to set the file length larger than buffer.length, but no
-                // bytes get written past buffer.length; in this case, the total of
-                // the entity buffer sizes will be smaller than the file size
-                byte[] outbuf = new byte[ Math.min( calcBufferOffset( fileLen ),
-                                                    buffer.length ) ];
-                System.arraycopy( buffer, 0, outbuf, 0, outbuf.length );
-                entity.setProperty( CONTENT_BLOB, new Blob( outbuf ) );
-            } else {
-            	entity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
+                // bytes get written past buffer.length
+                int eofoffset = calcBufferOffset( fileLen );
+                if ( eofoffset < ( buffer.length >> 1 ) ) { // less than half full
+                    byte[] outbuf = new byte[ eofoffset ];
+                    System.arraycopy( buffer, 0, outbuf, 0, outbuf.length );
+                    entity.setProperty( CONTENT_BLOB, new Blob( outbuf ) );
+                    setBlobProperty = false;
+                }
+            }
+            if ( setBlobProperty ) {
+                entity.setProperty( CONTENT_BLOB, new Blob( buffer ) );
             }
             fileObject.writeContentEntity( entity );
             write = false;
