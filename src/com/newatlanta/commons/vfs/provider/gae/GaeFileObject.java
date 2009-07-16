@@ -39,7 +39,6 @@ import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
-import com.google.appengine.api.datastore.PreparedQuery;
 import com.google.appengine.api.datastore.Query;
 
 /**
@@ -61,7 +60,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     // entity property names
     private static final String FILETYPE = "filetype";
     private static final String LAST_MODIFIED = "last-modified";
-    private static final String CONTENT_KEY_LIST = "content-key-list";
+    private static final String CHILD_KEYS = "child-keys";
+    private static final String CONTENT_KEYS = "content-keys";
     private static final String CONTENT_SIZE = "content-size";
     private static final String BLOCK_SIZE = "block-size";
 
@@ -81,9 +81,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return ((Long)entity.getProperty( BLOCK_SIZE )).intValue();
     }
     
-    public void setBlockSize( int size ) throws IOException {
+    public void setBlockSize( int size ) throws FileSystemException {
         if ( exists() ) {
-            throw new IOException( "cannot set block size after file is created" );
+            throw new FileSystemException( "cannot set block size after file is created" );
         }
         // exists() guarantees that entity != null
         entity.setProperty( BLOCK_SIZE, Long.valueOf( size ) );
@@ -91,7 +91,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     
     @SuppressWarnings("unchecked")
     private List<Key> getContentKeys() {
-        return (List<Key>)entity.getProperty( CONTENT_KEY_LIST );
+        return (List<Key>)entity.getProperty( CONTENT_KEYS );
+    }
+    
+    @SuppressWarnings("unchecked")
+    private List<Key> getChildKeys() {
+        return (List<Key>)entity.getProperty( CHILD_KEYS );
     }
     
     // FileType is not a valid property type, so store the name
@@ -116,7 +121,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected void doAttach() throws FileSystemException {
         if ( entity == null ) {
-            getEntity( createKey( true ) );
+            getEntity( createKey() );
         }
         injectType( getEntityFileType() );
     }
@@ -125,37 +130,24 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         try {
             entity = datastore.get( key );
         } catch ( EntityNotFoundException e ) {
-            entity = new Entity( ENTITY_KIND, key.getName(), key.getParent() );
-            entity.setProperty( BLOCK_SIZE, Long.valueOf( GaeVFS.getBlockSize() ) );
+            entity = new Entity( ENTITY_KIND, key.getName() );
+            setBlockSize( GaeVFS.getBlockSize() );
         }
     }
 
-    private Key createKey( boolean includeParent ) throws FileSystemException {
-        return KeyFactory.createKey( includeParent ? getParentKey() : null, ENTITY_KIND, getKeyName() );
+    private Key createKey() throws FileSystemException {
+        return createKey( getName() );
     }
     
-    /**
-     * Key names are relative paths from the webapp root directory
-     */
-    private String getKeyName() {
+    private Key createKey( FileName fileName ) throws FileSystemException {
+        String keyName; // key name is relative path from the webapp root directory
         String rootPath = getFileSystem().getRootName().getPath();
-        if ( rootPath.equals( getName().getPath() ) ) {
-            return "/";
+        if ( rootPath.equals( fileName.getPath() ) ) {
+            keyName = "/";
+        } else {
+            keyName = fileName.getPath().substring( rootPath.length() );
         }
-        return getName().getPath().substring( rootPath.length() );
-    }
-
-    /**
-     * GAE datastore keys have only a single parent, not a full hierarchy of
-     * parents. That way when we query for all the descendants of a key, we only
-     * go one level down.
-     */
-    private Key getParentKey() throws FileSystemException {
-        FileObject parent = getParent();
-        if ( parent == null ) { // root directory
-            return KeyFactory.createKey( ENTITY_KIND, "GaeVFS" );
-        }
-        return ((GaeFileObject)parent).createKey( false );
+        return KeyFactory.createKey( ENTITY_KIND, keyName );
     }
 
     /**
@@ -211,11 +203,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected String[] doListChildren() throws FileSystemException {
-        PreparedQuery childQuery = prepareChildQuery();
-        String[] childNames = new String[ childQuery.countEntities() ];
+        List<Key> childKeys = getChildKeys();
+        if ( ( childKeys == null ) || ( childKeys.size() == 0 ) ) {
+            return new String[ 0 ];
+        }
+        String[] childNames = new String[ childKeys.size() ];
         int i = 0;
-        for ( Entity child : childQuery.asIterable() ) {
-            childNames[ i++ ] = child.getKey().getName();
+        for ( Key childKey : childKeys ) {
+            childNames[ i++ ] = childKey.getName();
         }
         return childNames;
     }
@@ -226,30 +221,25 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * is cached, so the implementation can be expensive.<br>
      * Other than <code>doListChildren</code> you could return FileObject's to
      * e.g. reinitialize the type of the file.<br>
-     * 
-     * GAE note: this implementation could probably be significantly optimized,
-     * but the above comment (from the superclass) indicates we don't need to
-     * worry about it.
      */
     @Override
     protected FileObject[] doListChildrenResolved() throws FileSystemException {
-        PreparedQuery childQuery = prepareChildQuery();
         FileObject[] localChildren = getLocalChildren();
-        FileObject[] children = new FileObject[ localChildren.length + childQuery.countEntities() ];
+        List<Key> childKeys = getChildKeys();
+        if ( ( childKeys == null ) || ( childKeys.size() == 0 ) ) {
+            return localChildren;
+        }
+        FileObject[] children = new FileObject[ localChildren.length + childKeys.size() ];
 
         if ( localChildren.length > 0 ) {
             System.arraycopy( localChildren, 0, children, 0, localChildren.length );
         }
         int i = localChildren.length;
 
-        for ( Entity child : childQuery.asIterable() ) {
-            children[ i++ ] = resolveFile( child.getKey().getName() );
+        for ( Key child : childKeys ) {
+            children[ i++ ] = resolveFile( child.getName() );
         }
         return children;
-    }
-
-    private PreparedQuery prepareChildQuery() throws FileSystemException {
-        return datastore.prepare( new Query( ENTITY_KIND, createKey( false ) ).setKeysOnly() );
     }
 
     private FileObject[] getLocalChildren() throws FileSystemException {
@@ -296,7 +286,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                 writeContentEntity( copyContent( getContentEntity( i ),
                                                     newGaeFile.getContentEntity( i ) ) );
             }
-            // TODO: can a file be copied to one with a different block size? it should be possible; test
+            // TODO: test copying a file to one with a different block size
             newGaeFile.entity.setProperty( CONTENT_SIZE, this.entity.getProperty( CONTENT_SIZE ) );
             newGaeFile.createFile();
         }
@@ -321,6 +311,31 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         }
         // onChange() will be invoked after this to put the entity
     }
+    
+    /**
+     * Called when the children of this file change.
+     */
+    protected void onChildrenChanged( FileName child, FileType newType ) throws FileSystemException {
+        Key childKey = createKey( child );
+        List<Key> childKeys = getChildKeys();
+        if ( newType == FileType.IMAGINARY ) { // child being deleted
+            if ( childKeys != null ) {
+                childKeys.remove( childKey );
+                if ( childKeys.size() == 0 ) {
+                    entity.removeProperty( CHILD_KEYS );
+                }
+            }
+        } else { // child being added
+            if ( childKeys == null ) {
+                childKeys = new ArrayList<Key>();
+                childKeys.add( childKey );
+                entity.setProperty( CHILD_KEYS, childKeys );
+            } else if ( !childKeys.contains( childKey ) ) {
+                childKeys.add( childKey );
+            }
+        }
+        putEntity();
+    }
 
     /**
      * Called when the type or content of this file changes, or when it is created
@@ -330,11 +345,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void onChange() throws FileSystemException {
         if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
             getFileSystem().getFileSystemManager().getFilesCache().removeFile( this );
-            if ( getType().hasContent() ) {
-                List<Key> contentKeys = getContentKeys();
-                if ( contentKeys != null ) {
-                    datastore.delete( contentKeys );
-                }
+            List<Key> contentKeys = getContentKeys();
+            if ( contentKeys != null ) {
+                datastore.delete( contentKeys );
             }
             datastore.delete( entity.getKey() );
             entity = null;
@@ -348,13 +361,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * correctly and update the last modified time.
      */
     private void putEntity() throws FileSystemException {
-        // if entity file type exists (is not imaginary), then this entity
-        // already exists in the datastore; if it doesn't exist, then we're
-        // writing the entity for the first time
-        FileType entityFileType = getEntityFileType();
-        if ( entityFileType.hasChildren() ) {
-            return; // contents of folders don't change
-        }
+        // TODO: set a flag to see if the file has actually changed before put
         entity.setProperty( FILETYPE, getType().getName() );
         doSetLastModTime( System.currentTimeMillis() );
         datastore.put( entity );
@@ -445,7 +452,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         List<Key> contentKeys = getContentKeys();
         if ( contentKeys == null ) {
             contentKeys = new ArrayList<Key>();
-            entity.setProperty( CONTENT_KEY_LIST, contentKeys );
+            entity.setProperty( CONTENT_KEYS, contentKeys );
         } else if ( i < contentKeys.size() ) {
             try {
                 return datastore.get( contentKeys.get( i ) );
@@ -461,18 +468,17 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
 
     private Entity createContentEntity( List<Key> contentKeys, int i ) throws FileSystemException {
-        Key parentKey = createKey( false );
-        String keyName = parentKey.getName() + ".content." + i;
-        contentKeys.add( i, KeyFactory.createKey( parentKey, ENTITY_KIND, keyName ) );
-        return new Entity( ENTITY_KIND, keyName, parentKey );
+        Key contentKey = KeyFactory.createKey( entity.getKey(), ENTITY_KIND,  "content." + i );
+        contentKeys.add( i, contentKey );
+        return new Entity( ENTITY_KIND, contentKey.getName(), contentKey.getParent() );
     }
     
     void writeContentEntity( Entity contentEntity ) throws FileSystemException {
-        if ( !this.exists() ) { 
-            injectType( FileType.FILE );
-            putEntity();
-        }
         datastore.put( contentEntity );
+        if ( !exists() ) {
+            injectType( FileType.FILE );
+        }
+        putEntity();
     }
     
     /**
