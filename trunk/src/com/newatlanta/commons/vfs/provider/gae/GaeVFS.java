@@ -15,9 +15,14 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 
 import org.apache.commons.vfs.FileObject;
+import org.apache.commons.vfs.FileSystemException;
+import org.apache.commons.vfs.RandomAccessContent;
+import org.apache.commons.vfs.util.FileObjectUtils;
+import org.apache.commons.vfs.util.RandomAccessMode;
 
 /**
  * Creates and initializes a GaeFileSystemManager.
@@ -72,7 +77,7 @@ public class GaeVFS {
         blockSize = Math.min( size, 1023 ) * 1024; // max size is 1023 * 1024
     }
     
-    public static void setBlockSize( FileObject fileObject, int size ) throws IOException {
+    public static void setBlockSize( FileObject fileObject, int size ) throws FileSystemException {
         if ( size <= 0 ) {
             throw new IllegalArgumentException( "invalid block size: " + size );
         }
@@ -83,6 +88,33 @@ public class GaeVFS {
 
     public static FileObject resolveFile( String name ) throws IOException {
         return getManager().resolveFile( name );
+    }
+    
+    public static RandomAccessContent getRandomAccessContent( String name, String mode )
+            throws IOException {
+        return getRandomAccessContent( resolveFile( name ), mode );
+    }
+
+    public static RandomAccessContent getRandomAccessContent( FileObject fileObject, String mode )
+            throws IOException {
+        RandomAccessMode raMode;
+        if ( mode.equals( "r" ) ) {
+            raMode = RandomAccessMode.READ;
+        // TODO: support "rws" and "rwd" modes as described for RandomAccessFile?
+        } else if ( mode.equals( "rw" ) ) { // || mode.equals( "rws" ) || mode.equals( "rwd" ) ) {
+            raMode = RandomAccessMode.READWRITE;
+        } else {
+            throw new IllegalArgumentException( "invalid mode: " + mode );
+        }
+        if ( !fileObject.exists() ) {
+            // if opening for read/write and the file doesn't exist, try to create it
+            if ( raMode == RandomAccessMode.READWRITE ) {
+                fileObject.createFile();
+            } else {
+                throw new FileNotFoundException( fileObject.getName().getPath() );
+            }
+        }
+        return FileObjectUtils.getAbstractFileObject( fileObject ).getRandomAccessContent( raMode );
     }
 
     public static void clearFilesCache() {
