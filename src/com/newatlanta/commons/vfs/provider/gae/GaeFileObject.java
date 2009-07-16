@@ -292,9 +292,11 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             List<Key> contentKeys = getContentKeys(); // copy contents to the new file
             for ( int i = 0; i < contentKeys.size(); i++  ) {
+                // TODO: use Entity.setPropertiesFrom() added in SDK 1.2.2?
                 writeContentEntity( copyContent( getContentEntity( i ),
                                                     newGaeFile.getContentEntity( i ) ) );
             }
+            // TODO: can a file be copied to one with a different block size? it should be possible; test
             newGaeFile.entity.setProperty( CONTENT_SIZE, this.entity.getProperty( CONTENT_SIZE ) );
             newGaeFile.createFile();
         }
@@ -328,7 +330,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void onChange() throws FileSystemException {
         if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
             getFileSystem().getFileSystemManager().getFilesCache().removeFile( this );
-            datastore.delete( getContentKeys() );
+            if ( getType().hasContent() ) {
+                List<Key> contentKeys = getContentKeys();
+                if ( contentKeys != null ) {
+                    datastore.delete( contentKeys );
+                }
+            }
             datastore.delete( entity.getKey() );
             entity = null;
         } else { // file/folder is being created or modified
@@ -479,6 +486,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                 deleteKeyList.add( contentKeys.remove( i ) );
             }
             datastore.delete( deleteKeyList );
+        }
+    }
+    
+    protected void finalize() throws Throwable {
+        if ( getFileSystem() != null ) { // avoid NPE in super.finalize()
+            super.finalize();
         }
     }
 
