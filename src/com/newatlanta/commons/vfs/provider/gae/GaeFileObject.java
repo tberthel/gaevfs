@@ -61,7 +61,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String FILETYPE = "filetype";
     private static final String LAST_MODIFIED = "last-modified";
     private static final String CHILD_KEYS = "child-keys";
-    private static final String CONTENT_KEYS = "content-keys";
+    private static final String BLOCK_KEYS = "block-keys";
     private static final String CONTENT_SIZE = "content-size";
     private static final String BLOCK_SIZE = "block-size";
 
@@ -90,8 +90,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
     
     @SuppressWarnings("unchecked")
-    private List<Key> getContentKeys() {
-        return (List<Key>)entity.getProperty( CONTENT_KEYS );
+    private List<Key> getBlockKeys() {
+        return (List<Key>)entity.getProperty( BLOCK_KEYS );
     }
     
     @SuppressWarnings("unchecked")
@@ -277,11 +277,10 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             if ( newGaeFile.entity == null ) { // newfile was deleted during rename
                 newGaeFile.doAttach();
             }
-            List<Key> contentKeys = getContentKeys(); // copy contents to the new file
-            for ( int i = 0; i < contentKeys.size(); i++  ) {
+            int numBlocks = getBlockKeys().size(); // copy contents to the new file
+            for ( int i = 0; i < numBlocks; i++  ) {
                 // TODO: use Entity.setPropertiesFrom() added in SDK 1.2.2?
-                writeContentEntity( copyContent( getContentEntity( i ),
-                                                    newGaeFile.getContentEntity( i ) ) );
+                putBlock( copyContent( getBlock( i ), newGaeFile.getBlock( i ) ) );
             }
             // TODO: test copying a file to one with a different block size
             newGaeFile.entity.setProperty( CONTENT_SIZE, this.entity.getProperty( CONTENT_SIZE ) );
@@ -342,9 +341,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void onChange() throws FileSystemException {
         if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
             getFileSystem().getFileSystemManager().getFilesCache().removeFile( this );
-            List<Key> contentKeys = getContentKeys();
-            if ( contentKeys != null ) {
-                datastore.delete( contentKeys );
+            List<Key> blockKeys = getBlockKeys();
+            if ( blockKeys != null ) {
+                datastore.delete( blockKeys );
             }
             datastore.delete( entity.getKey() );
             entity = null;
@@ -442,57 +441,58 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
     
     /**
-     * The following methods related to content entities are for use by
+     * The following methods related to blocks are for use by
      * GaeRandomAccessContent.
      */
-    Entity getContentEntity( int i ) throws FileSystemException {
-        Entity contentEntity = null;
-        List<Key> contentKeys = getContentKeys();
-        if ( contentKeys == null ) {
-            contentKeys = new ArrayList<Key>();
-            entity.setProperty( CONTENT_KEYS, contentKeys );
+    Entity getBlock( int i ) throws FileSystemException {
+        Entity block = null;
+        List<Key> blockKeys = getBlockKeys();
+        if ( blockKeys == null ) {
+            blockKeys = new ArrayList<Key>();
+            entity.setProperty( BLOCK_KEYS, blockKeys );
         }
-        if ( i < contentKeys.size() ) {
-            Key key = contentKeys.get( i );
+        if ( i < blockKeys.size() ) {
+            Key key = blockKeys.get( i );
             try {
                 return datastore.get( key );
             } catch ( EntityNotFoundException e ) {
-                contentKeys.remove( key );
-                contentEntity = createContentEntity( contentKeys, i );
+                blockKeys.remove( key );
+                block = createBlock( blockKeys, i );
             }
         } else {
-            for ( int j = contentKeys.size(); j <= i; j++ ) {
-                contentEntity = createContentEntity( contentKeys, j );
+            for ( int j = blockKeys.size(); j <= i; j++ ) {
+                block = createBlock( blockKeys, j );
             }
         }
         if ( !exists() ) {
             injectType( FileType.FILE );
         }
         putEntity();
-        return contentEntity;
+        return block;
     }
 
-    private Entity createContentEntity( List<Key> contentKeys, int i ) {
-        Entity contentEntity = new Entity( ENTITY_KIND, "block." + i, entity.getKey() );
-        contentKeys.add( i, contentEntity.getKey() );
-        return contentEntity;
+    private Entity createBlock( List<Key> blockKeys, int i ) {
+        Entity block = new Entity( ENTITY_KIND, "block." + i, entity.getKey() );
+        blockKeys.add( i, block.getKey() );
+        return block;
     }
     
-    void writeContentEntity( Entity contentEntity ) {
-        datastore.put( contentEntity );
+    void putBlock( Entity block ) {
+        datastore.put( block );
     }
     
     /**
-     * Truncate the content entities up to but exclusive of the specified index.
+     * Truncate blocks up to but exclusive of the specified index.
      */
-    void deleteContentEntities( int stopIndex ) {
-        List<Key> contentKeys = getContentKeys();
-        if ( ( contentKeys != null ) && ( contentKeys.size() > ( stopIndex + 1 ) ) ) {
+    void deleteBlocks( int stopIndex ) throws FileSystemException {
+        List<Key> blockKeys = getBlockKeys();
+        if ( ( blockKeys != null ) && ( blockKeys.size() > ( stopIndex + 1 ) ) ) {
             List<Key> deleteKeyList = new ArrayList<Key>();
-            for ( int i = contentKeys.size() - 1; i > stopIndex; i-- ) {
-                deleteKeyList.add( contentKeys.remove( i ) );
+            for ( int i = blockKeys.size() - 1; i > stopIndex; i-- ) {
+                deleteKeyList.add( blockKeys.remove( i ) );
             }
             datastore.delete( deleteKeyList );
+            putEntity();
         }
     }
     
