@@ -158,9 +158,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected void doDetach() throws FileSystemException {
-        if ( getType() != FileType.IMAGINARY ) {
-            putEntity(); // write entity to the datastore
-        }
         entity = null;
     }
 
@@ -361,7 +358,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * correctly and update the last modified time.
      */
     private void putEntity() throws FileSystemException {
-        // TODO: set a flag to see if the file has actually changed before put
         entity.setProperty( FILETYPE, getType().getName() );
         doSetLastModTime( System.currentTimeMillis() );
         datastore.put( entity );
@@ -398,13 +394,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     /**
      * Intended for use by GaeRandomAccessContent.
      */
-    void updateContentSize( long newSize ) {
+    void updateContentSize( long newSize ) throws FileSystemException {
         updateContentSize( newSize, false );
     }
     
-    void updateContentSize( long newSize, boolean force ) {
+    void updateContentSize( long newSize, boolean force ) throws FileSystemException {
         if ( force || ( newSize > doGetContentSize() ) ) {
             entity.setProperty( CONTENT_SIZE, Long.valueOf( newSize ) );
+            putEntity();
         }
     }
 
@@ -449,36 +446,40 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * GaeRandomAccessContent.
      */
     Entity getContentEntity( int i ) throws FileSystemException {
+        Entity contentEntity = null;
         List<Key> contentKeys = getContentKeys();
         if ( contentKeys == null ) {
             contentKeys = new ArrayList<Key>();
             entity.setProperty( CONTENT_KEYS, contentKeys );
-        } else if ( i < contentKeys.size() ) {
+        }
+        if ( i < contentKeys.size() ) {
+            Key key = contentKeys.get( i );
             try {
-                return datastore.get( contentKeys.get( i ) );
+                return datastore.get( key );
             } catch ( EntityNotFoundException e ) {
-                return createContentEntity( contentKeys, i );
+                contentKeys.remove( key );
+                contentEntity = createContentEntity( contentKeys, i );
+            }
+        } else {
+            for ( int j = contentKeys.size(); j <= i; j++ ) {
+                contentEntity = createContentEntity( contentKeys, j );
             }
         }
-        Entity contentEntity = null;
-        for ( int j = contentKeys.size(); j <= i; j++ ) {
-            contentEntity = createContentEntity( contentKeys, j );
-        }
-        return contentEntity;
-    }
-
-    private Entity createContentEntity( List<Key> contentKeys, int i ) throws FileSystemException {
-        Key contentKey = KeyFactory.createKey( entity.getKey(), ENTITY_KIND,  "content." + i );
-        contentKeys.add( i, contentKey );
-        return new Entity( ENTITY_KIND, contentKey.getName(), contentKey.getParent() );
-    }
-    
-    void writeContentEntity( Entity contentEntity ) throws FileSystemException {
-        datastore.put( contentEntity );
         if ( !exists() ) {
             injectType( FileType.FILE );
         }
         putEntity();
+        return contentEntity;
+    }
+
+    private Entity createContentEntity( List<Key> contentKeys, int i ) {
+        Entity contentEntity = new Entity( ENTITY_KIND, "block." + i, entity.getKey() );
+        contentKeys.add( i, contentEntity.getKey() );
+        return contentEntity;
+    }
+    
+    void writeContentEntity( Entity contentEntity ) {
+        datastore.put( contentEntity );
     }
     
     /**
