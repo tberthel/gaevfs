@@ -56,3 +56,6 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 When a file is opened for reading, writing, or random access, only a single block is retained in memory at a time. Currently, entity blocks are not saved in memcache, but are read directly from the datastore; memcache support is planned as a future enhancement to GaeVFS.
 
 See the [http://code.google.com/p/gaevfs/source/browse/trunk/src/com/newatlanta/commons/vfs/provider/gae/GaeRandomAccessContent.java GaeRandomAccessContent source code] for details of the GaeVFS implementation of file blocks (the `GaeRandomAccessContent` class is used for reading and writing files, in addition to providing random access).
+
+----
+Copyright 2009 [http://www.newatlanta.com/ New Atlanta Communications, LLC]
