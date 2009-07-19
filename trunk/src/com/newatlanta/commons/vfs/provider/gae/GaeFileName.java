@@ -20,16 +20,16 @@ import org.apache.commons.vfs.FileType;
 import org.apache.commons.vfs.provider.AbstractFileName;
 
 /**
- * This class exists to support serialization required by memcache
- * (see GaeMemcacheFileCache).
+ * Supports serialization required by memcache (see
+ * {@link com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache}).
  *
- * @author Vince Bonfanti <vbonfanti@gmail.com>
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeFileName extends AbstractFileName {
 
     private static final long serialVersionUID = 1L;
 
-    public GaeFileName( String scheme, String absPath, FileType type ) {
+    GaeFileName( String scheme, String absPath, FileType type ) {
         super( scheme, absPath, type );
     }
 
