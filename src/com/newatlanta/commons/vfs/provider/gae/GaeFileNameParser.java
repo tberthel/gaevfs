@@ -21,19 +21,22 @@ import org.apache.commons.vfs.provider.*;
 /**
  * Parses GAE URIs and creates GaeFileName instances.
  *  
- * @author Vince Bonfanti <vbonfanti@gmail.com>
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeFileNameParser extends AbstractFileNameParser {
 
     private static GaeFileNameParser instance = new GaeFileNameParser();
+    
+    private GaeFileNameParser() {
+    }
 
-    public static GaeFileNameParser getInstance() {
+    static GaeFileNameParser getInstance() {
         return instance;
     }
 
     /**
-     * This method copied from LocalFileNameParser and modified for GaeVFS. The
-     * main point is to make sure we always have a path beneath the webapp root.
+     * Makes sure <code>filename</code> always specifies a path that is within a
+     * sub-directory of the webapp root path.
      */
     public FileName parseUri( VfsComponentContext context, FileName ignore, String filename )
             throws FileSystemException
@@ -66,7 +69,7 @@ public class GaeFileNameParser extends AbstractFileNameParser {
         return new GaeFileName( scheme, name.toString(), fileType );
     }
     
-    public String getBasePath( FileObject baseFile ) {
+    String getBasePath( FileObject baseFile ) {
         StringBuffer basePath = new StringBuffer();
         String scheme = UriParser.extractScheme( baseFile.getName().getURI(), basePath );
         if ( scheme.equals( "file" ) ) {
