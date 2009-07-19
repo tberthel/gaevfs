@@ -77,24 +77,24 @@ import org.apache.commons.vfs.FileObject;
  * </code></blockquote>
  * If you upload "picture.jpg" with any path that doesn't start with "/gaevfs"
  * then it will never get served because this servlet won't get invoked. You can
- * configure the <code>&lt;url-pattern></code> to be whatever you want--and even specify
- * multiple <code>&lt;url-pattern></code> elements--just make sure to specify the "path" form
- * parameter correctly when uploading the file. See additional comments on the
- * <code>doPost()</code> method.
+ * configure the <code>&lt;url-pattern></code> to be whatever you want--and even
+ * specify multiple <code>&lt;url-pattern></code> elements--just make sure to
+ * specify the "path" form parameter correctly when uploading the file. See additional
+ * comments on the <code>doPost()</code> method.
  * <p>
- * The "dirListingAllowed" <code>&lt;init-param></code> controls whether this servlet returns
- * directory listings for GaeVFS folders. If false, then a <code>FORBIDDEN</code> error is
- * returned for attempted directory listings. The default value is false.
+ * The "dirListingAllowed" <code>&lt;init-param></code> controls whether this servlet
+ * returns directory listings for GaeVFS folders. If false, then a <code>FORBIDDEN</code>
+ * error is returned for attempted directory listings. The default value is false.
  * <p>
- * The "initDirs" <code>&lt;init-param></code> allows you to specify a comma-separated list of
- * folders to create when this servlet initializes. This is merely for
+ * The "initDirs" <code>&lt;init-param></code> allows you to specify a comma-separated
+ * list of folders to create when this servlet initializes. This is merely for
  * convenience and is entirely optional. (If you have directory listing enabled,
  * then it's a good idea to create the top-level directory. Otherwise, you'll
- * get a <code>NOT_FOUND</code> response when invoking this servlet on an empty file system,
- * which might be confusing).
+ * get a <code>NOT_FOUND</code> response when invoking this servlet on an empty
+ * file system, which might be confusing).
  * <p>
- * The "uploadRedirect" <code>&lt;init-param></code> allows you to specify a page to use to
- * create the response for a file upload. The default is to do a directory
+ * The "uploadRedirect" <code>&lt;init-param></code> allows you to specify a page
+ * to use to create the response for a file upload. The default is to do a directory
  * listing of the folder to which the file was uploaded, so you should specify
  * "uploadRedirect" if you disable directory listings.
  * 
