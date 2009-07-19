@@ -33,26 +33,31 @@ import com.google.appengine.api.memcache.stdimpl.GCacheFactory;
 import com.newatlanta.commons.vfs.provider.gae.GaeFileSystem;
 
 /**
- * A FilesCache implementation based on the GAE memcache API.
- * 
- * Commons VFS expects that a FilesCache implementation will return a reference
- * to a cached object, not a copy of the object as we get when reading from
- * memcache. In order to satisfy the Commons VFS requirement, objects are copied
- * into a ThreadLocal cache when getting them from memcache so that subsequent
- * gets will return a reference to the same object.
- * 
+ * An <code>org.apache.commons.vfs.FilesCache</code> implementation based on the
+ * <a href="http://code.google.com/appengine/docs/java/memcache/" target="_blank">
+ * GAE memcache API</a>.
+ * <p>
+ * Commons VFS expects that a <code>FilesCache</code> implementation will return
+ * a reference to a cached object, not a copy of the object as we get when reading
+ * from <code>memcache</code>. In order to satisfy the Commons VFS requirement,
+ * objects are copied into a <code>ThreadLocal</code> cache when getting them from
+ * <code>memcache</code> so that subsequent gets return a reference to the same
+ * object.
+ * <p>
  * Unfortunately, within the GAE distributed environment, there's no way to know
- * when an object in memcache is modified by another instance of the application.
- * Therefore, the ThreadLocal cache must be refreshed regularly to make sure it
- * stays in sync with memcache, which leads to the following warning:
+ * when an object in <code>memcache</code> is modified by another instance of the
+ * application running in a separate JVM. Therefore, the <code>ThreadLocal</code>
+ * cache must be refreshed regularly to make sure it stays in sync with
+ * <code>memcache</code>, which leads to the following warning:
+ * <blockquote>
+ * <b>IMPORTANT!</b> Servlets that use GaeVFS must clear the ThreadLocal cache at
+ * the end of every request via the
+ * {@link com.newatlanta.commons.vfs.provider.gae.GaeVFS#clearFilesCache} method.
+ * </blockquote>
+ * Finally, non-GAE file objects are stored in an <code>LRUFilesCache</code>, which
+ * this class extends.
  * 
- * IMPORTANT! Servlets that use GaeVFS must clear the ThreadLocal cache at the
- * end of every request via the GaeVFS.clearFilesCache() method.
- * 
- * Finally, non-GAE file objects are stored in an LRUFilesCache, which this class
- * extends.
- * 
- * @author Vince Bonfanti <vbonfanti@gmail.com>
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeMemcacheFilesCache extends LRUFilesCache {
 
