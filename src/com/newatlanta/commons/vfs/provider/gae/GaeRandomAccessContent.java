@@ -29,8 +29,8 @@ import com.google.appengine.api.datastore.Blob;
 import com.google.appengine.api.datastore.Entity;
 
 /**
- * The class mimics java.io.RandomAccessFile, which has this description:
- *  
+ * The class mimics <code>java.io.RandomAccessFile</code>, which has this description:
+ * <blockquote> 
  *    "Instances of this class support both reading and writing to a random access
  *  file. A random access file behaves like a large array of bytes stored in the
  *  file system. There is a kind of cursor, or index into the implied array, called
@@ -41,15 +41,21 @@ import com.google.appengine.api.datastore.Entity;
  *  past the bytes written. Output operations that write past the current end of
  *  the implied array cause the array to be extended. The file pointer can be read
  *  by the getFilePointer method and set by the seek method.
- *  
+ * </blockquote><blockquote>
  *    "It is generally true of all the reading routines in this class that if
  *  end-of-file is reached before the desired number of bytes has been read, an
  *  EOFException (which is a kind of IOException) is thrown. If any byte cannot
  *  be read for any reason other than end-of-file, an IOException other than
  *  EOFException is thrown. In particular, an IOException may be thrown if the
  *  stream has been closed." 
- *     
- * @author Vince Bonfanti <vbonfanti@gmail.com>
+ * </blockquote>
+ * This is an internal GaeVFS implementation class that is normally not referenced
+ * directly, but only indirectly via the
+ * <a href="http://commons.apache.org/vfs/apidocs/index.html" target="_blank">Apache
+ * Commons VFS API</a>. See {@link GaeVFS} as the entry point for application
+ * code that interacts with GaeVFS.
+ * 
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeRandomAccessContent extends OutputStream implements RandomAccessContent {
  
@@ -201,10 +207,6 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         fileObject.updateContentSize( newLength, true );
     }
 
-    /**
-     * The following two write methods are the primary methods via which all
-     * other internal and external methods should write to the buffer.
-     */
     @Override
     public synchronized void write( int b ) throws IOException {
         if ( !mode.requestWrite() ) {

@@ -25,11 +25,16 @@ import org.apache.commons.vfs.provider.UriParser;
 import com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache;
 
 /**
- * Implements the Combined Local option for GaeVFS. See the following:
+ * Implements the
+ * <a href="http://code.google.com/p/gaevfs/wiki/CombinedLocalOption" target="_blank">Combined
+ * Local</a> option for GaeVFS. Other than the {@link GaeFileSystemManager#setCombinedLocal(boolean)}
+ * method, this is primarily an internal GaeVFS implementation class that is normally
+ * not referenced directly, but only indirectly via the
+ * <a href="http://commons.apache.org/vfs/apidocs/index.html" target="_blank">Apache
+ * Commons VFS API</a>. See {@link GaeVFS} as the entry point for application
+ * code that interacts with GaeVFS.
  * 
- *      http://code.google.com/p/gaevfs/wiki/CombinedLocalOption
- * 
- * @author Vince Bonfanti <vbonfanti@gmail.com>
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeFileSystemManager extends StandardFileSystemManager {
 
@@ -37,21 +42,38 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
 
     private GaeMemcacheFilesCache filesCache;
     private boolean isCombinedLocal = true;
+    
+    GaeFileSystemManager() {
+    }
 
+    /**
+     * Sets the Combined Local option for GaeVFS.
+     * @param combinedLocal True to enable the Combined Local option; false to disable it.
+     * @return The <code>GaeFileSystemManager</code> instance, for method chaining.
+     */
     public GaeFileSystemManager setCombinedLocal( boolean combinedLocal ) {
         isCombinedLocal = combinedLocal;
         return this;
     }
 
+    /**
+     * Returns the current setting of the Combined Local option.
+     * @return True if the Combined Local option is enabled; false if disabled.
+     */
     public boolean isCombinedLocal() {
         return isCombinedLocal;
     }
 
+    /**
+     * Clears the GaeVFS local file cache. See the
+     * {@link com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache} class for an
+     * explanation of why this is necessary.
+     */
     public void clearFilesCache() {
         filesCache.clear();
     }
 
-    public void init( String rootPath ) throws FileSystemException {   
+    void init( String rootPath ) throws FileSystemException {   
         filesCache = new GaeMemcacheFilesCache();
         setFilesCache( filesCache );
         setCacheStrategy( CacheStrategy.MANUAL );
@@ -67,8 +89,8 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
     }
 
     /**
-     * Resolves a URI, relative to a base file with specified FileSystem
-     * configuration
+     * Resolves a URI, relative to a base file with the specified FileSystem
+     * configuration options.
      */
     @Override
     public FileObject resolveFile( final FileObject baseFile, String uri, final FileSystemOptions opts )
