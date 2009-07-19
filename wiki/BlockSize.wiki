@@ -2,7 +2,7 @@
 
 = Block Size =
 
-GaeVFS stores files as a series of blocks. Each block corresponds to a Google App Engine datastore entity and therefore has a maximum size of 1 megabyte (due to entity overhead, the actual limit is 1023 `*` 1024 = 1,047,552 bytes). The default block size is 32KB (32,768 bytes); this is an arbitrary number that may not be optimal for any particular application. Testing and experimentation will be required to determine optimal block sizes for different application scenarios.
+GaeVFS stores files as a series of blocks. Each block corresponds to a Google App Engine datastore entity and therefore has a maximum size of 1 megabyte (due to entity overhead, the actual limit is 1023 `*` 1024 = 1,047,552 bytes). The default block size is 128KB (131,072 bytes); this is an arbitrary number that may not be optimal for any particular application. Testing and experimentation will be required to determine optimal block sizes for different application scenarios.
 
 The block size can be set programmatically via the GaeVFS API. It's possible to change the default block size, and to set the block size on a per-file basis using the static `GaeVFS.setBlockSize( int )` methods:
 
@@ -35,7 +35,7 @@ The `size` parameter for both `GaeVFS.setBlockSize()` methods is an integer betw
 
 When persisting a block to a Google App Engine datastore entity, only the actual number of bytes written to the file are persisted; that is, a partial block is persisted, not the entire block. Also, when creating a new block for writing, only a partial block is initially allocated, which is then extended as needed as bytes are written to the file. This means that small files do not suffer a penalty of either storage space in the datastore or application memory by specifying a large block size.
 
-GaeVFS supports random access (read/write) to files. The Commons VFS API calls required to open a file for random access are illustrated below:
+GaeVFS supports random access (read/write) to files via an API that is similar to `java.io.RandomAccessFile`. The Commons VFS API calls required to open a file for random access are illustrated below:
 
 {{{
 import org.apache.commons.vfs.FileObject;
@@ -47,8 +47,7 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
     .
     .
     FileObject tempFile = GaeVFS.resolveFile( "/temp/myfile.tmp" );
-    AbstractFileObject abstractFile = FileObjectUtils.getAbstractFileObject( tempFile );
-    RandomAccessContent content = abstractFile.getRandomAccessContent( RandomAccessMode.READWRITE );
+    RandomAccessContent content = tempFile.getContent().getRandomAccessContent( RandomAccessMode.READWRITE );
     .
     .
 }}}
