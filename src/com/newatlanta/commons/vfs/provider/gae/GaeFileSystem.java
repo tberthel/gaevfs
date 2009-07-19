@@ -23,9 +23,9 @@ import org.apache.commons.vfs.FileSystemOptions;
 import org.apache.commons.vfs.provider.AbstractFileSystem;
 
 /**
- * Creates GaeFileObject instances.
+ * Creates {@link GaeFileObject} instances.
  *
- * @author Vince Bonfanti <vbonfanti@gmail.com>
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeFileSystem extends AbstractFileSystem {
 
