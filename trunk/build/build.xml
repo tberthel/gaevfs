@@ -4,9 +4,19 @@
 	<property name="build.number" value="0.3"/>
 	<property name="build.name" value="gaevfs-${build.number}"/>
 	<property name="src.dir" value="./src/"/>
+	<property name="doc.dir" value="./docs"/>
 	<property name="classes.dir" value="./war/WEB-INF/classes/"/>
 	<property name="project.lib.dir" value="./lib"/>
 	<property name="webinf.lib.dir" value="./war/WEB-INF/lib"/>
+	
+	<path id="project.class.path">
+		<pathelement path="${project.lib.dir}/geronimo-servlet_2.5_spec-1.2.jar"/>
+		<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.2.jar"/>
+		<pathelement path="${webinf.lib.dir}/commons-fileupload-1.2.1.jar"/>
+		<pathelement path="${webinf.lib.dir}/commons-io-1.4.jar"/>
+		<pathelement path="${webinf.lib.dir}/commons-lang-2.4.jar"/>
+		<pathelement path="${webinf.lib.dir}/commons-vfs-2.0-SNAPSHOT.jar"/>
+	</path>
 	
 	<target name="clean">
 		<delete dir="${classes.dir}"/>
@@ -20,16 +30,7 @@
 
 	<target name="compile" depends="init">
 		<javac srcdir="${src.dir}" destdir="${classes.dir}" debug="true"
-				deprecation="true" listfiles="true" >
-			<classpath>
-				<pathelement path="${project.lib.dir}/geronimo-servlet_2.5_spec-1.2.jar"/>
-				<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.1.jar"/>
-				<pathelement path="${webinf.lib.dir}/commons-fileupload-1.2.1.jar"/>
-				<pathelement path="${webinf.lib.dir}/commons-io-1.4.jar"/>
-				<pathelement path="${webinf.lib.dir}/commons-lang-2.4.jar"/>
-				<pathelement path="${webinf.lib.dir}/commons-vfs-2.0-SNAPSHOT.jar"/>
-			</classpath>
-		</javac>
+				deprecation="true" listfiles="true" classpathref="project.class.path" />
 	</target>
 	
 	<target name="jar" depends="clean,compile" description="build the JAR file">
@@ -37,6 +38,12 @@
 			<metainf dir="${src.dir}META-INF" includes="vfs-providers.xml"/>
 			<fileset dir="${classes.dir}" includes="**/*.class"/>
 		</jar>
+	</target>
+	
+	<target name="docs" description="create the javadocs">
+		<javadoc sourcepath="${src.dir}" destdir="${doc.dir}/javadoc"
+					packagenames="*" classpathref="project.class.path">
+		</javadoc>
 	</target>
 	
 	<target name="dist" depends="jar" description="create the download package">
