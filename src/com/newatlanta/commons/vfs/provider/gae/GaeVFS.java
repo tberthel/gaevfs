@@ -21,7 +21,6 @@ import java.io.IOException;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.RandomAccessContent;
-import org.apache.commons.vfs.util.FileObjectUtils;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
 /**
@@ -38,7 +37,7 @@ import org.apache.commons.vfs.util.RandomAccessMode;
  */
 public class GaeVFS {
 
-    private static final int DEFAULT_BLOCK_SIZE = 1024 * 32; // max 1024 x 1023
+    private static final int DEFAULT_BLOCK_SIZE = 1024 * 128; // max 1024 x 1023
     
     static {
         // GAE doesn't set these values; Commons VFS will fail to
@@ -77,13 +76,14 @@ public class GaeVFS {
         blockSize = Math.min( size, 1023 ) * 1024; // max size is 1023 * 1024
     }
     
-    public static void setBlockSize( FileObject fileObject, int size ) throws FileSystemException {
+    public static FileObject setBlockSize( FileObject fileObject, int size ) throws FileSystemException {
         if ( size <= 0 ) {
             throw new IllegalArgumentException( "invalid block size: " + size );
         }
         if ( fileObject instanceof GaeFileObject ) {
             ((GaeFileObject)fileObject).setBlockSize( Math.min( size, 1023 ) * 1024 );
         }
+        return fileObject;
     }
 
     public static FileObject resolveFile( String name ) throws IOException {
@@ -114,7 +114,7 @@ public class GaeVFS {
                 throw new FileNotFoundException( fileObject.getName().getPath() );
             }
         }
-        return FileObjectUtils.getAbstractFileObject( fileObject ).getRandomAccessContent( raMode );
+        return fileObject.getContent().getRandomAccessContent( raMode );
     }
 
     public static void clearFilesCache() {
