@@ -42,12 +42,14 @@ import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.datastore.Query;
 
 /**
- * Does the work of interacting with the GAE datastore. Every "file" and "folder"
- * within the GAE datastore is saved as an Entity; this class is basically a
- * wrapper around the Entity. The parent-child relationships of files and folders
- * are represented within the Entity keys.
+ * Stores metadata for "files" and "folders" within GaeVFS and manages interactions
+ * with the Google App Engine datastore. This is an internal GaeVFS implementation
+ * class that is normally not referenced directly, but only indirectly via the
+ * <a href="http://commons.apache.org/vfs/apidocs/index.html" target="_blank">Apache
+ * Commons VFS API</a>. See {@link GaeVFS} as the entry point for application
+ * code that interacts with GaeVFS.
  *
- * @author Vince Bonfanti <vbonfanti@gmail.com>
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeFileObject extends AbstractFileObject implements Serializable {
 

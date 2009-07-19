@@ -23,7 +23,11 @@ import org.apache.commons.vfs.FileSystemOptions;
 import org.apache.commons.vfs.provider.AbstractFileSystem;
 
 /**
- * Creates {@link GaeFileObject} instances.
+ * Creates {@link GaeFileObject} instances. This is an internal GaeVFS implementation
+ * class that is normally not referenced directly, but only indirectly via the
+ * <a href="http://commons.apache.org/vfs/apidocs/index.html" target="_blank">Apache
+ * Commons VFS API</a>. See {@link GaeVFS} as the entry point for application
+ * code that interacts with GaeVFS.
  *
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */

@@ -35,10 +35,13 @@ import com.newatlanta.commons.vfs.provider.gae.GaeFileSystem;
 /**
  * An <code>org.apache.commons.vfs.FilesCache</code> implementation based on the
  * <a href="http://code.google.com/appengine/docs/java/memcache/" target="_blank">
- * GAE memcache API</a>.
+ * GAE memcache API</a>. This is an internal GaeVFS implementation class that is
+ * normally not referenced directly, but only indirectly via the
+ * <a href="http://commons.apache.org/vfs/apidocs/index.html" target="_blank">Apache
+ * Commons VFS API</a>.
  * <p>
  * Commons VFS expects that a <code>FilesCache</code> implementation will return
- * a reference to a cached object, not a copy of the object as we get when reading
+ * a reference to a cached object, not a copy of the object as when reading
  * from <code>memcache</code>. In order to satisfy the Commons VFS requirement,
  * objects are copied into a <code>ThreadLocal</code> cache when getting them from
  * <code>memcache</code> so that subsequent gets return a reference to the same
