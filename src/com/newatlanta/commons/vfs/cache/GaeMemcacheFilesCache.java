@@ -85,7 +85,7 @@ public class GaeMemcacheFilesCache extends LRUFilesCache {
         }
     };
 
-    // default properties for creating new cache instances -- 20 minute expiry
+    // default properties for creating new cache instances -- 20 minute expiration
     @SuppressWarnings( { "serial", "unchecked" })
     private static final Map CACHE_PROPERTIES = Collections.unmodifiableMap( new HashMap() {
         {
@@ -110,7 +110,7 @@ public class GaeMemcacheFilesCache extends LRUFilesCache {
     public void clear( FileSystem filesystem ) {
         if ( filesystem instanceof GaeFileSystem ) {
             threadLocalCache.remove();
-            // don't worry about memcache -- fileObjects will expire
+            // don't worry about memcache -- fileObjects will expire automatically
         } else {
             super.clear( filesystem );
         }
@@ -118,7 +118,7 @@ public class GaeMemcacheFilesCache extends LRUFilesCache {
 
     public void close() {
         threadLocalCache.remove();
-        // don't worry about memcache -- fileObjects will expire
+        // don't worry about memcache -- fileObjects will expire automatically
         super.close();
     }
 
@@ -140,6 +140,10 @@ public class GaeMemcacheFilesCache extends LRUFilesCache {
     @SuppressWarnings("unchecked")
     public void putFile( FileObject file ) {
         if ( file.getFileSystem() instanceof GaeFileSystem ) {
+            // memcache uses a "first created, first deleted" algorithm when purging
+            // so remove before put to refresh the creation time; this also serves to
+            // update the start of the 20-minute expiration
+            memcache.remove( file.getName() );
             memcache.put( file.getName(), file );
             threadLocalCache.put( file );
         } else {
