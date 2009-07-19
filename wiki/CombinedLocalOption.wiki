@@ -24,7 +24,7 @@ The Combined Local option--which is enabled by default--combines the local and G
   # treats local file system resources as read-only, while providing both read and write access to GaeVFS file system resources
   # allows you to explicitly reference a file system by specifying the `file://` or `gae://` scheme within URIs
 
-In summary, the Combined Local option of GaeVFS allows you to write code that references both local and GaeVFS file system resources without knowing or caring which file system actually contains the resources.
+In summary, the Combined Local option of GaeVFS--by allowing you to omit the `file://` or `gae:\\` schemes--permits you to write code that references both local and GaeVFS file system resources without knowing or caring which file system actually contains the resources.
 
 = Details =
 
