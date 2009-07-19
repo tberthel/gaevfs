@@ -27,9 +27,9 @@ import org.apache.commons.vfs.FileSystemOptions;
 import org.apache.commons.vfs.provider.AbstractOriginatingFileProvider;
 
 /**
- * Configures the GaeFileNameParser and creates GaeFileSystem instances.
+ * Configures the {@link GaeFileNameParser} and creates {@link GaeFileSystem} instances.
  *
- * @author Vince Bonfanti <vbonfanti@gmail.com>
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeFileProvider extends AbstractOriginatingFileProvider {
 
