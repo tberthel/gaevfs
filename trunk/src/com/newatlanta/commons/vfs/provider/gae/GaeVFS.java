@@ -124,10 +124,10 @@ public class GaeVFS {
     /**
      * Gets the current default block size used when creating new files.
      * 
-     * @return The current default block size, in units of K (1024) bytes.
+     * @return The current default block size as an absolute number of bytes.
      */
     public static int getBlockSize() {
-        return ( blockSize / 1024 );
+        return blockSize;
     }
     
     /**
