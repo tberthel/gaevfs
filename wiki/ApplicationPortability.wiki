@@ -39,7 +39,8 @@ public class ExampleServlet extends HttpServlet
         }
     }
 
-    public void doGet( HttpServletRequest req, HttpServletResponse res ) throws ServletException, IOException {
+    public void doGet( HttpServletRequest req, HttpServletResponse res )
+            throws ServletException, IOException {
         try {
             String realPath = getServletContext().getRealPath( req.getRequestURI() );
             // an example of using Commons VFS (the FileObject class is similar to java.io.File)
