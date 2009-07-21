@@ -1,0 +1,71 @@
+Index: core/src/main/java/org/apache/commons/vfs/util/MonitorRandomAccessContent.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/util/MonitorRandomAccessContent.java	(revision 796122)
++++ core/src/main/java/org/apache/commons/vfs/util/MonitorRandomAccessContent.java	(working copy)
+@@ -248,4 +248,9 @@
+     {
+         return content.getInputStream();
+     }
++
++	public void setLength( long newLength ) throws IOException
++	{
++		content.setLength( newLength );
++	}
+ }
+Index: core/src/main/java/org/apache/commons/vfs/RandomAccessContent.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/RandomAccessContent.java	(revision 796122)
++++ core/src/main/java/org/apache/commons/vfs/RandomAccessContent.java	(working copy)
+@@ -64,6 +64,24 @@
+      * @throws IOException if an I/O error occurs.
+      */
+     long length() throws IOException;
++    
++    /**
++     * Sets the length of this file.
++     * <p>
++     * If the present length of the file as returned by the length method is
++     * greater than the newLength argument then the file will be truncated. In
++     * this case, if the file offset as returned by the getFilePointer method is
++     * greater than newLength then after this method returns the offset will be
++     * equal to newLength.
++     * <p>
++     * If the present length of the file as returned by the length method is
++     * smaller than the newLength argument then the file will be extended. In
++     * this case, the contents of the extended portion of the file are not defined.
++     * 
++     * @param newLength The desired length of the file
++     * @throws IOException
++     */
++    void setLength(long newLength) throws IOException;
+ 
+     /**
+      * Closes this random access file stream and releases any system
+Index: core/src/main/java/org/apache/commons/vfs/provider/ram/RamFileRandomAccessContent.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/provider/ram/RamFileRandomAccessContent.java	(revision 796122)
++++ core/src/main/java/org/apache/commons/vfs/provider/ram/RamFileRandomAccessContent.java	(working copy)
+@@ -609,4 +609,9 @@
+     {
+         return rafis;
+     }
++
++	public void setLength( long newLength ) throws IOException
++	{
++		// TODO Auto-generated method stub
++	}
+ }
+Index: core/src/main/java/org/apache/commons/vfs/provider/AbstractRandomAccessContent.java
+===================================================================
+--- core/src/main/java/org/apache/commons/vfs/provider/AbstractRandomAccessContent.java	(revision 796122)
++++ core/src/main/java/org/apache/commons/vfs/provider/AbstractRandomAccessContent.java	(working copy)
+@@ -115,4 +115,9 @@
+     {
+         throw new UnsupportedOperationException("deprecated");
+     }
++    
++    public void setLength(long newLength) throws IOException
++    {
++    	throw new UnsupportedOperationException();
++    }
+ }
