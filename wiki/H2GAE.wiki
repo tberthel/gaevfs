@@ -48,7 +48,7 @@ The above JDBC URL will result in the following files (among others):
 
 The [http://gaevfs.googlecode.com/svn/trunk/docs/javadoc/com/newatlanta/commons/vfs/provider/gae/GaeVfsServlet.html GaeVfsServlet] can be used to download these files.
 
-Specifying the `FILE_LOCK=NO` and `AUTO_SERVER=FALSE` parameters is required; if omitted or set to different values, H2-GAE will throws exceptions and fail to startup.
+Specifying the `FILE_LOCK=NO` and `AUTO_SERVER=FALSE` parameters is required; if omitted or set to different values, H2-GAE will throw exceptions and fail to startup.
 
 == Source Code ==
 
