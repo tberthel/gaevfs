@@ -4,6 +4,13 @@
 
 H2-GAE is an _experimental_ port of the [http://www.h2database.com/html/main.html H2 Database Engine] to GAE using GaeVFS. H2-GAE is currently *not* suitable for production use.
 
+As of July 21, 2009 the current status is:
+
+  * Basic operations such as CREATE TABLE, DROP TABLE, INSERT, and SELECT are working.
+  * INSERT is very, very slow.
+  * SELECT seems to perform reasonably well.
+  * There is currently no distributed locking mechanism that works across multiple GAE application instances running in separate JVMs. This could result in corruption of database files.
+
 == JDBC Driver Class ==
 
 The JDBC Driver Class for H2-GAE is: `org.h2.Driver`
@@ -39,6 +46,6 @@ WEB-INF/data/test.index.db
 WEB-INF/data/test.trace.db
 }}}
 
-The GaeVfsServlet can be used to download these files.
+The [http://gaevfs.googlecode.com/svn/trunk/docs/javadoc/com/newatlanta/commons/vfs/provider/gae/GaeVfsServlet.html GaeVfsServlet] can be used to download these files.
 
 Specifying the FILE_LOCK=NO and AUTO_SERVER=FALSE parameters is required; if omitted or set to different values, H2-GAE will throws exceptions and fail to startup.
