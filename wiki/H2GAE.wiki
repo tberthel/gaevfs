@@ -2,4 +2,4 @@
 
 = H2 Database on GAE =
 
-H2-GAE is an _experimental_ port of the [http://www.h2database.com/html/main.html H2 Database Engine] to GAE using GaeVFS. H2-GAE is *not* suitable for use in production in its current state.
+H2-GAE is an _experimental_ port of the [http://www.h2database.com/html/main.html H2 Database Engine] to GAE using GaeVFS. H2-GAE is currently *not* suitable for production use.
