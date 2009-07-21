@@ -466,10 +466,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                 block = createBlock( blockKeys, j );
             }
         }
+        // a new block was created
         if ( !exists() ) {
-            injectType( FileType.FILE );
+            createFile();
+        } else {
+            putEntity();
         }
-        putEntity();
         return block;
     }
 
