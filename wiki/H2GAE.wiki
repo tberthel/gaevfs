@@ -3,3 +3,42 @@
 = H2 Database on GAE =
 
 H2-GAE is an _experimental_ port of the [http://www.h2database.com/html/main.html H2 Database Engine] to GAE using GaeVFS. H2-GAE is currently *not* suitable for production use.
+
+== JDBC Driver Class ==
+
+The JDBC Driver Class for H2-GAE is: `org.h2.Driver`
+
+== JDBC URLs ==
+
+JDBC URLs for H2-GAE take the following format:
+
+    `jdbc:h2:gae://<partial-path>;FILE_LOCK=NO;AUTO_SERVER=FALSE`
+
+
+Where `<partial-path>` is a partial GaeVFS path specification. The path is "partial" because it does not specify a complete file name, but instead specifies a database name that is used by H2 to generate file names. For example, the following JDBC URL specifies a database named `test`:
+
+    `jdbc:h2:gae://test;FILE_LOCK=NO;AUTO_SERVER=FALSE`
+
+When processing this URL, H2-GAE creates the following files--among others--within the webapp root (virtual) directory:
+
+{{{
+test.data.db
+test.index.db
+test.trace.db
+}}}
+
+The JDBC URL can specify directories within the partial path, for example:
+
+    `jdbc:h2:gae://WEB-INF/data/test;FILE_LOCK=NO;AUTO_SERVER=FALSE`
+
+The above JDBC URL will result in the following files (among others):
+
+{{{
+WEB-INF/data/test.data.db
+WEB-INF/data/test.index.db
+WEB-INF/data/test.trace.db
+}}}
+
+The GaeVfsServlet can be used to download these files.
+
+Specifying the FILE_LOCK=NO and AUTO_SERVER=FALSE parameters is required; if omitted or set to different values, H2-GAE will throws exceptions and fail to startup.
