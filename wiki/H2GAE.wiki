@@ -32,9 +32,11 @@ Where `<partial-path>` is a partial GaeVFS path specification. The path is "part
 
 When processing this URL, H2-GAE creates the following files--among others--within the webapp root (virtual) directory:
 
-    `test.data.db`
-    `test.index.db`
-    `test.trace.db`
+{{{
+test.data.db
+test.index.db
+test.trace.db
+}}}
 
 The JDBC URL can specify directories within the partial path, for example:
 
@@ -42,9 +44,11 @@ The JDBC URL can specify directories within the partial path, for example:
 
 The above JDBC URL will result in the following files (among others):
 
-    `WEB-INF/data/test.data.db`
-    `WEB-INF/data/test.index.db`
-    `WEB-INF/data/test.trace.db`
+{{{
+WEB-INF/data/test.data.db
+WEB-INF/data/test.index.db
+WEB-INF/data/test.trace.db
+}}}
 
 The [http://gaevfs.googlecode.com/svn/trunk/docs/javadoc/com/newatlanta/commons/vfs/provider/gae/GaeVfsServlet.html GaeVfsServlet] can be used to download these files.
 
