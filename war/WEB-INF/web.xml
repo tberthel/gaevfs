@@ -4,6 +4,9 @@
  "http://java.sun.com/dtd/web-app_2_3.dtd">
 
 <web-app xmlns="http://java.sun.com/xml/ns/javaee" version="2.5">
+	<listener>
+		<listener-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServletEventListener</listener-class>
+	</listener>
     <servlet>
         <servlet-name>gaevfs</servlet-name>
         <servlet-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServlet</servlet-class>

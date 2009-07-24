@@ -44,7 +44,10 @@ import org.apache.commons.vfs.FileObject;
  * directory listings of GaeVFS folders. Here's sample <code>web.xml</code> configuration
  * for this servlet:
  * <p><code>
- *  &lt;servlet><br>
+ * &lt;listener><br>
+ * &nbsp;&nbsp;&nbsp;&nbsp;&lt;listener-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServletEventListener&lt;/listener-class><br>
+ * &lt;/listener><br>
+ * &lt;servlet><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&lt;servlet-name>gaevfs&lt;/servlet-name><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&lt;servlet-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServlet&lt;/servlet-class><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&lt;init-param><br>
@@ -59,11 +62,11 @@ import org.apache.commons.vfs.FileObject;
  * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;param-name>uploadRedirect&lt;/param-name><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;param-value>/uploadComplete.jsp&lt;/param-value><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&lt;/init-param><br>
- *  &lt;/servlet><br>
- *  &lt;servlet-mapping><br>
+ * &lt;/servlet><br>
+ * &lt;servlet-mapping><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&lt;servlet-name>gaevfs&lt;/servlet-name><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&lt;url-pattern>/gaevfs/*&lt;/url-pattern><br>
- *  &lt;/servlet-mapping><br>
+ * &lt;/servlet-mapping><br>
  * </code>
  * <p>
  * The <code>&lt;url-pattern></code> within the <code>&lt;servlet-mapping></code>
@@ -113,7 +116,6 @@ public class GaeVfsServlet extends HttpServlet {
      */
     @Override
     public void init() throws ServletException {
-
         dirListingAllowed = Boolean.parseBoolean( getInitParameter( "dirListingAllowed" ) );
         uploadRedirect = getInitParameter( "uploadRedirect" );
 
@@ -124,8 +126,6 @@ public class GaeVfsServlet extends HttpServlet {
         if ( System.getProperty( "os.name" ).startsWith( "Windows" ) ) {
             rootPathLen++;
         }
-
-        GaeVFS.setRootPath( rootPath );
         
         try {
             String initDirs = getInitParameter( "initDirs" );
@@ -140,14 +140,7 @@ public class GaeVfsServlet extends HttpServlet {
             }
         } catch ( IOException e ) {
             throw new ServletException( e );
-        } finally {
-            GaeVFS.clearFilesCache();
         }
-    }
-
-    @Override
-    public void destroy() {
-        GaeVFS.close();
     }
 
     /**
@@ -156,37 +149,34 @@ public class GaeVfsServlet extends HttpServlet {
      * configuration.
      */
     @Override
-    public void doGet( HttpServletRequest req, HttpServletResponse res ) throws ServletException, IOException {
-        try {
-            FileObject fileObject = GaeVFS.resolveFile( req.getRequestURI() );
-            if ( !fileObject.exists() ) {
-                res.sendError( HttpServletResponse.SC_NOT_FOUND );
-                return;
-            }
+    public void doGet( HttpServletRequest req, HttpServletResponse res )
+    		throws ServletException, IOException {
 
-            if ( fileObject.getType().hasChildren() ) { // it's a directory
-                if ( dirListingAllowed ) {
-                    res.getWriter().write( getListHTML( fileObject ) );
-                    res.flushBuffer();
-                } else {
-                    res.sendError( HttpServletResponse.SC_FORBIDDEN, "Directory listing not allowed" );
-                }
-                return;
-            }
-
-            // it's file, return it
-
-            // the servlet MIME type is configurable via web.xml, check it first
-            String contentType = getServletContext().getMimeType( fileObject.getName().getBaseName() );
-            res.setContentType( contentType != null ? contentType
-                    : fileObject.getContent().getContentInfo().getContentType() );
-
-            copyAndClose( fileObject.getContent().getInputStream(), res.getOutputStream() );
-            res.flushBuffer();
-
-        } finally {
-            GaeVFS.clearFilesCache();
+        FileObject fileObject = GaeVFS.resolveFile( req.getRequestURI() );
+        if ( !fileObject.exists() ) {
+            res.sendError( HttpServletResponse.SC_NOT_FOUND );
+            return;
         }
+
+        if ( fileObject.getType().hasChildren() ) { // it's a directory
+            if ( dirListingAllowed ) {
+                res.getWriter().write( getListHTML( fileObject ) );
+                res.flushBuffer();
+            } else {
+                res.sendError( HttpServletResponse.SC_FORBIDDEN, "Directory listing not allowed" );
+            }
+            return;
+        }
+
+        // it's file, return it
+
+        // the servlet MIME type is configurable via web.xml, check it first
+        String contentType = getServletContext().getMimeType( fileObject.getName().getBaseName() );
+        res.setContentType( contentType != null ? contentType
+                : fileObject.getContent().getContentInfo().getContentType() );
+
+        copyAndClose( fileObject.getContent().getInputStream(), res.getOutputStream() );
+        res.flushBuffer();
     }
 
     /**
@@ -266,7 +256,8 @@ public class GaeVfsServlet extends HttpServlet {
      * are created (if they don't already exist) when the file is saved.
      */
     @Override
-    public void doPost( HttpServletRequest req, HttpServletResponse res ) throws ServletException, IOException {
+    public void doPost( HttpServletRequest req, HttpServletResponse res )
+    		throws ServletException, IOException {
         // Check that we have a file upload request
         if ( !ServletFileUpload.isMultipartContent( req ) ) {
             res.sendError( HttpServletResponse.SC_BAD_REQUEST, "form enctype not multipart/form-data" );
@@ -306,8 +297,6 @@ public class GaeVfsServlet extends HttpServlet {
 
         } catch ( FileUploadException e ) {
             throw new ServletException( e );
-        } finally {
-            GaeVFS.clearFilesCache();
         }
     }
 
