@@ -29,10 +29,13 @@ import org.apache.commons.vfs.FileSystemException;
  * <blockquote>
  * <b>IMPORTANT!</b> The webapp root directory must be set via the
  * {@link GaeVFS#setRootPath(String)} method before invoking {@link GaeVFS#getManager()}
- * the first time.
+ * the first time. This will be done automatically if the 
+ * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
  * </blockquote><blockquote>
  * <b>IMPORTANT!</b> The GaeVFS local file cache must be cleared at the end of every
- * request via the {@link GaeVFS#clearFilesCache()} method. See the
+ * request via the {@link GaeVFS#clearFilesCache()} method. This will be done
+ * automatically if the {@link GaeVfsServletEventListener} is configured within
+ * <tt>web.xml</tt>. See the
  * {@link com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache} class for an
  * explanation of why this is necessary.
  * </blockquote><blockquote>
@@ -66,7 +69,9 @@ public class GaeVFS {
      * <blockquote>
      * <b>IMPORTANT!</b> The webapp root directory must be set via the
      * {@link GaeVFS#setRootPath(String)} method before invoking <code>getManager()</code>
-     * the first time. This will normally be done within the servlet <code>init()</code>
+     * the first time. This will be done automatically if the 
+     * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
+     * Otherwise, it should be done within the servlet <code>init()</code>
      * method:<br><br>
      * <code>
      * public void init() throws ServletException {<br>
@@ -102,10 +107,12 @@ public class GaeVFS {
      * Any absolute path that does not specify such a sub-directory is interpreted
      * to be a relative path from the webapp root directory, regardless of the fact
      * that it starts with "/".
-     * 
+     * <blockquote>
      * <b>IMPORTANT!</b> The webapp root directory must be set via the
      * {@link GaeVFS#setRootPath(String)} method before invoking <code>getManager()</code>
-     * the first time. This will normally be done within the servlet <code>init()</code>
+     * the first time. This will be done automatically if the 
+     * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
+     * Otherwise, it should be done within the servlet <code>init()</code>
      * method:<br><br>
      * <code>
      * public void init() throws ServletException {<br>
@@ -115,6 +122,7 @@ public class GaeVFS {
      * </blockquote>
      * Failure to set the webapp root path properly will result in unexpected
      * errors.
+     * 
      * @param rootPath The webapp root path.
      */
     public static void setRootPath( String rootPath ) {
@@ -212,10 +220,12 @@ public class GaeVFS {
     /**
      * Clears the GaeVFS local file cache by invoking {@link GaeFileSystemManager#clearFilesCache()}.
      * 
-     * It's very important that the GaeVFS
-     * local file cache is cleared at the end of every servlet request via the
-     * <code>clearFilesCache()</code> method, best placed within a
-     * <code>finally</code> clause; for example:
+     * It's very important that the GaeVFS local file cache is cleared at the end
+     * of every servlet request via the <code>clearFilesCache()</code> method. This
+     * will be done automatically if the {@link GaeVfsServletEventListener} is
+     * configured within <tt>web.xml</tt>. Otherwise, it should be done within a
+     * <code>finally</code> clause within the servlet <tt>doGet()</tt> and <tt>doPost()</tt>
+     * methods; for example:
      * <blockquote><code>
      * public void doGet( HttpServletRequest req, HttpServletResponse res )<br>
      * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;throws ServletException, IOException {<br>
@@ -239,7 +249,9 @@ public class GaeVFS {
     /**
      * Releases all resources used by GaeVFS. It's good practice, but not strictly
      * necessary, to close GaeVFS when your servlet is destroyed to aid in clean-up
-     * of GaeVFS resources:
+     * of GaeVFS resources. This will be done automatically if the
+     * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
+     * Otherwise, it should be done within the servlet <tt>destroy()</tt> method:
      * <blockquote><code>
      * public void destroy() {<br>
      * &nbsp;&nbsp;&nbsp;&nbsp;GaeVFS.close(); // this is not strictly required, but good practice<br>

@@ -56,6 +56,8 @@ import com.newatlanta.commons.vfs.provider.gae.GaeFileSystem;
  * <b>IMPORTANT!</b> Servlets that use GaeVFS must clear the ThreadLocal cache at
  * the end of every request via the
  * {@link com.newatlanta.commons.vfs.provider.gae.GaeVFS#clearFilesCache} method.
+ * This will be done automatically if the {@link GaeVfsServletEventListener} is
+ * configured within <tt>web.xml</tt>.
  * </blockquote>
  * Finally, non-GAE file objects are stored in an <code>LRUFilesCache</code>, which
  * this class extends.
