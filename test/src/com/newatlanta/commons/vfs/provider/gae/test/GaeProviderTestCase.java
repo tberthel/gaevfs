@@ -79,8 +79,8 @@ public class GaeProviderTestCase extends AbstractProviderTestCase implements Pro
 	
 	public DefaultFileSystemManager getDefaultFileSystemManager() throws Exception {
 		boolean combinedLocal = Boolean.parseBoolean( System.getProperty( "combined.local" ) );
+		System.out.println( "Combined Local option: " + combinedLocal );
 		return new GaeFileSystemManager().setCombinedLocal( combinedLocal );
-		// TODO: test on Linux
 	}
 
 	public void prepare( DefaultFileSystemManager manager ) throws Exception {
