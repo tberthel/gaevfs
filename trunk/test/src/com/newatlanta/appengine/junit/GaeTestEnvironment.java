@@ -15,31 +15,46 @@
  */
 package com.newatlanta.appengine.junit;
 
-import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
-import junit.framework.TestCase;
-
-import com.google.appengine.tools.development.ApiProxyLocalImpl;
 import com.google.apphosting.api.ApiProxy;
 
 /**
  * http://code.google.com/appengine/docs/java/howto/unittesting.html
  */
-public abstract class LocalServiceTestCase extends TestCase {
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        ApiProxy.setEnvironmentForCurrentThread(new GaeTestEnvironment());
-        ApiProxy.setDelegate(new ApiProxyLocalImpl(new File(".")) {
-        });
+public class GaeTestEnvironment implements ApiProxy.Environment
+{
+    public String getAppId() {
+        return "Unit Tests";
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        // not strictly necessary to null these out but there's no harm either
-        ApiProxy.setDelegate(null);
-        ApiProxy.setEnvironmentForCurrentThread(null);
-        super.tearDown();
+    public String getVersionId() {
+        return "1.0";
+    }
+
+    public String getRequestNamespace() {
+        return "gmail.com";
+    }
+
+    public String getAuthDomain() {
+        return "gmail.com";
+    }
+
+    public boolean isLoggedIn() {
+        return false;
+    }
+
+    public String getEmail() {
+        return "";
+    }
+
+    public boolean isAdmin() {
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map getAttributes() {
+        return new HashMap();
     }
 }
