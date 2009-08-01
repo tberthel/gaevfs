@@ -65,7 +65,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     
     private Entity block;   // the current block
     private int index;      // index of the current block
-    private boolean write;  // current block needs to be written?
+    private boolean dirty;  // current block needs to be written?
     
     private long filePointer; // absolute position within the file
     
@@ -113,7 +113,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     
     @Override
     public synchronized void flush() throws FileSystemException {
-        if ( write && ( block != null ) && ( buffer != null ) ) {
+        if ( dirty && ( block != null ) && ( buffer != null ) ) {
             boolean setBlobProperty = true;
             long fileLen = length();
             // if this is the last block for the file, and the buffer is less than
@@ -134,7 +134,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
                 block.setProperty( CONTENT_BLOB, new Blob( buffer ) );
             }
             fileObject.putBlock( block );
-            write = false;
+            dirty = false;
         }
     }
 
@@ -257,7 +257,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             extendBuffer( offset + len );
         }
         System.arraycopy( b, off, buffer, offset, len );
-        write = true;
+        dirty = true;
     }
 
     /**
@@ -288,7 +288,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         }
         if ( block == null ) {
             block = fileObject.getBlock( index );
-            write = false;
+            dirty = false;
         }
         Blob contentBlob = (Blob)block.getProperty( CONTENT_BLOB );
         buffer = ( contentBlob != null ? contentBlob.getBytes()
