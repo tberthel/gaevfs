@@ -1,15 +1,16 @@
 <project name="gaevfs" default="jar" basedir="..">
 
 	<!-- global properties -->
-	<property name="build.number" value="0.3"/>
+	<property name="build.number" value="0.4"/>
 	<property name="build.name" value="gaevfs-${build.number}"/>
 	<property name="src.dir" value="./src/"/>
+    <property name="test.src.dir" value="./test/src/"/>
 	<property name="doc.dir" value="./docs"/>
 	<property name="classes.dir" value="./war/WEB-INF/classes/"/>
 	<property name="project.lib.dir" value="./lib"/>
 	<property name="webinf.lib.dir" value="./war/WEB-INF/lib"/>
 	
-	<path id="project.class.path">
+	<path id="build.class.path">
 		<pathelement path="${project.lib.dir}/geronimo-servlet_2.5_spec-1.2.jar"/>
 		<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.2.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-fileupload-1.2.1.jar"/>
@@ -17,6 +18,15 @@
 		<pathelement path="${webinf.lib.dir}/commons-lang-2.4.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-vfs-2.0-SNAPSHOT.jar"/>
 	</path>
+    
+    <path id="test.class.path">
+        <pathelement path="${classes.dir}"/>
+        <pathelement path="${project.lib.dir}/appengine-api-stubs.jar"/>
+        <pathelement path="${project.lib.dir}/appengine-local-runtime.jar"/>
+        <pathelement path="${project.lib.dir}/commons-vfs-2.0-SNAPSHOT-tests.jar"/>
+        <pathelement path="${project.lib.dir}/junit-4.6.jar"/>
+        <pathelement path="${webinf.lib.dir}/commons-collections-3.2.1.jar"/>
+    </path>
 	
 	<target name="clean">
 		<delete dir="${classes.dir}"/>
@@ -28,25 +38,65 @@
 		<mkdir dir="${classes.dir}"/>
 	</target>
 
-	<target name="compile" depends="init">
+	<target name="compile" depends="init" description="compiles to WEB-INF/classes">
 		<javac srcdir="${src.dir}" destdir="${classes.dir}" debug="true"
-				deprecation="true" listfiles="true" classpathref="project.class.path" />
+				deprecation="true" listfiles="true" classpathref="build.class.path"/>
+	    <copy file="${src.dir}META-INF/vfs-providers.xml" todir="${classes.dir}META-INF"/>
 	</target>
+    
+    <target name="compile-tests" depends="compile">
+        <javac srcdir="${test.src.dir}" destdir="${classes.dir}" debug="true"
+        		deprecation="true" listfiles="true">
+            <classpath>
+            	<path refid="test.class.path"/>
+            	<path refid="build.class.path"/>
+           	</classpath>
+        </javac>
+        <copy file="${test.src.dir}com/newatlanta/commons/vfs/provider/gae/test/test-providers.xml"
+              todir="${classes.dir}com/newatlanta/commons/vfs/provider/gae/test"/>
+    </target>
+    
+    <target name="test" depends="test-true,test-false" description="runs junit tests"/>
+        
+    <target name="test-true">
+        <antcall target="test-private">
+            <param name="combined.local" value="true"/>
+        </antcall>
+    </target>
+    
+    <target name="test-false">
+        <antcall target="test-private">
+        	<param name="combined.local" value="false"/>
+        </antcall>
+    </target>
+    
+    <target name="test-private" depends="compile-tests">
+        <junit fork="yes" dir="." printsummary="on" showoutput="yes"
+            	haltonerror="yes" haltonfailure="yes">
+            <classpath>
+            	<path refid="test.class.path"/>
+                <path refid="build.class.path"/>
+            </classpath>
+            <jvmarg value="-Dcombined.local=${combined.local}"/>
+            <formatter type="plain"/>
+            <test name="com.newatlanta.commons.vfs.provider.gae.test.GaeProviderTestCase"/>
+        </junit>
+    </target>
 	
-	<target name="jar" depends="clean,compile" description="build the JAR file">
+	<target name="jar" depends="clean,compile,test" description="builds the JAR file">
 		<jar jarfile="${build.name}.jar">
 			<metainf dir="${src.dir}META-INF" includes="vfs-providers.xml"/>
-			<fileset dir="${classes.dir}" includes="**/*.class"/>
+			<fileset dir="${classes.dir}" includes="**/*.class" excludes="**/*Test*"/>
 		</jar>
 	</target>
 	
-	<target name="docs" description="create the javadocs">
+	<target name="docs" description="creates the javadocs">
 		<javadoc sourcepath="${src.dir}" destdir="${doc.dir}/javadoc"
-					packagenames="*" classpathref="project.class.path">
+					packagenames="*" classpathref="build.class.path">
 		</javadoc>
 	</target>
 	
-	<target name="dist" depends="jar" description="create the download package">
+	<target name="dist" depends="jar" description="creates the download package">
 		<zip destfile="${build.name}.zip" filesonly="true">
 			<zipfileset dir="." prefix="${build.name}">
 				<include name="src/**/*"/>
