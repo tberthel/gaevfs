@@ -83,7 +83,10 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         isCombinedLocal = b;
     }
     
-    public int getBlockSize() {
+    public int getBlockSize() throws FileSystemException {
+    	if ( !getType().hasContent() ) {
+    		throw new FileSystemException( "vfs.provider/read-not-file.error", getName() );
+    	}
         return ((Long)metadata.getProperty( BLOCK_SIZE )).intValue();
     }
     
@@ -397,7 +400,10 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * Returns the size of the file content (in bytes).
      */
     @Override
-    protected long doGetContentSize() {
+    protected long doGetContentSize() throws FileSystemException {
+    	if ( !getType().hasContent() ) {
+    		throw new FileSystemException( "vfs.provider/get-size-not-file.error", getName() );
+    	}
         Long contentSize = (Long)metadata.getProperty( CONTENT_SIZE );
         return ( contentSize != null ? contentSize.longValue() : 0 );
     }
