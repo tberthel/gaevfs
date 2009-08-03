@@ -218,35 +218,6 @@ public class GaeVFS {
     }
 
     /**
-     * Clears the GaeVFS local file cache by invoking {@link GaeFileSystemManager#clearFilesCache()}.
-     * 
-     * It's very important that the GaeVFS local file cache is cleared at the end
-     * of every servlet request via the <code>clearFilesCache()</code> method. This
-     * will be done automatically if the {@link GaeVfsServletEventListener} is
-     * configured within <tt>web.xml</tt>. Otherwise, it should be done within a
-     * <code>finally</code> clause within the servlet <tt>doGet()</tt> and <tt>doPost()</tt>
-     * methods; for example:
-     * <blockquote><code>
-     * public void doGet( HttpServletRequest req, HttpServletResponse res )<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;throws ServletException, IOException {<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;try {<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// ...process the GET request...<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;} finally {<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;GaeVFS.clearFilesCache(); // this is important!<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;}<br>
-     * }
-     * </code></blockquote>
-     * See the
-     * {@link com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache} class for an
-     * explanation of why this is necessary.
-     */
-    public static void clearFilesCache() {
-        if ( fsManager != null ) {
-            fsManager.clearFilesCache();
-        }
-    }
-
-    /**
      * Releases all resources used by GaeVFS. It's good practice, but not strictly
      * necessary, to close GaeVFS when your servlet is destroyed to aid in clean-up
      * of GaeVFS resources. This will be done automatically if the

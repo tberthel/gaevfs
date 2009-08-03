@@ -33,18 +33,26 @@ import org.apache.commons.vfs.provider.AbstractFileName;
 public class GaeFileName extends AbstractFileName {
 
     private static final long serialVersionUID = 1L;
+    
+    private String rootPath;
 
-    GaeFileName( String scheme, String absPath, FileType type ) {
+    // absPath is mis-named; it's really relative from rootPath
+    GaeFileName( String scheme, String rootPath, String absPath, FileType type ) {
         super( scheme, absPath, type );
+        this.rootPath = rootPath;
+    }
+    
+    String getRootPath() {
+    	return rootPath;
     }
 
     @Override
     protected void appendRootUri( StringBuffer buffer, boolean addPassword ) {
-        buffer.append( getScheme() ).append( "://" );
+        buffer.append( getScheme() ).append( "://" ).append( rootPath );
     }
 
     @Override
     public FileName createName( String absPath, FileType type ) {
-        return new GaeFileName( getScheme(), absPath, type );
+        return new GaeFileName( getScheme(), rootPath, absPath, type );
     }
 }

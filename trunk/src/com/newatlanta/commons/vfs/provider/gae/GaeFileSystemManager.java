@@ -15,14 +15,17 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import java.io.File;
+import java.net.URL;
+
 import org.apache.commons.vfs.CacheStrategy;
+import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.FileSystemOptions;
+import org.apache.commons.vfs.cache.LRUFilesCache;
 import org.apache.commons.vfs.impl.StandardFileSystemManager;
 import org.apache.commons.vfs.provider.UriParser;
-
-import com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache;
 
 /**
  * Implements the
@@ -40,10 +43,11 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
 
     private static final String CONFIG_RESOURCE = "providers.xml";
 
-    private GaeMemcacheFilesCache filesCache;
     private boolean isCombinedLocal = true;
+    private String rootPath;
+    private FileObject rootObject;
     
-    GaeFileSystemManager() {
+    public GaeFileSystemManager() {
     }
 
     /**
@@ -64,28 +68,47 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
         return isCombinedLocal;
     }
 
-    /**
-     * Clears the GaeVFS local file cache. See the
-     * {@link com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache} class for an
-     * explanation of why this is necessary.
-     */
-    public void clearFilesCache() {
-        filesCache.clear();
+    public void init( String rootPath ) throws FileSystemException {
+        prepare( rootPath, getClass().getSuperclass().getResource( CONFIG_RESOURCE ) );
+        this.init();
     }
+    
+    /**
+     * Prepare for initialization. 
+     */
+    public void prepare( String rootPath, URL configUrl ) throws FileSystemException {   
+        setFilesCache( new LRUFilesCache() );
+        setCacheStrategy( CacheStrategy.ON_RESOLVE );
+        setConfiguration( configUrl );
 
-    void init( String rootPath ) throws FileSystemException {   
-        filesCache = new GaeMemcacheFilesCache();
-        setFilesCache( filesCache );
-        setCacheStrategy( CacheStrategy.MANUAL );
-        
-        // make sure our superclass initializes properly
-        super.setConfiguration( getClass().getSuperclass().getResource( CONFIG_RESOURCE ) );
-        super.init();
-        
-        if ( !rootPath.startsWith( "/" ) ) {
-            rootPath = "/" + rootPath;
+        this.rootPath = new File( rootPath ).getAbsolutePath();
+    }
+    
+    @Override
+	public void init() throws FileSystemException {
+		super.init();
+		rootObject = resolveFile( "gae://" + rootPath );
+        if ( !rootObject.exists() ) {
+        	rootObject.createFolder();
         }
-        setBaseFile( new java.io.File( rootPath ) );
+        super.setBaseFile( rootObject );
+    }
+    
+    /**
+     * Sets the base file to use when resolving relative URI. Base file must
+     * be a sub-directory of the root path; set equal to the root path if null.
+     * 
+     * @param baseFile The new base FileObject.
+     * @throws FileSystemException if an error occurs.
+     */
+    @Override
+    public void setBaseFile( FileObject baseFile ) throws FileSystemException {
+    	if ( baseFile == null ) {
+    		baseFile = rootObject;
+    	} else if ( !rootObject.getName().isDescendent( baseFile.getName() ) ) {
+    		throw new FileSystemException( "Base file must be a descendent of root." );
+    	}
+        super.setBaseFile( baseFile );
     }
 
     /**
@@ -93,7 +116,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
      * configuration options.
      */
     @Override
-    public FileObject resolveFile( final FileObject baseFile, String uri, final FileSystemOptions opts )
+    public FileObject resolveFile( FileObject baseFile, String uri, FileSystemOptions opts )
             throws FileSystemException
     {
         // let the specified provider handle it
@@ -116,7 +139,14 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             // fileObject doesn't exist or is a folder, check other file system
             if ( fileObject.getName().getScheme().equals( "gae" ) ) {
                 gaeFile = fileObject;
-                localFile = super.resolveFile( null, "file://" + baseFile.getName().getPath() + "/" + uri, opts );
+                FileName baseName = baseFile.getName();
+                if ( baseName instanceof GaeFileName ) {
+                	String localUri = "file://" + ((GaeFileName)baseName).getRootPath() +
+                								baseName.getPath() + "/" + uri;
+                	localFile = super.resolveFile( null, localUri, opts );
+                } else {
+                	localFile = super.resolveFile( baseFile, "file://" + uri, opts );
+                }
             } else {
                 localFile = fileObject;
                 gaeFile = super.resolveFile( baseFile, "gae://" + uri, opts );
@@ -152,9 +182,10 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
         return ( ( scheme != null ) && super.hasProvider( scheme ) );
     }
     
-    private String checkRelativity( FileObject baseFile, String uri ) {
-        if ( uri.startsWith( "/" ) && ( baseFile != null ) ) {
-            String basePath = GaeFileNameParser.getInstance().getBasePath( baseFile );
+    // TODO: is this still needed?
+    private String checkRelativity( FileObject baseFile, String uri ) throws FileSystemException {
+        if ( ( baseFile != null ) && uri.startsWith( "/" ) ) {
+            String basePath = GaeFileNameParser.getRootPath( baseFile.getName() );
             if ( !uri.startsWith( basePath ) ) {
                 return uri.substring( 1 );
             }
