@@ -20,7 +20,10 @@ import java.io.File;
 import junit.framework.Test;
 
 import org.apache.commons.vfs.FileObject;
+import org.apache.commons.vfs.FileSelectInfo;
+import org.apache.commons.vfs.FileSelector;
 import org.apache.commons.vfs.FileSystemManager;
+import org.apache.commons.vfs.FileType;
 import org.apache.commons.vfs.FilesCache;
 import org.apache.commons.vfs.Selectors;
 import org.apache.commons.vfs.cache.LRUFilesCache;
@@ -91,7 +94,9 @@ public class GaeProviderTestCase extends AbstractProviderTestCase implements Pro
 	
 	/**
      * Returns the base folder for tests. Copies test files from the local file
-     * system to GaeVFS.
+     * system to GaeVFS. Note that SVN (.svn) folders are not copied; if the are,
+     * then the size of the LRUFilesCache created within GaeFileSystemManager.prepare()
+     * must be increased to avoid testcase failures.
      */
 	@Override
     public FileObject getBaseTestFolder( FileSystemManager manager ) throws Exception {
@@ -100,11 +105,25 @@ public class GaeProviderTestCase extends AbstractProviderTestCase implements Pro
 			FileObject localTestBaseDir = manager.resolveFile( "file://" +
 							GaeFileNameParser.getRootPath( manager.getBaseFile().getName() ) +
 							gaeTestBaseDir.getName().getPath() );
-			gaeTestBaseDir.copyFrom( localTestBaseDir, Selectors.SELECT_FILES );
-			FileObject[] testFiles = localTestBaseDir.findFiles( Selectors.SELECT_FILES );
+			gaeTestBaseDir.copyFrom( localTestBaseDir, new TestFileSelector() );
+			// confirm that the correct number of files were copied
+			FileObject[] testFiles = localTestBaseDir.findFiles( new TestFileSelector() );
 			FileObject[] gaeFiles = gaeTestBaseDir.findFiles( Selectors.SELECT_FILES );
 			assertEquals( testFiles.length, gaeFiles.length );
 		}
         return gaeTestBaseDir;
     }
+	
+	private class TestFileSelector implements FileSelector
+	{
+		public boolean includeFile( FileSelectInfo fileInfo ) throws Exception {
+			return fileInfo.getFile().getType() == FileType.FILE; // files only
+		}
+
+		public boolean traverseDescendents( FileSelectInfo fileInfo ) throws Exception {
+			String baseName = fileInfo.getFile().getName().getBaseName();
+			return !baseName.equals( ".svn" ); // skip .svn directories
+		}
+		
+	}
 }
