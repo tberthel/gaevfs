@@ -1,0 +1,78 @@
+Index: core/src/test/java/org/apache/commons/vfs/provider/test/JunctionProviderConfig.java
+===================================================================
+--- core/src/test/java/org/apache/commons/vfs/provider/test/JunctionProviderConfig.java	(revision 798599)
++++ core/src/test/java/org/apache/commons/vfs/provider/test/JunctionProviderConfig.java	(working copy)
+@@ -39,6 +39,13 @@
+     {
+         this.config = config;
+     }
++    
++    /**
++	 * Returns a DefaultFileSystemManager instance (or subclass instance).
++	 */
++	public DefaultFileSystemManager getDefaultFileSystemManager() {
++		return config.getDefaultFileSystemManager();
++	}
+ 
+     public FilesCache getFilesCache()
+     {
+Index: core/src/test/java/org/apache/commons/vfs/test/AbstractProviderTestCase.java
+===================================================================
+--- core/src/test/java/org/apache/commons/vfs/test/AbstractProviderTestCase.java	(revision 798599)
++++ core/src/test/java/org/apache/commons/vfs/test/AbstractProviderTestCase.java	(working copy)
+@@ -103,7 +103,7 @@
+      */
+     protected DefaultFileSystemManager createManager() throws Exception
+     {
+-	    DefaultFileSystemManager fs = new DefaultFileSystemManager();
++	    DefaultFileSystemManager fs = getProviderConfig().getDefaultFileSystemManager();
+ 	    fs.setFilesCache(getProviderConfig().getFilesCache());
+ 	    getProviderConfig().prepare(fs);
+ 	    if (!fs.hasProvider("file"))
+Index: core/src/test/java/org/apache/commons/vfs/test/AbstractTestSuite.java
+===================================================================
+--- core/src/test/java/org/apache/commons/vfs/test/AbstractTestSuite.java	(revision 798599)
++++ core/src/test/java/org/apache/commons/vfs/test/AbstractTestSuite.java	(working copy)
+@@ -148,7 +148,7 @@
+         checkTempDir("Temp dir not empty before test");
+ 
+         // Create the file system manager
+-        manager = new DefaultFileSystemManager();
++        manager = providerConfig.getDefaultFileSystemManager();
+         manager.setFilesCache(providerConfig.getFilesCache());
+ 
+         final DefaultFileReplicator replicator = new DefaultFileReplicator(tempDir);
+Index: core/src/test/java/org/apache/commons/vfs/test/ProviderTestConfig.java
+===================================================================
+--- core/src/test/java/org/apache/commons/vfs/test/ProviderTestConfig.java	(revision 798599)
++++ core/src/test/java/org/apache/commons/vfs/test/ProviderTestConfig.java	(working copy)
+@@ -29,6 +29,11 @@
+  */
+ public interface ProviderTestConfig
+ {
++	/**
++	 * Returns a DefaultFileSystemManager instance (or subclass instance).
++	 */
++	public DefaultFileSystemManager getDefaultFileSystemManager();
++	
+     /**
+      * Prepares the file system manager.
+      */
+Index: core/src/test/java/org/apache/commons/vfs/test/AbstractProviderTestConfig.java
+===================================================================
+--- core/src/test/java/org/apache/commons/vfs/test/AbstractProviderTestConfig.java	(revision 798599)
++++ core/src/test/java/org/apache/commons/vfs/test/AbstractProviderTestConfig.java	(working copy)
+@@ -30,6 +30,13 @@
+     implements ProviderTestConfig
+ {
+     private FilesCache cache = null;
++    
++    /**
++	 * Returns a DefaultFileSystemManager instance (or subclass instance).
++	 */
++	public DefaultFileSystemManager getDefaultFileSystemManager() {
++		return new DefaultFileSystemManager();
++	}
+ 
+     /**
+      * Prepares the file system manager.  This implementation does nothing.
