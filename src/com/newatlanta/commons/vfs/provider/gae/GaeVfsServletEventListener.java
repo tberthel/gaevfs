@@ -54,11 +54,8 @@ public class GaeVfsServletEventListener implements ServletContextListener, Servl
 	}
 	
 	/**
-	 * Clears the GaeVFS thread local file cache at the end of every request. See
-	 * the {@link com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache} class for
-	 * an explanation of why this is necessary.
+	 * Does nothing.
 	 */
 	public void requestDestroyed( ServletRequestEvent event ) {
-		GaeVFS.clearFilesCache();
 	}
 }
