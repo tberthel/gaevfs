@@ -56,28 +56,13 @@
               todir="${classes.dir}com/newatlanta/commons/vfs/provider/gae/test"/>
     </target>
     
-    <target name="test" depends="test-true,test-false" description="runs junit tests"/>
-        
-    <target name="test-true">
-        <antcall target="test-private">
-            <param name="combined.local" value="true"/>
-        </antcall>
-    </target>
-    
-    <target name="test-false">
-        <antcall target="test-private">
-        	<param name="combined.local" value="false"/>
-        </antcall>
-    </target>
-    
-    <target name="test-private" depends="compile-tests">
+    <target name="test" depends="compile-tests" description="runs junit tests">
         <junit fork="yes" dir="." printsummary="on" showoutput="yes"
             	haltonerror="yes" haltonfailure="yes">
             <classpath>
             	<path refid="test.class.path"/>
                 <path refid="build.class.path"/>
             </classpath>
-            <jvmarg value="-Dcombined.local=${combined.local}"/>
             <formatter type="plain"/>
             <test name="com.newatlanta.commons.vfs.provider.gae.test.GaeProviderTestCase"/>
         </junit>
