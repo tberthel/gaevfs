@@ -238,8 +238,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     private FileObject[] getLocalChildren() throws FileSystemException {
         if ( isCombinedLocal ) {
-            GaeFileSystemManager fsManager = (GaeFileSystemManager)getFileSystem().getFileSystemManager();
-            FileObject localFile = fsManager.resolveFile( "file://" + getName().getPath() );
+            GaeFileName fileName = (GaeFileName)getName();
+            String localUri = "file://" + fileName.getRootPath() + fileName.getPath();
+            FileObject localFile = getFileSystem().getFileSystemManager().resolveFile( localUri );
             if ( localFile.exists() ) {
                 return localFile.getChildren();
             }
