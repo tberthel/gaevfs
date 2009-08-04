@@ -20,7 +20,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.DateFormat;
 import java.text.NumberFormat;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.StringTokenizer;
 
@@ -187,7 +186,7 @@ public class GaeVfsServlet extends HttpServlet {
      * Modified to support GAE virtual file system. 
      */
     private String getListHTML( FileObject fileObject ) throws IOException {
-        String title = "Directory: " + getRelativePath( fileObject );
+        String title = "Directory: " + fileObject.getName().getPath();
 
         StringBuffer buf = new StringBuffer( 4096 );
         buf.append( "<HTML><HEAD><TITLE>" );
@@ -198,7 +197,7 @@ public class GaeVfsServlet extends HttpServlet {
 
         if ( fileObject.getParent() != null ) {
             buf.append( "<TR><TD><A HREF='" );
-            String parentPath = getRelativePath( fileObject.getParent() );
+            String parentPath = fileObject.getParent().getName().getPath();
             buf.append( parentPath );
             if ( !parentPath.endsWith( "/" ) ) {
                 buf.append( "/" );
@@ -207,8 +206,6 @@ public class GaeVfsServlet extends HttpServlet {
         }
 
         FileObject[] children = fileObject.getChildren();
-        Arrays.sort( children );
-
         if ( children.length == 0 ) {
             buf.append( "<TR><TD>[empty directory]</TD></TR>\n" );
         } else {
@@ -218,7 +215,7 @@ public class GaeVfsServlet extends HttpServlet {
             buf.append( "<tr><th align='left'>Name</th><th>Size</th><th aligh='left'>Type</th><th align='left'>Date modified</th></tr>" );
             for ( FileObject child : children ) {
                 buf.append( "<TR><TD><A HREF=\"" );
-                buf.append( getRelativePath( child ) );
+                buf.append( child.getName().getPath() );
                 buf.append( "\">" );
                 buf.append( StringEscapeUtils.escapeHtml( child.getName().getBaseName() ) );
                 if ( child.getType().hasChildren() ) {
@@ -240,10 +237,6 @@ public class GaeVfsServlet extends HttpServlet {
         buf.append( "</BODY></HTML>\n" );
 
         return buf.toString();
-    }
-    
-    private String getRelativePath( FileObject fileObject ) {
-        return fileObject.getName().getPath().substring( rootPathLen - 1 );
     }
 
     /**
