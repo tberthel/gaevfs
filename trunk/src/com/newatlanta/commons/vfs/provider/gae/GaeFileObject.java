@@ -83,10 +83,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         isCombinedLocal = b;
     }
     
-    public int getBlockSize() throws FileSystemException {
-    	if ( !getType().hasContent() ) {
-    		throw new FileSystemException( "vfs.provider/read-not-file.error", getName() );
-    	}
+    private int getBlockSize() throws FileSystemException {
         return ((Long)metadata.getProperty( BLOCK_SIZE )).intValue();
     }
     
@@ -346,7 +343,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected void onChange() throws FileSystemException {
         if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
-            deleteBlocks();
+        	if ( getName().getType().hasContent() ) {
+        		deleteBlocks();
+        	}
             deleteMetaData();
         } else { // file/folder is being created or modified
             putMetaData();
@@ -432,7 +431,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     	if ( !getType().hasContent() ) {
     		throw new FileSystemException( "vfs.provider/read-not-file.error", getName() );
     	}
-        return new GaeRandomAccessContent( this, RandomAccessMode.READ ).getInputStream();
+        return new GaeRandomAccessContent( this, RandomAccessMode.READ,
+        										getBlockSize() ).getInputStream();
     }
     
     /**
@@ -444,7 +444,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     protected RandomAccessContent doGetRandomAccessContent( RandomAccessMode mode )
             throws IOException {
-        return new GaeRandomAccessContent( this, mode );
+        return new GaeRandomAccessContent( this, mode, getBlockSize() );
     }
 
     /**
@@ -457,8 +457,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected OutputStream doGetOutputStream( boolean bAppend ) throws IOException {
-        return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE,
-                                             bAppend ? doGetContentSize() : 0 );
+        return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE, getBlockSize(),
+        									bAppend && exists() ? doGetContentSize() : 0 );
     }
     
     /**
@@ -466,6 +466,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * GaeRandomAccessContent.
      */
     Entity getBlock( int i ) throws FileSystemException {
+    	if ( !exists() ) {
+    		createFile();
+    	}
         Entity block = null;
         List<Key> blockKeys = getBlockKeys();
         if ( blockKeys == null ) {
@@ -486,11 +489,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
         }
         // a new block was created
-        if ( !exists() ) {
-            createFile();
-        } else {
-            putMetaData();
-        }
+        putMetaData();
         return block;
     }
 

@@ -73,14 +73,14 @@ public class GaeProviderTestCase extends AbstractProviderTestCase implements Pro
 
     private static FilesCache cache;
     
-	public FilesCache getFilesCache() throws Exception {
+	public FilesCache getFilesCache() {
 		if ( cache == null) {
 			cache = new LRUFilesCache();
 		}
 		return cache;
 	}
 	
-	public DefaultFileSystemManager getDefaultFileSystemManager() throws Exception {
+	public DefaultFileSystemManager getDefaultFileSystemManager() {
 		return new GaeFileSystemManager().setCombinedLocal( false );
 	}
 
