@@ -14,5 +14,6 @@
 	<classpathentry kind="lib" path="lib/appengine-api-stubs.jar"/>
 	<classpathentry kind="lib" path="lib/appengine-local-runtime.jar"/>
 	<classpathentry kind="lib" path="lib/commons-vfs-2.0-SNAPSHOT-tests.jar"/>
+	<classpathentry kind="lib" path="war/WEB-INF/lib/h2-gae-EXPERIMENTAL.jar"/>
 	<classpathentry kind="output" path="war/WEB-INF/classes"/>
 </classpath>
