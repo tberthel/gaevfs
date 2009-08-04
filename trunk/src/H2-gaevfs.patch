@@ -27,7 +27,7 @@ Index: src/main/org/h2/store/fs/FileSystemGae.java
 ===================================================================
 --- src/main/org/h2/store/fs/FileSystemGae.java	(revision 0)
 +++ src/main/org/h2/store/fs/FileSystemGae.java	(revision 0)
-@@ -0,0 +1,294 @@
+@@ -0,0 +1,298 @@
 +/*
 + * Copyright 2009 New Atlanta Communications, LLC
 + *
@@ -252,7 +252,11 @@ Index: src/main/org/h2/store/fs/FileSystemGae.java
 +    @Override
 +    public String[] listFiles(String directory) throws SQLException {
 +        try {
-+            org.apache.commons.vfs.FileObject[] children = resolveFile(directory).getChildren();
++        	org.apache.commons.vfs.FileObject dirObject = resolveFile(directory);
++        	if (!dirObject.exists()) {
++        		return new String[0];
++        	}
++            org.apache.commons.vfs.FileObject[] children = dirObject.getChildren();
 +            String[] files = new String[children.length];
 +            for (int i = 0; i < children.length; i++) {
 +                files[i] = children[i].getName().getURI();
