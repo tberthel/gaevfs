@@ -71,6 +71,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     
     private byte[] buffer;  // current block buffer
     private int offset;     // relative position of filePointer within buffer
+    private int blockSize;
     
     private RandomAccessMode mode;
     
@@ -82,15 +83,16 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         return newEntity;
     }
     
-    public GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m )
+    GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, int _blockSize )
             throws IOException {
-        this( gfo, m, 0 );
+        this( gfo, m, _blockSize, 0 );
     }
     
-    public GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, long pos )
+    GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, int _blockSize, long pos )
             throws IOException {
         fileObject = gfo;
         mode = m;
+        blockSize = _blockSize;
         seek( pos );
         
         dataOutput = new DataOutputStream( this );
@@ -174,11 +176,11 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
      * Given an absolute index within the file, calculate the block index.
      */
     private int calcBlockIndex( long i ) throws FileSystemException {
-        return (int)( i / fileObject.getBlockSize() );
+        return (int)( i / blockSize );
     }
     
     private int calcBufferOffset( long i ) throws FileSystemException {
-        return (int)( i - ( index * fileObject.getBlockSize() ) );
+        return (int)( i - ( index * blockSize ) );
     }
     
     /**
@@ -243,7 +245,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             moveFilePointer( filePointer + len );
         } else {
             // fill the current buffer
-            int bytesAvailable = fileObject.getBlockSize() - offset;
+            int bytesAvailable = blockSize - offset;
             writeBuffer( b, off, bytesAvailable );
             moveFilePointer( filePointer + bytesAvailable );
             
@@ -273,7 +275,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         // at least as large as the minimum size
         newSize = Math.max( newSize, getMinBufferSize() );
         // no larger than the block size
-        buffer = new byte[ Math.min( newSize, fileObject.getBlockSize() ) ];
+        buffer = new byte[ Math.min( newSize, blockSize ) ];
         System.arraycopy( tempBuf, 0, buffer, 0, tempBuf.length );
     }
 
@@ -296,7 +298,6 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     }
     
     private int getMinBufferSize() throws FileSystemException {
-        int blockSize = fileObject.getBlockSize();
         if ( blockSize <= ( 1024 * 8 ) ) {
             return blockSize;
         } else if ( blockSize <= ( 1024 * 32 ) ) {
