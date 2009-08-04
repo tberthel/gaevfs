@@ -17,8 +17,8 @@ package com.newatlanta.commons.vfs.provider.gae;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
-import javax.servlet.ServletRequestEvent;
-import javax.servlet.ServletRequestListener;
+
+import com.newatlanta.h2.store.fs.FileSystemGae;
 
 /**
  * Handles servlet lifecycle events related to GaeVFS. Must be configured within
@@ -31,13 +31,21 @@ import javax.servlet.ServletRequestListener;
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
-public class GaeVfsServletEventListener implements ServletContextListener, ServletRequestListener {
+public class GaeVfsServletEventListener implements ServletContextListener {
 	
 	/**
-	 * Initializes GaeVFS with the webapp root path.
+	 * Initializes GaeVFS with the webapp root path. Attempts to register with H2.
 	 */
 	public void contextInitialized( ServletContextEvent event ) {
 		GaeVFS.setRootPath( event.getServletContext().getRealPath( "/" ) );
+		try {
+			// use reflection in case H2 is not installed
+			Class<?> fileSystemClass = Class.forName( "org.h2.store.fs.FileSystem" );
+			fileSystemClass.getMethod( "register", fileSystemClass ).invoke( null, FileSystemGae.getInstance() );
+			System.out.println( "Successfully registered GaeVFS with H2" );
+		} catch ( Exception e ) {
+			System.err.println( "Failed to register GaeVFS with H2: " + e );
+		}
 	}
 	
 	/**
@@ -45,17 +53,5 @@ public class GaeVfsServletEventListener implements ServletContextListener, Servl
 	 */
 	public void contextDestroyed( ServletContextEvent event ) {
 		GaeVFS.close();
-	}
-
-	/**
-	 * Does nothing.
-	 */
-	public void requestInitialized( ServletRequestEvent event ) {
-	}
-	
-	/**
-	 * Does nothing.
-	 */
-	public void requestDestroyed( ServletRequestEvent event ) {
 	}
 }
