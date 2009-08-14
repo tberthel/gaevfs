@@ -15,15 +15,19 @@
  */
 package com.newatlanta.appengine.junit.vfs.gae;
 
-import java.util.Arrays;
-import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.Selectors;
 
+import com.google.appengine.api.datastore.Blob;
+import com.google.appengine.api.datastore.DatastoreService;
+import com.google.appengine.api.datastore.DatastoreServiceFactory;
 import com.google.appengine.api.datastore.Entity;
-import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
+import com.google.appengine.api.datastore.Key;
+import com.google.appengine.api.datastore.KeyFactory;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 
 /**
@@ -31,14 +35,14 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
  */
 public class GaeFolderTestCase extends GaeVfsTestCase {
 	
-	private static String[] rootChildren = { "/.svn", "/docs", "/images", "/testFolder" };
+	private static String[] rootChildren = { "/.svn", "/docs", "/images", "/temp", "/test-data", "/testFolder" };
 	
 	public void testFolders() throws Exception {
 		// root object
 		FileObject rootObject = testRootObject();
 		
 		// create folder
-		FileObject testFolder = testCreateFolder( rootObject );
+		FileObject testFolder = testCreateTestFolder( rootObject );
 		
 		// create sub-folders
 		FileObject subFolder = testFolder.resolveFile( "abc/def/ghi" );
@@ -46,6 +50,7 @@ public class GaeFolderTestCase extends GaeVfsTestCase {
 		subFolder.createFolder();
 		assertFolder( subFolder );
 		assertSubFolders( testFolder, new String[] { "abc/def/ghi", "abc/def", "abc" } );
+		assertEntity( rootObject );
 
 		// rename
 		FileObject srcFolder = testFolder.resolveFile( "abc/def" );
@@ -66,19 +71,20 @@ public class GaeFolderTestCase extends GaeVfsTestCase {
 
 	private FileObject testRootObject() throws Exception {
 		FileObject rootObject = GaeVFS.resolveFile( "/" );
+		assertTrue( rootObject.exists() );
 		assertEquals( rootObject.getName().getScheme(), "gae" );
 		assertFolder( rootObject );
 		assertNull( rootObject.getParent() );
 		assertChildren( rootObject, rootChildren );
 		
 		// TODO: test rootObject.getName() and FileName methods
-		// TODO: check datastore Entity?
+
+		assertEntity( rootObject );
 		return rootObject;
 	}
 
 	private static void assertChildren( FileObject fileObject, String[] childNames ) throws Exception {
 		FileObject[] children = fileObject.getChildren();
-		Arrays.sort( children );
 		for ( int i = 0; i < children.length; i++ ) {
 			assertTrue( children[ i ].getName().getPath().endsWith( childNames[ i ] ) );
 		}
@@ -108,7 +114,7 @@ public class GaeFolderTestCase extends GaeVfsTestCase {
 		// descendants, then test FileName.isDescendant() and isAncestor()
 	}
 	
-	private FileObject testCreateFolder( FileObject rootObject ) throws Exception {
+	private FileObject testCreateTestFolder( FileObject rootObject ) throws Exception {
 		FileObject testFolder = GaeVFS.resolveFile( "testFolder" );
 		assertFalse( testFolder.exists() );
 		testFolder.createFolder();
@@ -117,6 +123,7 @@ public class GaeFolderTestCase extends GaeVfsTestCase {
 		assertTrue( testFolder.getName().isAncestor( rootObject.getName() ) );
 		assertTrue( rootObject.getName().isDescendent( testFolder.getName() ) );
 		assertChildren( rootObject, rootChildren );
+		assertEntity( rootObject );
 		return testFolder;
 	}
 	
@@ -142,5 +149,54 @@ public class GaeFolderTestCase extends GaeVfsTestCase {
 		findFiles = rootObject.findFiles( Selectors.SELECT_FOLDERS );
 		findFiles = rootObject.findFiles( Selectors.SELECT_SELF );
 		findFiles = rootObject.findFiles( Selectors.SELECT_SELF_AND_CHILDREN );
+	}
+	
+	private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
+	
+	private static void assertEntity( FileObject fileObject ) throws Exception {
+		Key key = KeyFactory.createKey( "GaeFileObject", fileObject.getName().getPath() );
+		assertEntity( datastore.get( key ) );
+	}
+	
+	@SuppressWarnings("unchecked")
+	private static void assertEntity( Entity entity ) throws Exception {
+		assertNotNull( entity );
+		assertTrue( entity.hasProperty( "last-modified" ) );
+		assertTrue( entity.hasProperty( "filetype" ) );
+		
+		String typeName = entity.getProperty( "filetype" ).toString();
+		if ( typeName.equals( "folder" ) ) {
+			assertFalse( entity.hasProperty( "block-size" ) );
+			assertFalse( entity.hasProperty( "block-keys" ) );
+			assertFalse( entity.hasProperty( "content-size" ) );
+			if ( entity.hasProperty( "child-keys" ) ) {
+				List<Key> childKeys = (List<Key>)entity.getProperty( "child-keys" );
+				Map<Key, Entity> children = datastore.get( childKeys );
+				assertEquals( childKeys.size(), children.size() );
+				for ( Entity child : children.values() ) {
+					assertEntity( child );
+				}
+			}
+		} else if ( typeName.equals( "file" ) ) {
+			assertFalse( entity.hasProperty( "child-keys" ) );
+			assertTrue( entity.hasProperty( "content-size" ) );
+			assertTrue( entity.hasProperty( "block-size" ) );
+			assertTrue( entity.hasProperty( "block-keys" ) );
+			List<Key> blockKeys = (List<Key>)entity.getProperty( "block-keys" );
+			Map<Key, Entity> blocks = datastore.get( blockKeys );
+			assertEquals( blockKeys.size(), blocks.size() );
+			for ( Entity block : blocks.values() ) {
+				assertFalse( block.hasProperty( "last-modified" ) );
+				assertFalse( block.hasProperty( "filetype" ) );
+				assertFalse( block.hasProperty( "child-keys" ) );
+				assertFalse( block.hasProperty( "block-size" ) );
+				assertFalse( block.hasProperty( "block-keys" ) );
+				assertFalse( block.hasProperty( "content-size" ) );
+				assertTrue( block.hasProperty( "content-blob" ) );
+				assertTrue( block.getProperty( "content-blob" ) instanceof Blob );
+			}
+		} else {
+			fail( typeName );
+		}
 	}
 }

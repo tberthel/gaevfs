@@ -58,6 +58,7 @@
     </target>
     
     <target name="test" depends="compile-tests" description="runs junit tests">
+        <delete dir="test/data/temp"/>
         <junit fork="yes" dir="." printsummary="on" showoutput="yes"
             	haltonerror="yes" haltonfailure="yes">
             <classpath>
@@ -65,7 +66,9 @@
                 <path refid="build.class.path"/>
             </classpath>
             <formatter type="plain"/>
+            <!-- run tests in the order specified -->
             <test name="com.newatlanta.commons.vfs.provider.gae.test.GaeProviderTestCase"/>
+            <test name="com.newatlanta.appengine.junit.vfs.gae.GaeFolderTestCase"/>
         </junit>
     </target>
 	
