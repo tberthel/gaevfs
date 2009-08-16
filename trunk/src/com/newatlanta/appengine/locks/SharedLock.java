@@ -64,6 +64,7 @@ public class SharedLock extends AbstractLock {
 	}
 
 	public boolean tryLock() {
+		// TODO: what happens if the counter has been evicted?
 		memcache.increment( key, 1 );
 		return true;
 	}
@@ -73,18 +74,25 @@ public class SharedLock extends AbstractLock {
 	}
 	
 	/**
-	 * This method is guaranteed to not throw any exceptions.
+	 * This method is guaranteed to never throw exceptions.
 	 */
-	public boolean isLocked() {
+	public long getCount() {
 		try {
 			Long lockValue = (Long)memcache.get( key );
 			if ( lockValue == null ) {
 				initCounter();
-				return false;
+				return 0;
 			}
-			return ( lockValue.longValue() > 0 );
+			return ( lockValue.longValue() );
 		} catch ( Exception e ) {
-			return false;
+			return 0;
 		}
+	}
+	
+	/**
+	 * This method is guaranteed to never throw exceptions.
+	 */
+	public boolean isLocked() {
+		return ( getCount() > 0 );
 	}
 }
