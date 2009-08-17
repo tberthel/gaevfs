@@ -39,7 +39,7 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
  * programming errors.
  * 
  * This class supports reentrant locks, but requires a matching unlock for every
- * lock.
+ * lock in order to release the lock.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
@@ -63,14 +63,18 @@ public class ExclusiveLock extends AbstractLock {
         int hashCode = Thread.currentThread().hashCode();
         if ( !memcache.put( key, hashCode, EXPIRATION, SetPolicy.ADD_ONLY_IF_NOT_PRESENT )
                 && ( hashCode != getOwnerHashCode() ) ) {
-            return false;
+            return false; // put failed and lock not owned by this thread
         }
+        // put succeeded or this thread already owns the lock
         lockCount++;
         return true;
     }
 
     /**
      * Only the owner thread may unlock.
+     * 
+     * @throws IllegalStateException
+     *         If an unlock attempt is made by a non-owner.
      */
     public void unlock() {
         int ownerHashCode = getOwnerHashCode();
@@ -78,7 +82,7 @@ public class ExclusiveLock extends AbstractLock {
             return;
         }
         if ( ownerHashCode != Thread.currentThread().hashCode() ) {
-            throw new IllegalStateException( "Attempt by non-onwer to unlock" );
+            throw new IllegalStateException( "Attempted unlock by non-owner" );
         }
         if ( --lockCount == 0 ) {
             memcache.delete( key );
@@ -86,10 +90,10 @@ public class ExclusiveLock extends AbstractLock {
     }
 
     /**
-     * Gets the owner of the lock.
+     * Gets the hash code of the owner of the lock.
      * 
      * @return the hash code of the thread that owns the lock, or 0 if there
-     *         is no owner 
+     *         is no owner (the lock doesn't exist in memcache)
      */
     public int getOwnerHashCode() {
         Integer hashCode = (Integer)memcache.get( key );
