@@ -1,5 +1,7 @@
 package com.newatlanta.appengine.junit.locks;
 
+import java.util.concurrent.TimeUnit;
+
 import org.junit.Test;
 
 import com.google.apphosting.api.ApiProxy;
@@ -80,16 +82,27 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
         }
      }
 
-    // @Test
-    // public void testTryLockLongTimeUnit() {
-    // fail( "Not yet implemented" );
-    // }
+     @Test
+     public void testTryLockLongTimeUnit() {
+         Thread lockThread = createLockThread( Long.MAX_VALUE );
+         assertFalse( lock.tryLock( 200, TimeUnit.MILLISECONDS ) );
+         lockThread.interrupt(); // release the lock
+         try {
+             Thread.sleep( 100 ); // give lockThread a chance to run
+         } catch ( InterruptedException e ) {
+         }
+         assertEquals( 0, lock.getOwnerHashCode() );
+         createLockThread( 1000 );
+         assertTrue( lock.tryLock( 2, TimeUnit.SECONDS ) );
+         lock.unlock();
+         assertEquals( 0, lock.getOwnerHashCode() );
+     }
 
     private Thread createLockThread( long sleepTime ) {
         Thread lockThread = new LockThread( ApiProxy.getDelegate(), sleepTime );
         lockThread.start();
         try {
-            Thread.sleep( 100 ); // give lockThread a chance to run
+            Thread.sleep( 200 ); // give lockThread a chance to run
         } catch ( InterruptedException e ) {
         }
         assertTrue( lockThread.isAlive() );
