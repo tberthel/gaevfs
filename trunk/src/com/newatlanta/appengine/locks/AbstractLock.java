@@ -74,7 +74,7 @@ public abstract class AbstractLock implements Lock {
      * Note that GAE request threads timeout after 30 seconds.
      */
     public boolean tryLock( long time, TimeUnit unit ) {
-        long waitTime = Math.min( 0, unit.toMillis( time ) );
+        long waitTime = Math.max( 0, unit.toMillis( time ) );
         long startTime = System.currentTimeMillis();
         long sleepTime = 1;
         try {
