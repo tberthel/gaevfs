@@ -34,9 +34,8 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
  * minimized, since it seems unlikely that a value will be evicted within the
  * request processing limit; and,
  *      
- *   2) keys (locks) can be set to expire at an interval slightly longer than
- * the request timeout, insuring that a lock is not held indefinitely due to
- * programming errors.
+ *   2) keys (locks) can be set to expire at the same interval as the request
+ * timeout, insuring that a lock is not held indefinitely due to programming errors.
  * 
  * This class supports reentrant locks, but requires a matching unlock for every
  * lock in order to release the lock.
