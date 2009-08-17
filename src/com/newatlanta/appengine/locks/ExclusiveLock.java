@@ -38,29 +38,60 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
  * the request timeout, insuring that a lock is not held indefinitely due to
  * programming errors.
  * 
- * This class does not support reentrant locks.
+ * This class supports reentrant locks.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class ExclusiveLock extends AbstractLock {
-	
-	private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
-	private static Expiration REQUEST_TIMEOUT = Expiration.byDeltaSeconds( 40 );
-	
-	private String key;
-	
-	public ExclusiveLock( String lockName ) {
-		key = lockName;
-	}
-	
-	/**
-	 * Acquires the lock only if it is free at the time of invocation.
-	 */
-	public boolean tryLock() {
-		return memcache.put( key, null, REQUEST_TIMEOUT, SetPolicy.ADD_ONLY_IF_NOT_PRESENT );
-	}
 
-	public void unlock() {
-		memcache.delete( key );
-	}
+    private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
+    private static Expiration EXPIRATION = Expiration.byDeltaSeconds( 40 );
+
+    private String key;
+    private long lockCount;
+
+    public ExclusiveLock( String lockName ) {
+        key = lockName;
+    }
+
+    /**
+     * Acquires the lock only if it is free at the time of invocation.
+     */
+    public boolean tryLock() {
+        // thread id may not be unique across JVMs, so use hash code
+        int hashCode = Thread.currentThread().hashCode();
+        if ( !memcache.put( key, hashCode, EXPIRATION, SetPolicy.ADD_ONLY_IF_NOT_PRESENT )
+                && ( hashCode != getOwnerHashCode() ) ) {
+            return false;
+        }
+        lockCount++;
+        return true;
+    }
+
+    /**
+     * Only the owner thread may release the lock.
+     */
+    public void unlock() {
+        int ownerHashCode = getOwnerHashCode();
+        if ( ownerHashCode == 0 ) { // no owner
+            return;
+        }
+        if ( ownerHashCode != Thread.currentThread().hashCode() ) {
+            throw new IllegalStateException( "Attempt to unlock unowned lock" );
+        }
+        if ( --lockCount == 0 ) {
+            memcache.delete( key );
+        }
+    }
+
+    /**
+     * Gets the owner of the lock.
+     * 
+     * @return the identifier of the thread that owns the lock, or 0 if there
+     *         is no owner 
+     */
+    public int getOwnerHashCode() {
+        Integer hashCode = (Integer)memcache.get( key );
+        return ( hashCode != null ? hashCode.intValue() : 0 );
+    }
 }
