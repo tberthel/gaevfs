@@ -70,6 +70,7 @@
             <test name="com.newatlanta.commons.vfs.provider.gae.test.GaeProviderTestCase"/>
             <test name="com.newatlanta.appengine.junit.vfs.gae.GaeFolderTestCase"/>
             <test name="com.newatlanta.appengine.junit.locks.ExclusiveLockTestCase"/>
+            <test name="com.newatlanta.appengine.junit.locks.SharedLockTestCase"/>
         </junit>
     </target>
 	
