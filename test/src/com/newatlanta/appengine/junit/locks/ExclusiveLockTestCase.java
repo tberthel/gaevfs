@@ -34,19 +34,21 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
         } catch ( InterruptedException e ) {
         }
         assertEquals( 0, lock.getOwnerHashCode() );
-        assertTrue( lock.tryLock() );
-        assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
-        assertTrue( lock.tryLock() ); // re-entrant lock
-        assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
-        lock.unlock();
-        assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+        for ( int i = 0; i < 10; i++ ) {
+            assertTrue( lock.tryLock() );
+            assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+        }
+        for ( int i = 0; i < 9; i++ ) {
+            lock.unlock();
+            assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+        }
         lock.unlock();
         assertEquals( 0, lock.getOwnerHashCode() );
     }
 
     @Test
     public void testLock() {
-        createLockThread( 500 );
+        createLockThread( 2000 );
         for ( int i = 0; i < 10; i++ ) {
             lock.lock();
             assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
@@ -61,7 +63,7 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
 
      @Test
      public void testLockInterruptibly() {
-         createLockThread( 500 );
+         createLockThread( 2000 );
          try {
              for ( int i = 0; i < 10; i++ ) {
                  lock.lockInterruptibly();
