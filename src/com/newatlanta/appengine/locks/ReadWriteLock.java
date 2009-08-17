@@ -130,7 +130,7 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
         public boolean tryLock( long time, TimeUnit unit ) {
             long startTime = System.currentTimeMillis();
             super.tryLock( time, unit ); // acquire the exclusive lock
-            long waitTime = Math.min( 0, unit.toMillis( time ) );
+            long waitTime = Math.max( 0, unit.toMillis( time ) );
             long sleepTime = 1;
             try {
                 do {
