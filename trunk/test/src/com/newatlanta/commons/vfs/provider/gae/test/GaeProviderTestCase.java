@@ -36,7 +36,7 @@ import org.apache.commons.vfs.test.ProviderTestSuite;
 import com.google.appengine.api.datastore.dev.LocalDatastoreService;
 import com.google.appengine.tools.development.ApiProxyLocalImpl;
 import com.google.apphosting.api.ApiProxy;
-import com.newatlanta.appengine.junit.GaeTestEnvironment;
+import com.newatlanta.appengine.junit.TestEnvironment;
 import com.newatlanta.commons.vfs.provider.gae.GaeFileNameParser;
 import com.newatlanta.commons.vfs.provider.gae.GaeFileSystemManager;
 
@@ -58,7 +58,7 @@ public class GaeProviderTestCase extends AbstractProviderTestCase implements Pro
     
     public GaeProviderTestCase() {
     	// initialize GAE test environment
-    	ApiProxy.setEnvironmentForCurrentThread( new GaeTestEnvironment() );
+    	ApiProxy.setEnvironmentForCurrentThread( new TestEnvironment() );
         ApiProxyLocalImpl proxy = new ApiProxyLocalImpl( new File( "." ) ) {};
         proxy.setProperty( LocalDatastoreService.NO_STORAGE_PROPERTY, Boolean.TRUE.toString() );
         ApiProxy.setDelegate( proxy );
