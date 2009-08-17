@@ -31,7 +31,7 @@ import org.apache.commons.vfs.provider.*;
 public class GaeFileNameParser extends AbstractFileNameParser {
 
     private static GaeFileNameParser instance = new GaeFileNameParser();
-    
+
     private GaeFileNameParser() {
     }
 
@@ -57,34 +57,34 @@ public class GaeFileNameParser extends AbstractFileNameParser {
         // Remove encoding, and adjust the separators
         UriParser.canonicalizePath( name, 0, name.length(), this );
         UriParser.fixSeparators( name );
-        
+
         // Normalise the path
         FileType fileType = UriParser.normalisePath( name );
-        
+
         // all GAE files *must* be relative to the root file, which must be the
         // webapp root (though we have no way of enforcing this)
         String rootPath = "";
         if ( baseName == null ) { // this is the root object
-        	rootPath = name.toString();
-        	name.setLength( 0 );
+            rootPath = name.toString();
+            name.setLength( 0 );
         } else {
             rootPath = getRootPath( baseName );
-            if( name.indexOf( rootPath ) == 0 ) { // if ( name.startsWith( basePath ) )
+            if ( name.indexOf( rootPath ) == 0 ) { // if ( name.startsWith( basePath ) )
                 name.delete( 0, rootPath.length() );
             }
         }
         return new GaeFileName( scheme, rootPath, name.toString(), fileType );
     }
-    
+
     public static String getRootPath( FileName baseName ) throws FileSystemException {
-    	FileName rootName = baseName.getRoot();
-    	if ( rootName instanceof GaeFileName ) {
-    		return ((GaeFileName)rootName).getRootPath();
-    	} else {
-	        StringBuffer rootPath = new StringBuffer();
-	        UriParser.extractScheme( baseName.getURI(), rootPath );
-	        UriParser.normalisePath( rootPath );
-	        return rootPath.toString().intern();
-    	}
+        FileName rootName = baseName.getRoot();
+        if ( rootName instanceof GaeFileName ) {
+            return ( (GaeFileName)rootName ).getRootPath();
+        } else {
+            StringBuffer rootPath = new StringBuffer();
+            UriParser.extractScheme( baseName.getURI(), rootPath );
+            UriParser.normalisePath( rootPath );
+            return rootPath.toString().intern();
+        }
     }
 }

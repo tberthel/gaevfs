@@ -149,7 +149,7 @@ public class GaeVfsServlet extends HttpServlet {
      */
     @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res )
-    		throws ServletException, IOException {
+            throws ServletException, IOException {
 
         FileObject fileObject = GaeVFS.resolveFile( req.getRequestURI() );
         if ( !fileObject.exists() ) {

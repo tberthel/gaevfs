@@ -46,7 +46,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
     private boolean isCombinedLocal = true;
     private String rootPath;
     private FileObject rootObject;
-    
+
     public GaeFileSystemManager() {
     }
 
@@ -72,28 +72,28 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
         prepare( rootPath, getClass().getSuperclass().getResource( CONFIG_RESOURCE ) );
         this.init();
     }
-    
+
     /**
      * Prepare for initialization. 
      */
-    public void prepare( String rootPath, URL configUrl ) throws FileSystemException {   
+    public void prepare( String rootPath, URL configUrl ) throws FileSystemException {
         setFilesCache( new LRUFilesCache() );
         setCacheStrategy( CacheStrategy.ON_RESOLVE );
         setConfiguration( configUrl );
 
         this.rootPath = new File( rootPath ).getAbsolutePath();
     }
-    
+
     @Override
-	public void init() throws FileSystemException {
-		super.init();
-		rootObject = resolveFile( "gae://" + rootPath );
+    public void init() throws FileSystemException {
+        super.init();
+        rootObject = resolveFile( "gae://" + rootPath );
         if ( !rootObject.exists() ) {
-        	rootObject.createFolder();
+            rootObject.createFolder();
         }
         super.setBaseFile( rootObject );
     }
-    
+
     /**
      * Sets the base file to use when resolving relative URI. Base file must
      * be a sub-directory of the root path; set equal to the root path if null.
@@ -103,11 +103,11 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
      */
     @Override
     public void setBaseFile( FileObject baseFile ) throws FileSystemException {
-    	if ( baseFile == null ) {
-    		baseFile = rootObject;
-    	} else if ( !rootObject.getName().isDescendent( baseFile.getName() ) ) {
-    		throw new FileSystemException( "Base file must be a descendent of root." );
-    	}
+        if ( baseFile == null ) {
+            baseFile = rootObject;
+        } else if ( !rootObject.getName().isDescendent( baseFile.getName() ) ) {
+            throw new FileSystemException( "Base file must be a descendent of root." );
+        }
         super.setBaseFile( baseFile );
     }
 
@@ -131,7 +131,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             // if uri starts with "/", determine if it includes the base path;
             // if it doesn't, then remove the leading "/" to create a relative path
             uri = checkRelativity( baseFile, uri );
-            
+
             FileObject fileObject = super.resolveFile( baseFile, uri, opts );
             if ( fileObject.exists() && ( fileObject.getType().hasContent() ) ) {
                 return fileObject; // return existing file
@@ -141,11 +141,11 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
                 gaeFile = fileObject;
                 FileName baseName = baseFile.getName();
                 if ( baseName instanceof GaeFileName ) {
-                	String localUri = "file://" + ((GaeFileName)baseName).getRootPath() +
-                								baseName.getPath() + "/" + uri;
-                	localFile = super.resolveFile( null, localUri, opts );
+                    String localUri = "file://" + ((GaeFileName)baseName).getRootPath() +
+                                                baseName.getPath() + "/" + uri;
+                    localFile = super.resolveFile( null, localUri, opts );
                 } else {
-                	localFile = super.resolveFile( baseFile, "file://" + uri, opts );
+                    localFile = super.resolveFile( baseFile, "file://" + uri, opts );
                 }
             } else {
                 localFile = fileObject;
@@ -162,8 +162,8 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             gaeFile = super.resolveFile( null, "gae://" + uri, opts );
         }
 
-        ((GaeFileObject)gaeFile).setCombinedLocal( true );
-        
+        ( (GaeFileObject)gaeFile ).setCombinedLocal( true );
+
         // when we get here we either have a non-existing file, or a folder;
         // return the GAE file/folder if it exists
         if ( gaeFile.exists() ) {
@@ -181,7 +181,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
         String scheme = UriParser.extractScheme( uri );
         return ( ( scheme != null ) && super.hasProvider( scheme ) );
     }
-    
+
     // TODO: is this still needed?
     private String checkRelativity( FileObject baseFile, String uri ) throws FileSystemException {
         if ( ( baseFile != null ) && uri.startsWith( "/" ) ) {

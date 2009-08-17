@@ -78,15 +78,15 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     public GaeFileObject( FileName name, AbstractFileSystem fs ) {
         super( name, fs );
     }
-    
+
     public void setCombinedLocal( boolean b ) {
         isCombinedLocal = b;
     }
-    
+
     private int getBlockSize() throws FileSystemException {
-        return ((Long)metadata.getProperty( BLOCK_SIZE )).intValue();
+        return ( (Long)metadata.getProperty( BLOCK_SIZE ) ).intValue();
     }
-    
+
     public void setBlockSize( int size ) throws FileSystemException {
         if ( exists() ) {
             throw new FileSystemException( "cannot set block size after file is created" );
@@ -94,21 +94,21 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         // exists() guarantees that metadata != null
         metadata.setProperty( BLOCK_SIZE, Long.valueOf( size ) );
     }
-    
+
     @SuppressWarnings("unchecked")
     private List<Key> getBlockKeys() throws FileSystemException {
         return (List<Key>)metadata.getProperty( BLOCK_KEYS );
     }
-    
+
     @SuppressWarnings("unchecked")
     private List<Key> getChildKeys() throws FileSystemException {
-    	if ( !getType().hasChildren() ) {
-    		throw new FileSystemException( "vfs.provider/list-children-not-folder.error",
-    											getName() );
-    	}
+        if ( !getType().hasChildren() ) {
+            throw new FileSystemException( "vfs.provider/list-children-not-folder.error",
+                                                getName() );
+        }
         return (List<Key>)metadata.getProperty( CHILD_KEYS );
     }
-    
+
     // FileType is not a valid property type, so store the name
     private FileType getEntityFileType() {
         String typeName = (String)metadata.getProperty( FILETYPE );
@@ -135,14 +135,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         }
         injectType( getEntityFileType() );
     }
-    
+
     private synchronized void getMetaData( Key key ) throws FileSystemException {
         try {
-        	metadata = (Entity)memcache.get( key );
-        	if ( metadata == null ) {
-        		metadata = getEntity( key );
-        		memcache.put( key, metadata );
-        	}
+            metadata = (Entity)memcache.get( key );
+            if ( metadata == null ) {
+                metadata = getEntity( key );
+                memcache.put( key, metadata );
+            }
         } catch ( EntityNotFoundException e ) {
             metadata = new Entity( ENTITY_KIND, key.getName() );
             setBlockSize( GaeVFS.getBlockSize() );
@@ -152,7 +152,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private Key createKey() throws FileSystemException {
         return createKey( getName() );
     }
-    
+
     private Key createKey( FileName fileName ) throws FileSystemException {
         // key name is relative path from the webapp root directory
         return KeyFactory.createKey( ENTITY_KIND, fileName.getPath() );
@@ -218,7 +218,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected FileObject[] doListChildrenResolved() throws FileSystemException {
-    	List<Key> childKeys = getChildKeys();
+        List<Key> childKeys = getChildKeys();
         FileObject[] localChildren = getLocalChildren();
         if ( ( childKeys == null ) || ( childKeys.size() == 0 ) ) {
             return localChildren;
@@ -277,11 +277,11 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             // TODO: getBlockKeys() can return null?
             int numBlocks = getBlockKeys().size(); // copy contents to the new file
-            for ( int i = 0; i < numBlocks; i++  ) {
+            for ( int i = 0; i < numBlocks; i++ ) {
                 // TODO: use Entity.setPropertiesFrom() added in SDK 1.2.2?
-//            	Entity newBlock = newGaeFile.getBlock( i );
-//            	newBlock.setPropertiesFrom( getBlock( i ) );
-//            	putBlock( newBlock );
+                // Entity newBlock = newGaeFile.getBlock( i );
+                // newBlock.setPropertiesFrom( getBlock( i ) );
+                // putBlock( newBlock );
                 putBlock( copyContent( getBlock( i ), newGaeFile.getBlock( i ) ) );
                 // TODO: write new blocks in a batch, not one at a time
             }
@@ -310,7 +310,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         }
         // onChange() will be invoked after this to put the metadata
     }
-    
+
     /**
      * Called when the children of this file change.
      */
@@ -343,25 +343,25 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected void onChange() throws FileSystemException {
         if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
-        	if ( getName().getType().hasContent() ) {
-        		deleteBlocks();
-        	}
+            if ( getName().getType().hasContent() ) {
+                deleteBlocks();
+            }
             deleteMetaData();
         } else { // file/folder is being created or modified
             putMetaData();
         }
     }
 
-	private void deleteMetaData() throws FileSystemException {
-		deleteEntity( metadata.getKey() );
-		memcache.delete( metadata.getKey() );
-//		metadata.getProperties().clear(); // see issue #1395
-		Object[] properties = metadata.getProperties().keySet().toArray(); 
-	    for ( int i = 0; i < properties.length; i++ ) { 
-	    	metadata.removeProperty( properties[ i ].toString() ); 
-	    }
-	    setBlockSize( GaeVFS.getBlockSize() );
-	}
+    private void deleteMetaData() throws FileSystemException {
+        deleteEntity( metadata.getKey() );
+        memcache.delete( metadata.getKey() );
+        // metadata.getProperties().clear(); // see issue #1395
+        Object[] properties = metadata.getProperties().keySet().toArray();
+        for ( int i = 0; i < properties.length; i++ ) {
+            metadata.removeProperty( properties[ i ].toString() );
+        }
+        setBlockSize( GaeVFS.getBlockSize() );
+    }
 
     /**
      * Write the metadata to the GAE datastore. Make sure the file type is set
@@ -400,20 +400,20 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected long doGetContentSize() throws FileSystemException {
-    	if ( !getType().hasContent() ) {
-    		throw new FileSystemException( "vfs.provider/get-size-not-file.error", getName() );
-    	}
+        if ( !getType().hasContent() ) {
+            throw new FileSystemException( "vfs.provider/get-size-not-file.error", getName() );
+        }
         Long contentSize = (Long)metadata.getProperty( CONTENT_SIZE );
         return ( contentSize != null ? contentSize.longValue() : 0 );
     }
-    
+
     /**
      * Intended for use by GaeRandomAccessContent.
      */
     void updateContentSize( long newSize ) throws FileSystemException {
         updateContentSize( newSize, false );
     }
-    
+
     void updateContentSize( long newSize, boolean force ) throws FileSystemException {
         if ( force || ( newSize > doGetContentSize() ) ) {
             metadata.setProperty( CONTENT_SIZE, Long.valueOf( newSize ) );
@@ -428,13 +428,13 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected InputStream doGetInputStream() throws IOException {
-    	if ( !getType().hasContent() ) {
-    		throw new FileSystemException( "vfs.provider/read-not-file.error", getName() );
-    	}
+        if ( !getType().hasContent() ) {
+            throw new FileSystemException( "vfs.provider/read-not-file.error", getName() );
+        }
         return new GaeRandomAccessContent( this, RandomAccessMode.READ,
-        										getBlockSize() ).getInputStream();
+                                                getBlockSize() ).getInputStream();
     }
-    
+
     /**
      * Creates access to the file for random i/o. Is only called if doGetType()
      * returns FileType.FILE
@@ -458,17 +458,17 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected OutputStream doGetOutputStream( boolean bAppend ) throws IOException {
         return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE, getBlockSize(),
-        									bAppend && exists() ? doGetContentSize() : 0 );
+                                            bAppend && exists() ? doGetContentSize() : 0 );
     }
-    
+
     /**
      * The following methods related to blocks are for use by
      * GaeRandomAccessContent.
      */
     Entity getBlock( int i ) throws FileSystemException {
-    	if ( !exists() ) {
-    		createFile();
-    	}
+        if ( !exists() ) {
+            createFile();
+        }
         Entity block = null;
         List<Key> blockKeys = getBlockKeys();
         if ( blockKeys == null ) {
@@ -498,18 +498,18 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         blockKeys.add( i, block.getKey() );
         return block;
     }
-    
+
     void putBlock( Entity block ) {
-    	putEntity( block );
+        putEntity( block );
     }
-    
+
     private void deleteBlocks() throws FileSystemException {
-		List<Key> blockKeys = getBlockKeys();
-		if ( blockKeys != null ) {
-			deleteEntities( blockKeys );
-		}
-	}
-    
+        List<Key> blockKeys = getBlockKeys();
+        if ( blockKeys != null ) {
+            deleteEntities( blockKeys );
+        }
+    }
+
     /**
      * Truncate blocks up to but exclusive of the specified index.
      */
@@ -524,39 +524,39 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             putMetaData();
         }
     }
-    
+
     private Entity getEntity( Key key ) throws EntityNotFoundException {
-    	try {
-			return datastore.get( key );
-		} catch ( DatastoreTimeoutException e ) {
-			return datastore.get( key ); // try twice upon timeout
-		}
-    }
-    
-    private void putEntity( Entity entity ) {
-		try {
-        	datastore.put( entity );
+        try {
+            return datastore.get( key );
         } catch ( DatastoreTimeoutException e ) {
-        	datastore.put( entity ); // try twice upon timeout
+            return datastore.get( key ); // try twice upon timeout
         }
-	}
-    
+    }
+
+    private void putEntity( Entity entity ) {
+        try {
+            datastore.put( entity );
+        } catch ( DatastoreTimeoutException e ) {
+            datastore.put( entity ); // try twice upon timeout
+        }
+    }
+
     private void deleteEntity( Key key ) {
-		try {
-			datastore.delete( key );
-		} catch ( DatastoreTimeoutException e ) {
-			datastore.delete( key ); // try twice upon timeout
-		}
-	}
-    
+        try {
+            datastore.delete( key );
+        } catch ( DatastoreTimeoutException e ) {
+            datastore.delete( key ); // try twice upon timeout
+        }
+    }
+
     private void deleteEntities( List<Key> keys ) {
-		try {
-			datastore.delete( keys );
-		} catch ( DatastoreTimeoutException e ) {
-			datastore.delete( keys ); // try twice upon timeout
-		}
-	}
-    
+        try {
+            datastore.delete( keys );
+        } catch ( DatastoreTimeoutException e ) {
+            datastore.delete( keys ); // try twice upon timeout
+        }
+    }
+
     protected void finalize() throws Throwable {
         if ( getFileSystem() != null ) { // avoid NPE in super.finalize()
             super.finalize();
