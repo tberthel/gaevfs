@@ -88,7 +88,8 @@ public class SharedLock extends AbstractLock {
     }
 
     /**
-     * This method is guaranteed to never throw exceptions.
+     * This method is guaranteed to never throw exceptions; the
+     * <code>ReadWriteLock</code> class depends on this guarantee.
      */
     public boolean isLocked() {
         return ( getCount() > 0 );
