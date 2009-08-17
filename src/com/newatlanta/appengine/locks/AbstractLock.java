@@ -32,68 +32,68 @@ import java.util.concurrent.locks.Lock;
  */
 public abstract class AbstractLock implements Lock {
 
-	protected static long MAX_SLEEP_TIME = 128; // milliseconds
-	
-	/**
-	 * Acquires the lock. If the lock is not available then the current thread
-	 * becomes disabled for thread scheduling purposes and lies dormant until
-	 * the lock has been acquired.
-	 * 
-	 * Note that GAE request threads timeout after 30 seconds, so this won't
-	 * run forever.
-	 */
-	public void lock() {
-		long sleepTime = 1;
-		while ( !tryLock() ) {
-			try {
-				// sleep twice as long after each iteration
-				Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
-			} catch ( InterruptedException ignore ) {
-			}
-		}
-	}
+    protected static long MAX_SLEEP_TIME = 128; // milliseconds
 
-	/**
-	 * Acquires the lock unless the current thread is interrupted.
-	 * 
-	 * Note that GAE request threads timeout after 30 seconds, so this won't
-	 * run forever.
-	 */
-	public void lockInterruptibly() throws InterruptedException {
-		long sleepTime = 1;
-		while ( !tryLock() ) {
-			// sleep twice as long after each iteration
-			Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
-		}
-	}
+    /**
+     * Acquires the lock. If the lock is not available then the current thread
+     * becomes disabled for thread scheduling purposes and lies dormant until
+     * the lock has been acquired.
+     * 
+     * Note that GAE request threads timeout after 30 seconds, so this won't
+     * run forever.
+     */
+    public void lock() {
+        long sleepTime = 1;
+        while ( !tryLock() ) {
+            try {
+                // sleep twice as long after each iteration
+                Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+            } catch ( InterruptedException ignore ) {
+            }
+        }
+    }
 
-	/**
-	 * Acquires the lock if it is free within the given waiting time and the
-	 * current thread has not been interrupted.
-	 * 
-	 * Note that GAE request threads timeout after 30 seconds.
-	 */
-	public boolean tryLock( long time, TimeUnit unit ) {
-		long waitTime = Math.min( 0, unit.toMillis( time ) );
-		long startTime = System.currentTimeMillis();
-		long sleepTime = 1;
-		try {
-			do {
-				if ( tryLock() ) {
-					return true;
-				}
-				// sleep twice as long after each iteration
-				Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
-			} while ( ( System.currentTimeMillis() - startTime ) < waitTime );
-		} catch ( InterruptedException ignore ) {
-		}
-		return false;
-	}
-	
-	/**
-	 * Default implementation throws UnsupportedOperationException.
-	 */
-	public Condition newCondition() {
-		throw new UnsupportedOperationException();
-	}
+    /**
+     * Acquires the lock unless the current thread is interrupted.
+     * 
+     * Note that GAE request threads timeout after 30 seconds, so this won't
+     * run forever.
+     */
+    public void lockInterruptibly() throws InterruptedException {
+        long sleepTime = 1;
+        while ( !tryLock() ) {
+            // sleep twice as long after each iteration
+            Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+        }
+    }
+
+    /**
+     * Acquires the lock if it is free within the given waiting time and the
+     * current thread has not been interrupted.
+     * 
+     * Note that GAE request threads timeout after 30 seconds.
+     */
+    public boolean tryLock( long time, TimeUnit unit ) {
+        long waitTime = Math.min( 0, unit.toMillis( time ) );
+        long startTime = System.currentTimeMillis();
+        long sleepTime = 1;
+        try {
+            do {
+                if ( tryLock() ) {
+                    return true;
+                }
+                // sleep twice as long after each iteration
+                Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+            } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
+        } catch ( InterruptedException ignore ) {
+        }
+        return false;
+    }
+
+    /**
+     * Default implementation throws UnsupportedOperationException.
+     */
+    public Condition newCondition() {
+        throw new UnsupportedOperationException();
+    }
 }

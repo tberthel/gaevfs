@@ -44,55 +44,53 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
  * which should be more efficient that the implementation described in the
  * above reference.
  * 
- * This class does not support reentrant locks.
- * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class SharedLock extends AbstractLock {
-	
-	private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
-	
-	private String key;
-	
-	public SharedLock( String lockName ) {
-		key = lockName;
-		initCounter(); // key must be created before increment() can be invoked
-	}
-	
-	private void initCounter() {
-		memcache.put( key, 0, null, SetPolicy.ADD_ONLY_IF_NOT_PRESENT );
-	}
 
-	public boolean tryLock() {
-		// TODO: what happens if the counter has been evicted?
-		memcache.increment( key, 1 );
-		return true;
-	}
+    private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
 
-	public void unlock() {
-		memcache.increment( key, -1 );
-	}
-	
-	/**
-	 * This method is guaranteed to never throw exceptions.
-	 */
-	public long getCount() {
-		try {
-			Long lockValue = (Long)memcache.get( key );
-			if ( lockValue == null ) {
-				initCounter();
-				return 0;
-			}
-			return ( lockValue.longValue() );
-		} catch ( Exception e ) {
-			return 0;
-		}
-	}
-	
-	/**
-	 * This method is guaranteed to never throw exceptions.
-	 */
-	public boolean isLocked() {
-		return ( getCount() > 0 );
-	}
+    private String key;
+
+    public SharedLock( String lockName ) {
+        key = lockName;
+        initCounter(); // key must be created before increment() can be invoked
+    }
+
+    private void initCounter() {
+        memcache.put( key, 0, null, SetPolicy.ADD_ONLY_IF_NOT_PRESENT );
+    }
+
+    public boolean tryLock() {
+        // TODO: what happens if the counter has been evicted?
+        memcache.increment( key, 1 );
+        return true;
+    }
+
+    public void unlock() {
+        memcache.increment( key, -1 );
+    }
+
+    /**
+     * This method is guaranteed to never throw exceptions.
+     */
+    public long getCount() {
+        try {
+            Long lockValue = (Long)memcache.get( key );
+            if ( lockValue == null ) {
+                initCounter();
+                return 0;
+            }
+            return ( lockValue.longValue() );
+        } catch ( Exception e ) {
+            return 0;
+        }
+    }
+
+    /**
+     * This method is guaranteed to never throw exceptions.
+     */
+    public boolean isLocked() {
+        return ( getCount() > 0 );
+    }
 }
