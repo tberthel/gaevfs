@@ -32,26 +32,26 @@ import com.newatlanta.h2.store.fs.FileSystemGae;
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeVfsServletEventListener implements ServletContextListener {
-	
-	/**
-	 * Initializes GaeVFS with the webapp root path. Attempts to register with H2.
-	 */
-	public void contextInitialized( ServletContextEvent event ) {
-		GaeVFS.setRootPath( event.getServletContext().getRealPath( "/" ) );
-		try {
-			// use reflection in case H2 is not installed
-			Class<?> fileSystemClass = Class.forName( "org.h2.store.fs.FileSystem" );
-			fileSystemClass.getMethod( "register", fileSystemClass ).invoke( null, FileSystemGae.getInstance() );
-			System.out.println( "Successfully registered GaeVFS with H2" );
-		} catch ( Exception e ) {
-			System.err.println( "Failed to register GaeVFS with H2: " + e );
-		}
-	}
-	
-	/**
-	 * Closes GaeVFS when the servlet is destroyed.
-	 */
-	public void contextDestroyed( ServletContextEvent event ) {
-		GaeVFS.close();
-	}
+
+    /**
+     * Initializes GaeVFS with the webapp root path. Attempts to register with H2.
+     */
+    public void contextInitialized( ServletContextEvent event ) {
+        GaeVFS.setRootPath( event.getServletContext().getRealPath( "/" ) );
+        try {
+            // use reflection in case H2 is not installed
+            Class<?> fileSystemClass = Class.forName( "org.h2.store.fs.FileSystem" );
+            fileSystemClass.getMethod( "register", fileSystemClass ).invoke( null, FileSystemGae.getInstance() );
+            System.out.println( "Successfully registered GaeVFS with H2" );
+        } catch ( Exception e ) {
+            System.err.println( "Failed to register GaeVFS with H2: " + e );
+        }
+    }
+
+    /**
+     * Closes GaeVFS when the servlet is destroyed.
+     */
+    public void contextDestroyed( ServletContextEvent event ) {
+        GaeVFS.close();
+    }
 }
