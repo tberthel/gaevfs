@@ -30,9 +30,8 @@ public abstract class LocalServiceTestCase extends TestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ApiProxy.setEnvironmentForCurrentThread(new GaeTestEnvironment());
-        ApiProxy.setDelegate(new ApiProxyLocalImpl(new File(".")) {
-        });
+        ApiProxy.setEnvironmentForCurrentThread(new TestEnvironment());
+        ApiProxy.setDelegate(new ApiProxyLocalImpl(new File(".")) {});
     }
 
     @Override
