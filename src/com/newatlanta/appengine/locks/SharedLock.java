@@ -22,7 +22,7 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 /**
  * Implements a shared lock based on the GAE <code>MemcacheService</code> API,
  * specifically, the atomic <code>increment()</code> method. The lock is
- * "acquired" by increment the counter and "released" by decrementing it;
+ * "acquired" by incrementing the counter and "released" by decrementing it;
  * acquiring the lock never fails. The <code>isLock()</code> method can be
  * used to determine whether the lock has been acquired by any thread.
  * 
