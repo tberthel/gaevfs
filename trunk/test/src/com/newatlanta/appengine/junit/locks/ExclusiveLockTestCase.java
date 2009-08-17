@@ -4,13 +4,14 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
-import com.google.apphosting.api.ApiProxy;
-import com.google.apphosting.api.ApiProxy.Delegate;
-
 import com.newatlanta.appengine.junit.LocalServiceTestCase;
-import com.newatlanta.appengine.junit.TestEnvironment;
 import com.newatlanta.appengine.locks.ExclusiveLock;
 
+/**
+ * Tests <code>com.newatlanta.appengine.locks.ExclusiveLock</code>.
+ * 
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
+ */
 public class ExclusiveLockTestCase extends LocalServiceTestCase {
 
     private ExclusiveLock lock;
@@ -23,7 +24,8 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
 
     @Test
     public void testTryLock() {
-        Thread lockThread = createLockThread( Long.MAX_VALUE );
+        Thread lockThread = LockingThread.createThread( lock, Long.MAX_VALUE );
+        assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
         assertFalse( lock.tryLock() );
         try {
             lock.unlock();
@@ -50,7 +52,8 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
 
     @Test
     public void testLock() {
-        createLockThread( 2000 );
+        Thread lockThread = LockingThread.createThread( lock, 2000 );
+        assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
         for ( int i = 0; i < 10; i++ ) {
             lock.lock();
             assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
@@ -65,7 +68,8 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
 
      @Test
      public void testLockInterruptibly() {
-         createLockThread( 2000 );
+         Thread lockThread = LockingThread.createThread( lock, 2000 );
+         assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
          try {
              for ( int i = 0; i < 10; i++ ) {
                  lock.lockInterruptibly();
@@ -84,7 +88,8 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
 
      @Test
      public void testTryLockLongTimeUnit() {
-         Thread lockThread = createLockThread( Long.MAX_VALUE );
+         Thread lockThread = LockingThread.createThread( lock, Long.MAX_VALUE );
+         assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
          assertFalse( lock.tryLock( 200, TimeUnit.MILLISECONDS ) );
          lockThread.interrupt(); // release the lock
          try {
@@ -92,52 +97,10 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
          } catch ( InterruptedException e ) {
          }
          assertEquals( 0, lock.getOwnerHashCode() );
-         createLockThread( 1000 );
+         lockThread = LockingThread.createThread( lock, 1000 );
+         assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
          assertTrue( lock.tryLock( 2, TimeUnit.SECONDS ) );
          lock.unlock();
          assertEquals( 0, lock.getOwnerHashCode() );
      }
-
-    private Thread createLockThread( long sleepTime ) {
-        Thread lockThread = new LockThread( ApiProxy.getDelegate(), sleepTime );
-        lockThread.start();
-        try {
-            Thread.sleep( 200 ); // give lockThread a chance to run
-        } catch ( InterruptedException e ) {
-        }
-        assertTrue( lockThread.isAlive() );
-        assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
-        return lockThread;
-    }
-
-    /**
-     * Acquires the lock via the lock() method, sleeps for the specified time or
-     * until interrupted, then releases the lock.
-     */
-    private class LockThread extends Thread {
-
-        @SuppressWarnings("unchecked")
-        private Delegate delegate;
-        private long sleepTime;
-
-        @SuppressWarnings("unchecked")
-        private LockThread( Delegate delegate, long sleepTime ) {
-            super( "LockThread" );
-            this.delegate = delegate;
-            this.sleepTime = sleepTime;
-        }
-
-        public void run() {
-            ApiProxy.setEnvironmentForCurrentThread( new TestEnvironment() );
-            ApiProxy.setDelegate( delegate );
-
-            lock.lock();
-            try {
-                sleep( sleepTime );
-            } catch ( InterruptedException e ) {
-            } finally {
-                lock.unlock();
-            }
-        }
-    }
 }
