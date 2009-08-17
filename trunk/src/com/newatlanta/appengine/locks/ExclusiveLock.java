@@ -46,7 +46,7 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 public class ExclusiveLock extends AbstractLock {
 
     private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
-    private static Expiration EXPIRATION = Expiration.byDeltaSeconds( 40 );
+    private static Expiration EXPIRATION = Expiration.byDeltaSeconds( 30 );
 
     private String key;
     private long lockCount;
