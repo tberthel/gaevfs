@@ -74,7 +74,7 @@ public class SharedLock extends AbstractLock {
     /**
      * This method is guaranteed to never throw exceptions.
      */
-    public long getCount() {
+    public long getCounter() {
         try {
             Long lockValue = (Long)memcache.get( key );
             if ( lockValue == null ) {
@@ -92,6 +92,6 @@ public class SharedLock extends AbstractLock {
      * <code>ReadWriteLock</code> class depends on this guarantee.
      */
     public boolean isLocked() {
-        return ( getCount() > 0 );
+        return ( getCounter() > 0 );
     }
 }
