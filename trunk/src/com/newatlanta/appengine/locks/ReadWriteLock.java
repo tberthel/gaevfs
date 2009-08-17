@@ -54,7 +54,7 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
 
         /**
          * Acquires a shared read lock. First acquires the exclusive write lock
-         * to make sure no other thread has it, then acquires the read lock (which
+         * to make sure there are no writers, then acquires the read lock (which
          * never fails). Releases the write lock before returning.
          * 
          * @return <code>true</code> if the read lock was acquired successfully
@@ -129,18 +129,20 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
         @Override
         public boolean tryLock( long time, TimeUnit unit ) {
             long startTime = System.currentTimeMillis();
-            super.tryLock( time, unit ); // acquire the exclusive lock
-            long waitTime = Math.max( 0, unit.toMillis( time ) );
-            long sleepTime = 1;
-            try {
-                do {
-                    if ( !readLock.isLocked() ) { // make sure no readers
-                        return true;
-                    }
-                    // sleep twice as long after each iteration
-                    Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
-                } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
-            } catch ( InterruptedException ignore ) {
+            if ( super.tryLock( time, unit ) ) { // acquire the exclusive lock
+                long waitTime = Math.max( 0, unit.toMillis( time ) );
+                long sleepTime = 1;
+                try {
+                    do {
+                        if ( !readLock.isLocked() ) { // make sure no readers
+                            return true;
+                        }
+                        // sleep twice as long after each iteration
+                        Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+                    } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
+                } catch ( InterruptedException ignore ) {
+                }
+                super.unlock();
             }
             return false;
         }
