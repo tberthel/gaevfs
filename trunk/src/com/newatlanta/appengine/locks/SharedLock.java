@@ -26,13 +26,18 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
  * acquiring the lock never fails. The <code>isLock()</code> method can be
  * used to determine whether the lock has been acquired by any thread.
  * 
- * There are two issues with the current implementation of this class:
+ * There are three potential issues with the current implementation of this class:
  * 
  *   1) memcache is not reliable and the counter being used as a lock may be
- * evicted at any time; and,
+ * evicted at any time;
+ * 
+ *   2) any thread can invoke <code>unlock()</code> any number of times,
+ * regardless of whether that thread has ever acquired the lock, or how many
+ * times it has acquired the lock--a "rogue" thread could therefore cause the
+ * lock to be released prematurely; and,
  *      
- *   2) there is no mechanism to insure that a lock is not held indefinitely
- * due to programming errors.
+ *   3) there is no mechanism to insure that a lock is not held indefinitely
+ * due to programming errors (failures to invoke <code>unlock()</code>).
  * 
  * The reliability issue is probably best addressed by implemented persistent
  * counters backed by the GAE datastore; see the following for an example:
