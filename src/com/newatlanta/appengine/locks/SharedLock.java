@@ -59,20 +59,23 @@ public class SharedLock extends AbstractLock {
 
     public SharedLock( String lockName ) {
         key = lockName;
-        initCounter(); // key must be created before increment() can be invoked
+        createCounter();
     }
 
-    private void initCounter() {
-        memcache.put( key, 0, null, SetPolicy.ADD_ONLY_IF_NOT_PRESENT );
+    private void createCounter() {
+        memcache.put( key, (long)0, null, SetPolicy.ADD_ONLY_IF_NOT_PRESENT );
     }
 
     public boolean tryLock() {
-        // TODO: what happens if the counter has been evicted?
-        memcache.increment( key, 1 );
+        // null value means counter does not exist (has been evicted)
+        while ( memcache.increment( key, 1 ) == null ) {
+            createCounter();
+        }
         return true;
     }
 
     public void unlock() {
+        // MemcacheService guarantees to never decrement below 0
         memcache.increment( key, -1 );
     }
 
@@ -81,15 +84,13 @@ public class SharedLock extends AbstractLock {
      */
     public long getCounter() {
         try {
-            Long lockValue = (Long)memcache.get( key );
-            if ( lockValue == null ) {
-                initCounter();
-                return 0;
+            Long counter = (Long)memcache.get( key );
+            if ( counter != null ) {
+                return ( counter.longValue() );
             }
-            return ( lockValue.longValue() );
         } catch ( Exception e ) {
-            return 0;
         }
+        return 0;
     }
 
     /**
