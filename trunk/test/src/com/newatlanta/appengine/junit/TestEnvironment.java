@@ -23,10 +23,10 @@ import com.google.apphosting.api.ApiProxy;
 /**
  * http://code.google.com/appengine/docs/java/howto/unittesting.html
  */
-public class GaeTestEnvironment implements ApiProxy.Environment
+public class TestEnvironment implements ApiProxy.Environment
 {
     public String getAppId() {
-        return "Unit Tests";
+        return "test";
     }
 
     public String getVersionId() {
@@ -34,27 +34,26 @@ public class GaeTestEnvironment implements ApiProxy.Environment
     }
 
     public String getRequestNamespace() {
-        return "gmail.com";
-    }
-
-    public String getAuthDomain() {
-        return "gmail.com";
-    }
-
-    public boolean isLoggedIn() {
-        return false;
-    }
-
-    public String getEmail() {
         return "";
     }
 
-    public boolean isAdmin() {
-        return false;
+    public String getAuthDomain() {
+    	throw new UnsupportedOperationException();
     }
 
-    @SuppressWarnings("unchecked")
-    public Map getAttributes() {
-        return new HashMap();
+    public boolean isLoggedIn() {
+    	throw new UnsupportedOperationException();
+    }
+
+    public String getEmail() {
+    	throw new UnsupportedOperationException();
+    }
+
+    public boolean isAdmin() {
+    	throw new UnsupportedOperationException();
+    }
+
+    public Map<String, Object> getAttributes() {
+        return new HashMap<String, Object>();
     }
 }
