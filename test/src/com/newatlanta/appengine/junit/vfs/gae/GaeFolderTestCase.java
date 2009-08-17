@@ -32,6 +32,8 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 
 /**
  * Tests the ability to list, create, delete, and rename directories.
+ * 
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeFolderTestCase extends GaeVfsTestCase {
 	
