@@ -15,6 +15,7 @@
  */
 package com.newatlanta.appengine.locks;
 
+import com.google.appengine.api.memcache.InvalidValueException;
 import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
@@ -67,16 +68,25 @@ public class SharedLock extends AbstractLock {
     }
 
     public boolean tryLock() {
-        // null value means counter does not exist (has been evicted)
-        while ( memcache.increment( key, 1 ) == null ) {
-            createCounter();
+        try {
+            // null value means counter does not exist
+            while ( memcache.increment( key, 1 ) == null ) {
+                // create then increment avoids race condition, but requires
+                // three memcache calls to create a new counter
+                createCounter();
+            }
+            return true;
+        } catch ( InvalidValueException e ) {
+            return false;
         }
-        return true;
     }
 
     public void unlock() {
-        // MemcacheService guarantees to never decrement below 0
-        memcache.increment( key, -1 );
+        try {
+            // MemcacheService guarantees to never decrement below 0
+            memcache.increment( key, -1 );
+        } catch ( InvalidValueException ignore ) {
+        }
     }
 
     /**
