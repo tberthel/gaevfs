@@ -40,7 +40,8 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
     @Test
     public void testTryLock() {
         Thread lockThread = LockingThread.createThread( lock, Long.MAX_VALUE );
-        assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
+        assertEquals( lockThread, lock.getOwner() );
+        assertFalse( lock.isHeldByCurrentThread() );
         assertFalse( lock.tryLock() );
         try {
             lock.unlock();
@@ -52,50 +53,62 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
             Thread.sleep( 100 ); // give lockThread a chance to run
         } catch ( InterruptedException e ) {
         }
-        assertEquals( 0, lock.getOwnerHashCode() );
+        assertNull( lock.getOwner() );
+        assertFalse( lock.isHeldByCurrentThread() );
         for ( int i = 0; i < 10; i++ ) {
             assertTrue( lock.tryLock() );
-            assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+            assertEquals( Thread.currentThread(), lock.getOwner() );
+            assertTrue( lock.isHeldByCurrentThread() );
         }
         for ( int i = 0; i < 9; i++ ) {
             lock.unlock();
-            assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+            assertEquals( Thread.currentThread(), lock.getOwner() );
+            assertTrue( lock.isHeldByCurrentThread() );
         }
         lock.unlock();
-        assertEquals( 0, lock.getOwnerHashCode() );
+        assertNull( lock.getOwner() );
+        assertFalse( lock.isHeldByCurrentThread() );
     }
 
     @Test
     public void testLock() {
         Thread lockThread = LockingThread.createThread( lock, 2000 );
-        assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
+        assertEquals( lockThread, lock.getOwner() );
+        assertFalse( lock.isHeldByCurrentThread() );
         for ( int i = 0; i < 10; i++ ) {
             lock.lock();
-            assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+            assertEquals( Thread.currentThread(), lock.getOwner() );
+            assertTrue( lock.isHeldByCurrentThread() );
         }
         for ( int i = 0; i < 9; i++ ) {
             lock.unlock();
-            assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+            assertEquals( Thread.currentThread(), lock.getOwner() );
+            assertTrue( lock.isHeldByCurrentThread() );
         }
         lock.unlock();
-        assertEquals( 0, lock.getOwnerHashCode() );
+        assertNull( lock.getOwner() );
+        assertFalse( lock.isHeldByCurrentThread() );
     }
 
      @Test
      public void testLockInterruptibly() {
          Thread lockThread = LockingThread.createThread( lock, 2000 );
-         assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
+         assertEquals( lockThread, lock.getOwner() );
+         assertFalse( lock.isHeldByCurrentThread() );
          try {
              for ( int i = 0; i < 10; i++ ) {
                  lock.lockInterruptibly();
-                 assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+                 assertEquals( Thread.currentThread(), lock.getOwner() );
+                 assertTrue( lock.isHeldByCurrentThread() );
              }
              for ( int i = 0; i < 9; i++ ) {
                  lock.unlock();
-                 assertEquals( Thread.currentThread().hashCode(), lock.getOwnerHashCode() );
+                 assertEquals( Thread.currentThread(), lock.getOwner() );
+                 assertTrue( lock.isHeldByCurrentThread() );
              }
              lock.unlock();
-             assertEquals( 0, lock.getOwnerHashCode() );
+             assertNull( lock.getOwner() );
+             assertFalse( lock.isHeldByCurrentThread() );
         } catch ( InterruptedException e ) {
             fail( e.toString() );
         }
@@ -104,18 +117,23 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
      @Test
      public void testTryLockLongTimeUnit() {
          Thread lockThread = LockingThread.createThread( lock, Long.MAX_VALUE );
-         assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
+         assertEquals( lockThread, lock.getOwner() );
+         assertFalse( lock.isHeldByCurrentThread() );
          assertFalse( lock.tryLock( 200, TimeUnit.MILLISECONDS ) );
          lockThread.interrupt(); // release the lock
          try {
              Thread.sleep( 100 ); // give lockThread a chance to run
          } catch ( InterruptedException e ) {
          }
-         assertEquals( 0, lock.getOwnerHashCode() );
+         assertNull( lock.getOwner() );
+         assertFalse( lock.isHeldByCurrentThread() );
          lockThread = LockingThread.createThread( lock, 1000 );
-         assertEquals( lockThread.hashCode(), lock.getOwnerHashCode() );
+         assertEquals( lockThread, lock.getOwner() );
+         assertFalse( lock.isHeldByCurrentThread() );
          assertTrue( lock.tryLock( 2, TimeUnit.SECONDS ) );
+         assertTrue( lock.isHeldByCurrentThread() );
          lock.unlock();
-         assertEquals( 0, lock.getOwnerHashCode() );
+         assertNull( lock.getOwner() );
+         assertFalse( lock.isHeldByCurrentThread() );
      }
 }
