@@ -48,25 +48,41 @@ public class ExclusiveLock extends AbstractLock {
     private static Expiration EXPIRATION = Expiration.byDeltaSeconds( 30 );
 
     private String key;
-    private long lockCount;
+    private Thread owner;
+    private long holdCount;
 
     public ExclusiveLock( String lockName ) {
         key = lockName;
+    }
+    
+    /**
+     * Returns the thread that currently owns this lock; or, <code>null</code>
+     * if not owned by a thread running within this JVM instance.
+     */
+    public Thread getOwner() {
+        return owner;
+    }
+    
+    public boolean isHeldByCurrentThread() {
+        return ( Thread.currentThread() == owner );
     }
 
     /**
      * Acquires the lock only if it is free at the time of invocation.
      */
     public boolean tryLock() {
-        // thread id may not be unique across JVMs, so use hash code to identify owner
-        int hashCode = Thread.currentThread().hashCode();
-        if ( !memcache.put( key, hashCode, EXPIRATION, SetPolicy.ADD_ONLY_IF_NOT_PRESENT )
-                && ( hashCode != getOwnerHashCode() ) ) {
-            return false; // put failed and lock not owned by this thread
+        if ( !isHeldByCurrentThread() && !acquireLock() ) {
+            return false; // lock not owned by this thread and put failed
         }
         // put succeeded or this thread already owns the lock
-        lockCount++;
+        owner = Thread.currentThread();
+        holdCount++;
         return true;
+    }
+    
+    protected boolean acquireLock() {
+        // value of -1 causes MemcacheService.increment() to fail, which is what we want
+        return memcache.put( key, (long)-1, EXPIRATION, SetPolicy.ADD_ONLY_IF_NOT_PRESENT );
     }
 
     /**
@@ -76,26 +92,12 @@ public class ExclusiveLock extends AbstractLock {
      *         If an unlock attempt is made by a non-owner.
      */
     public void unlock() {
-        int ownerHashCode = getOwnerHashCode();
-        if ( ownerHashCode == 0 ) { // no owner
-            return;
-        }
-        if ( ownerHashCode != Thread.currentThread().hashCode() ) {
+        if ( !isHeldByCurrentThread() ) {
             throw new IllegalStateException( "Attempted unlock by non-owner" );
         }
-        if ( --lockCount == 0 ) {
+        if ( --holdCount == 0 ) {
             memcache.delete( key );
+            owner = null;
         }
-    }
-
-    /**
-     * Gets the hash code of the owner of the lock.
-     * 
-     * @return the hash code of the thread that owns the lock, or 0 if there
-     *         is no owner (the lock doesn't exist in memcache)
-     */
-    public int getOwnerHashCode() {
-        Integer hashCode = (Integer)memcache.get( key );
-        return ( hashCode != null ? hashCode.intValue() : 0 );
     }
 }
