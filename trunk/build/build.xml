@@ -66,11 +66,12 @@
                 <path refid="build.class.path"/>
             </classpath>
             <formatter type="plain"/>
-            <!-- run the first two tests in the order specified -->
+            <!-- always run the GaeProviderTestCase first -->
             <test name="com.newatlanta.commons.vfs.provider.gae.test.GaeProviderTestCase"/>
             <test name="com.newatlanta.appengine.junit.vfs.gae.GaeFolderTestCase"/>
             <test name="com.newatlanta.appengine.junit.locks.ExclusiveLockTestCase"/>
             <test name="com.newatlanta.appengine.junit.locks.SharedLockTestCase"/>
+            <test name="com.newatlanta.appengine.junit.locks.ReadWriteLockTestCase"/>
         </junit>
     </target>
 	
