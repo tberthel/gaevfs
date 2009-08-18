@@ -88,7 +88,7 @@ public class GaeVFS {
     public static GaeFileSystemManager getManager() throws FileSystemException {
         if ( fsManager == null ) {
             if ( rootPath == null ) {
-                throw new FileSystemException( "root path not defined" );
+                rootPath = System.getProperty( "user.dir" ); // works only on GAE
             }
             fsManager = new GaeFileSystemManager();
             fsManager.init( rootPath );
