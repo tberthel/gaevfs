@@ -64,19 +64,24 @@ public class SharedLock extends AbstractLock {
     }
 
     private void createCounter() {
-        memcache.put( key, (long)0, null, SetPolicy.ADD_ONLY_IF_NOT_PRESENT );
+        if ( memcache.put( key, (long)0, null, SetPolicy.ADD_ONLY_IF_NOT_PRESENT ) ) {
+            log.info( "created " + key );
+        }
     }
 
     public boolean tryLock() {
         try {
+            Long counter;
             // null value means counter does not exist
-            while ( memcache.increment( key, 1 ) == null ) {
+            while ( ( counter = memcache.increment( key, 1 ) ) == null ) {
                 // create then increment avoids race condition, but requires
                 // three memcache calls to create a new counter
                 createCounter();
             }
+            log.info( "acquired " + key + " " + counter.longValue() );
             return true;
         } catch ( InvalidValueException e ) {
+            log.warning( e.toString() );
             return false;
         }
     }
@@ -84,8 +89,10 @@ public class SharedLock extends AbstractLock {
     public void unlock() {
         try {
             // MemcacheService guarantees to never decrement below 0
-            memcache.increment( key, -1 );
-        } catch ( InvalidValueException ignore ) {
+            Long counter = memcache.increment( key, -1 );
+            log.info( "released " + key + " " + ( counter != null ? counter.longValue() : "-" ) );
+        } catch ( InvalidValueException e ) {
+            log.warning( e.toString() );
         }
     }
 
@@ -99,6 +106,7 @@ public class SharedLock extends AbstractLock {
                 return ( counter.longValue() );
             }
         } catch ( Exception e ) {
+            log.warning( e.toString() );
         }
         return 0;
     }
