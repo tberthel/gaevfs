@@ -82,7 +82,7 @@ public class ExclusiveLock extends AbstractLock {
         }
         owner = Thread.currentThread();
         holdCount++;
-        log.info( "acquired: " + key + ", " + owner + ", " + holdCount );
+        log.info( "acquired " + key + " " + owner + " " + holdCount );
         return true;
     }
     
@@ -108,8 +108,8 @@ public class ExclusiveLock extends AbstractLock {
             }
             owner = null;
         }
-        log.info( "released: " + key + ", " + 
-                    ( owner != null ? owner : Thread.currentThread() ) + ", " +
+        log.info( "released " + key + " " + 
+                    ( owner != null ? owner : Thread.currentThread() ) + " " +
                     holdCount );
     }
 }
