@@ -18,6 +18,7 @@ package com.newatlanta.appengine.locks;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
+import java.util.logging.Logger;
 
 /**
  * An abstract implementation of the <code>java.util.concurrent.locks.Lock</code>
@@ -31,8 +32,11 @@ import java.util.concurrent.locks.Lock;
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public abstract class AbstractLock implements Lock {
+    
+    protected static final Logger log = Logger.getLogger(
+                                    AbstractLock.class.getPackage().getName() );
 
-    protected static long MAX_SLEEP_TIME = 128; // milliseconds
+    protected static final long MAX_SLEEP_TIME = 128; // milliseconds
 
     /**
      * Acquires the lock. If the lock is not available then the current thread
