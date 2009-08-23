@@ -92,7 +92,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             throw new FileSystemException( "cannot set block size after file is created" );
         }
         // exists() guarantees that metadata != null
-        metadata.setProperty( BLOCK_SIZE, Long.valueOf( size ) );
+        metadata.setUnindexedProperty( BLOCK_SIZE, Long.valueOf( size ) );
     }
 
     @SuppressWarnings("unchecked")
@@ -328,7 +328,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             if ( childKeys == null ) {
                 childKeys = new ArrayList<Key>();
                 childKeys.add( childKey );
-                metadata.setProperty( CHILD_KEYS, childKeys );
+                metadata.setUnindexedProperty( CHILD_KEYS, childKeys );
             } else if ( !childKeys.contains( childKey ) ) {
                 childKeys.add( childKey );
             }
@@ -473,7 +473,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         List<Key> blockKeys = getBlockKeys();
         if ( blockKeys == null ) {
             blockKeys = new ArrayList<Key>();
-            metadata.setProperty( BLOCK_KEYS, blockKeys );
+            metadata.setUnindexedProperty( BLOCK_KEYS, blockKeys );
         }
         if ( i < blockKeys.size() ) {
             Key key = blockKeys.get( i );
