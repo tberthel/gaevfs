@@ -47,6 +47,7 @@ import com.newatlanta.nio.file.WatchService;
 import com.newatlanta.nio.file.DirectoryStream.Filter;
 import com.newatlanta.nio.file.WatchEvent.Kind;
 import com.newatlanta.nio.file.WatchEvent.Modifier;
+import com.newatlanta.nio.file.attribute.Attributes;
 import com.newatlanta.nio.file.attribute.FileAttribute;
 import com.newatlanta.nio.file.attribute.FileAttributeView;
 
@@ -100,19 +101,19 @@ public class GaePath extends Path {
 
     @Override
     public Path createDirectory( FileAttribute<?> ... attrs ) throws IOException {
-        getParent().checkAccess( AccessMode.WRITE );
-        if ( lock.tryLock() ) {
-            try {
-                if ( !exists() ) {
-                    fileObject.createFolder();
-                    return this;
-                }
-            } finally {
-                lock.unlock();
+        GaePath parent = getParent();
+        parent.lock.lock(); // prevent delete or rename of parent
+        try {
+            parent.checkAccess( AccessMode.WRITE );
+            if ( notExists() ) {
+                fileObject.createFolder();
+                return this;
+            } else {
+                throw new FileAlreadyExistsException( toString() );
             }
+        } finally {
+            parent.lock.unlock();
         }
-        // if we can't acquire the lock, then the directory must exist
-        throw new FileAlreadyExistsException( toString() );
     }
 
     /**
@@ -120,19 +121,19 @@ public class GaePath extends Path {
      */
     @Override
     public Path createFile( FileAttribute<?> ... attrs ) throws IOException {
-        getParent().checkAccess( AccessMode.WRITE );
-        if ( lock.tryLock() ) {
-            try {
-                if ( !exists() ) {
-                    fileObject.createFile();
-                    return this;
-                }
-            } finally {
-                lock.unlock();
+        GaePath parent = getParent();
+        parent.lock.lock(); // prevent delete or rename of parent
+        try {
+            parent.checkAccess( AccessMode.WRITE );
+            if ( notExists() ) {
+                fileObject.createFile();
+                return this;
+            } else {
+                throw new FileAlreadyExistsException( toString() );
             }
+        } finally {
+            lock.unlock();
         }
-        // if we can't acquire the lock, then the file must exist
-        throw new FileAlreadyExistsException( toString() );
     }
 
     @Override
@@ -147,13 +148,19 @@ public class GaePath extends Path {
 
     @Override
     public void delete() throws IOException {
-        fileObject.delete();
+        // TODO Auto-generated method stub
+        // if directory, then lock to prevent creation of children
+        if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
+        }
+        //fileObject.delete();
     }
 
     @Override
     public void deleteIfExists() throws IOException {
         // TODO Auto-generated method stub
-
+        // if directory, then lock to prevent creation of children
+        if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
+        }
     }
 
     @Override
@@ -209,7 +216,7 @@ public class GaePath extends Path {
     }
 
     @Override
-    public Path getParent() {
+    public GaePath getParent() {
         try {
             FileObject parentObject = fileObject.getParent();
             if ( parentObject == null ) {
@@ -261,6 +268,9 @@ public class GaePath extends Path {
     @Override
     public Path moveTo( Path target, CopyOption ... options ) throws IOException {
         // TODO Auto-generated method stub
+        // if directory, then lock to prevent creation of children
+        if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
+        }
         return null;
     }
 
@@ -312,8 +322,10 @@ public class GaePath extends Path {
         try {
             checkAccess();
             return false;
+        } catch ( NoSuchFileException e ) {
+            return true; // confirmed does not exist
         } catch ( IOException e ) {
-            return true;
+            return false; // unknown
         }
     }
 
