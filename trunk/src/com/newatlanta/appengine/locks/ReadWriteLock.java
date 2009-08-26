@@ -112,11 +112,18 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
         public void lock() {
             super.lock(); // acquire the exclusive lock
             long sleepTime = 1;
-            while ( readLock.isLocked() ) { // make sure no readers
-                try {
-                    // sleep twice as long after each iteration
-                    Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
-                } catch ( InterruptedException ignore ) {
+            boolean readLocked = true;
+            try {
+                while ( readLocked = readLock.isLocked() ) { // make sure no readers
+                    try {
+                        // sleep twice as long after each iteration
+                        Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+                    } catch ( InterruptedException ignore ) {
+                    }
+                }
+            } finally {
+                if ( readLocked ) {
+                    super.unlock();
                 }
             }
         }
@@ -131,9 +138,16 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
         public void lockInterruptibly() throws InterruptedException {
             super.lockInterruptibly(); // acquire the exclusive lock
             long sleepTime = 1;
-            while ( readLock.isLocked() ) { // make sure no readers
-                // sleep twice as long after each iteration
-                Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+            boolean readLocked = true;
+            try {
+                while ( readLocked = readLock.isLocked() ) { // make sure no readers
+                    // sleep twice as long after each iteration
+                    Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+                }
+            } finally {
+                if ( readLocked ) {
+                    super.unlock();
+                }
             }
         }
 
@@ -144,22 +158,26 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
          * Note that GAE request threads timeout after 30 seconds.
          */
         @Override
-        public boolean tryLock( long time, TimeUnit unit ) {
+        public boolean tryLock( long time, TimeUnit unit ) throws InterruptedException {
             long startTime = System.currentTimeMillis();
+            boolean readLocked = true;
             if ( super.tryLock( time, unit ) ) { // acquire the exclusive lock
-                long waitTime = Math.max( 0, unit.toMillis( time ) );
-                long sleepTime = 1;
                 try {
+                    long waitTime = Math.max( 0, unit.toMillis( time ) );
+                    long sleepTime = 1;
                     do {
                         if ( !readLock.isLocked() ) { // make sure no readers
+                            readLocked = false;
                             return true;
                         }
                         // sleep twice as long after each iteration
                         Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
                     } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
-                } catch ( InterruptedException ignore ) {
+                } finally {
+                    if ( readLocked ) {
+                        super.unlock();
+                    }
                 }
-                super.unlock();
             }
             return false;
         }

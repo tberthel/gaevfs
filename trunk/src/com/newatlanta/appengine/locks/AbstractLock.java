@@ -77,20 +77,17 @@ public abstract class AbstractLock implements Lock {
      * 
      * Note that GAE request threads timeout after 30 seconds.
      */
-    public boolean tryLock( long time, TimeUnit unit ) {
+    public boolean tryLock( long time, TimeUnit unit ) throws InterruptedException {
         long waitTime = Math.max( 0, unit.toMillis( time ) );
         long startTime = System.currentTimeMillis();
         long sleepTime = 1;
-        try {
-            do {
-                if ( tryLock() ) {
-                    return true;
-                }
-                // sleep twice as long after each iteration
-                Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
-            } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
-        } catch ( InterruptedException ignore ) {
-        }
+        do {
+            if ( tryLock() ) {
+                return true;
+            }
+            // sleep twice as long after each iteration
+            Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+        } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
         return false;
     }
 
