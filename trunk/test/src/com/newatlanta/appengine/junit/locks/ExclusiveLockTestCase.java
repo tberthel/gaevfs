@@ -115,16 +115,13 @@ public class ExclusiveLockTestCase extends LocalServiceTestCase {
      }
 
      @Test
-     public void testTryLockLongTimeUnit() {
+     public void testTryLockLongTimeUnit() throws InterruptedException {
          Thread lockThread = LockingThread.createThread( lock, Long.MAX_VALUE );
          assertEquals( lockThread, lock.getOwner() );
          assertFalse( lock.isHeldByCurrentThread() );
          assertFalse( lock.tryLock( 200, TimeUnit.MILLISECONDS ) );
          lockThread.interrupt(); // release the lock
-         try {
-             Thread.sleep( 100 ); // give lockThread a chance to run
-         } catch ( InterruptedException e ) {
-         }
+         Thread.sleep( 100 ); // give lockThread a chance to run
          assertNull( lock.getOwner() );
          assertFalse( lock.isHeldByCurrentThread() );
          lockThread = LockingThread.createThread( lock, 1000 );
