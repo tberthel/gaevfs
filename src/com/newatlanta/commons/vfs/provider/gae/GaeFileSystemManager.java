@@ -128,10 +128,6 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
         FileObject gaeFile;
 
         if ( baseFile != null ) {
-            // if uri starts with "/", determine if it includes the base path;
-            // if it doesn't, then remove the leading "/" to create a relative path
-            uri = checkRelativity( baseFile, uri );
-
             FileObject fileObject = super.resolveFile( baseFile, uri, opts );
             if ( fileObject.exists() && ( fileObject.getType().hasContent() ) ) {
                 return fileObject; // return existing file
@@ -174,7 +170,7 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
 
         // never return local folders
         if ( localFile.exists() ) {
-            gaeFile.createFolder(); // GAE "shadow" for local folder
+            gaeFile.createFolder(); // create GAE "shadow" for existing local folder
             return gaeFile;
         }
         return gaeFile; // neither local nor GAE file/folder exists
@@ -183,16 +179,5 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
     private boolean isSchemeSpecified( String uri ) {
         String scheme = UriParser.extractScheme( uri );
         return ( ( scheme != null ) && super.hasProvider( scheme ) );
-    }
-
-    // TODO: is this still needed?
-    private String checkRelativity( FileObject baseFile, String uri ) throws FileSystemException {
-        if ( ( baseFile != null ) && uri.startsWith( "/" ) ) {
-            String basePath = GaeFileNameParser.getRootPath( baseFile.getName() );
-            if ( !uri.startsWith( basePath ) ) {
-                return uri.substring( 1 );
-            }
-        }
-        return uri;
     }
 }
