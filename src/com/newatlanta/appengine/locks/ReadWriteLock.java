@@ -116,8 +116,7 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
             try {
                 while ( readLocked = readLock.isLocked() ) { // make sure no readers
                     try {
-                        // sleep twice as long after each iteration
-                        Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+                        Thread.sleep( calcSleepTime( sleepTime ) );
                     } catch ( InterruptedException ignore ) {
                     }
                 }
@@ -141,8 +140,7 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
             boolean readLocked = true;
             try {
                 while ( readLocked = readLock.isLocked() ) { // make sure no readers
-                    // sleep twice as long after each iteration
-                    Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+                    Thread.sleep( calcSleepTime( sleepTime ) );
                 }
             } finally {
                 if ( readLocked ) {
@@ -170,8 +168,7 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
                             readLocked = false;
                             return true;
                         }
-                        // sleep twice as long after each iteration
-                        Thread.sleep( Math.min( MAX_SLEEP_TIME, sleepTime <<= 1 ) );
+                        Thread.sleep( calcSleepTime( sleepTime ) );
                     } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
                 } finally {
                     if ( readLocked ) {
