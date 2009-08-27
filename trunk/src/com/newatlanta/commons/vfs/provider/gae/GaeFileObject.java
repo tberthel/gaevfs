@@ -28,6 +28,7 @@ import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.FileType;
+import org.apache.commons.vfs.NameScope;
 import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.provider.AbstractFileObject;
 import org.apache.commons.vfs.provider.AbstractFileSystem;
@@ -72,19 +73,31 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String BLOCK_SIZE = "block-size";
 
     private Entity metadata; // the wrapped GAE datastore entity
+    private FileObject parent;
 
     private boolean isCombinedLocal;
 
     public GaeFileObject( FileName name, AbstractFileSystem fs ) {
         super( name, fs );
     }
+    
+    /**
+     * Override the superclass implementation because we need to resolve via
+     * GaeVFS in order to create "shadows" for local directories.
+     */
+    @Override
+    public FileObject getParent() throws FileSystemException {
+        if ( ( parent == null ) && ( this != getFileSystem().getRoot() ) ) {
+            FileName parentName = getName().getParent();
+            if ( parentName != null ) { // might be redundant
+                parent = resolveFile( parentName.getPath(), NameScope.FILE_SYSTEM );
+            }  
+        }
+        return parent;
+    }
 
     public void setCombinedLocal( boolean b ) {
         isCombinedLocal = b;
-    }
-
-    private int getBlockSize() throws FileSystemException {
-        return ( (Long)metadata.getProperty( BLOCK_SIZE ) ).intValue();
     }
 
     public void setBlockSize( int size ) throws FileSystemException {
@@ -93,6 +106,10 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         }
         // exists() guarantees that metadata != null
         metadata.setUnindexedProperty( BLOCK_SIZE, Long.valueOf( size ) );
+    }
+    
+    private int getBlockSize() throws FileSystemException {
+        return ((Long)metadata.getProperty( BLOCK_SIZE )).intValue();
     }
 
     @SuppressWarnings("unchecked")

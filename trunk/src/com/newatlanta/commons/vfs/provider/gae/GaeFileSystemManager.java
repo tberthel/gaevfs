@@ -147,6 +147,9 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
                 } else {
                     localFile = super.resolveFile( baseFile, "file://" + uri, opts );
                 }
+                if ( localFile.exists() && ( localFile.getType().hasContent() ) ) {
+                    return localFile; // return existing local files
+                }
             } else {
                 localFile = fileObject;
                 gaeFile = super.resolveFile( baseFile, "gae://" + uri, opts );
@@ -155,14 +158,13 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             // neither scheme nor baseFile specified, check local first
             localFile = super.resolveFile( null, uri, opts );
             if ( localFile.exists() && ( localFile.getType().hasContent() ) ) {
-                // return existing local files
-                return localFile;
+                return localFile; // return existing local files
             }
             // localFile doesn't exist or is a folder, check GAE file system
             gaeFile = super.resolveFile( null, "gae://" + uri, opts );
         }
 
-        ( (GaeFileObject)gaeFile ).setCombinedLocal( true );
+        ((GaeFileObject)gaeFile).setCombinedLocal( true );
 
         // when we get here we either have a non-existing file, or a folder;
         // return the GAE file/folder if it exists
@@ -170,9 +172,10 @@ public class GaeFileSystemManager extends StandardFileSystemManager {
             return gaeFile;
         }
 
-        // never return non-existing local folders, which can't be created
+        // never return local folders
         if ( localFile.exists() ) {
-            return localFile; // an existing local folder and no GAE folder
+            gaeFile.createFolder(); // GAE "shadow" for local folder
+            return gaeFile;
         }
         return gaeFile; // neither local nor GAE file/folder exists
     }
