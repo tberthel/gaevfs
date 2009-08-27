@@ -28,15 +28,19 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public abstract class GaeVfsTestCase extends LocalDatastoreTestCase {
+    
+    static {
+        System.setProperty( "user.dir", new File( "test/data" ).getAbsolutePath() );
+    }
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        GaeVFS.setRootPath( new File( "test/data" ).getAbsolutePath() );
     }
     
     @Override
     public void tearDown() throws Exception {
+        GaeVFS.getManager().getFilesCache().close();
         super.tearDown();
     }
     
