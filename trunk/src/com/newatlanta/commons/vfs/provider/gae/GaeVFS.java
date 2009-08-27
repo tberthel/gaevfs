@@ -27,18 +27,6 @@ import org.apache.commons.vfs.FileSystemException;
  * <a href="http://commons.apache.org/vfs/apidocs/index.html" target="_blank">Apache
  * Commons VFS API</a>.
  * <blockquote>
- * <b>IMPORTANT!</b> The webapp root directory must be set via the
- * {@link GaeVFS#setRootPath(String)} method before invoking {@link GaeVFS#getManager()}
- * the first time. This will be done automatically if the 
- * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
- * </blockquote><blockquote>
- * <b>IMPORTANT!</b> The GaeVFS local file cache must be cleared at the end of every
- * request via the {@link GaeVFS#clearFilesCache()} method. This will be done
- * automatically if the {@link GaeVfsServletEventListener} is configured within
- * <tt>web.xml</tt>. See the
- * {@link com.newatlanta.commons.vfs.cache.GaeMemcacheFilesCache} class for an
- * explanation of why this is necessary.
- * </blockquote><blockquote>
  * <b>IMPORTANT!</b> Do not use the <code>org.apache.commons.vfs.VFS.getManager()</code>
  * method provided by Commons VFS to get a <code>FileSystemManager</code> when running
  * within GAE.
@@ -58,7 +46,6 @@ public class GaeVFS {
     }
 
     private static GaeFileSystemManager fsManager;
-    private static String rootPath;
     private static int blockSize = DEFAULT_BLOCK_SIZE;
     
     private GaeVFS() {
@@ -66,67 +53,16 @@ public class GaeVFS {
 
     /**
      * Creates and initializes the {@link GaeFileSystemManager} static instance.
-     * <blockquote>
-     * <b>IMPORTANT!</b> The webapp root directory must be set via the
-     * {@link GaeVFS#setRootPath(String)} method before invoking <code>getManager()</code>
-     * the first time. This will be done automatically if the 
-     * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
-     * Otherwise, it should be done within the servlet <code>init()</code>
-     * method:<br><br>
-     * <code>
-     * public void init() throws ServletException {<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;GaeVFS.setRootPath( getServletContext.getRealPath( "/" ) );<br>
-     * }
-     * </code>
-     * </blockquote>
-     * Failure to set the webapp root path properly will result in unexpected
-     * errors.
      * 
      * @return The {@link GaeFileSystemManager} static instance.
      * @throws FileSystemException
      */
     public static GaeFileSystemManager getManager() throws FileSystemException {
         if ( fsManager == null ) {
-            if ( rootPath == null ) {
-                rootPath = System.getProperty( "user.dir" ); // works only on GAE
-            }
             fsManager = new GaeFileSystemManager();
-            fsManager.init( rootPath );
+            fsManager.init( System.getProperty( "user.dir" ) );
         }
         return fsManager;
-    }
-    
-    /**
-     * Sets the webapp root path for resolving file names.
-     * <p>
-     * File path URIs that do not start with "/" are interpreted as relative paths
-     * from the webapp root directory. Paths that start with "/" are interpreted
-     * (initially) as full absolute paths.
-     * <p>
-     * Absolute paths must specify sub-directories of the webapp root directory.
-     * Any absolute path that does not specify such a sub-directory is interpreted
-     * to be a relative path from the webapp root directory, regardless of the fact
-     * that it starts with "/".
-     * <blockquote>
-     * <b>IMPORTANT!</b> The webapp root directory must be set via the
-     * {@link GaeVFS#setRootPath(String)} method before invoking <code>getManager()</code>
-     * the first time. This will be done automatically if the 
-     * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
-     * Otherwise, it should be done within the servlet <code>init()</code>
-     * method:<br><br>
-     * <code>
-     * public void init() throws ServletException {<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;GaeVFS.setRootPath( getServletContext.getRealPath( "/" ) );<br>
-     * }
-     * </code>
-     * </blockquote>
-     * Failure to set the webapp root path properly will result in unexpected
-     * errors.
-     * 
-     * @param rootPath The webapp root path.
-     */
-    public static void setRootPath( String rootPath ) {
-        GaeVFS.rootPath = rootPath;
     }
     
     /**

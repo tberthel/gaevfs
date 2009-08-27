@@ -37,7 +37,9 @@ public class GaeVfsServletEventListener implements ServletContextListener {
      * Initializes GaeVFS with the webapp root path. Attempts to register with H2.
      */
     public void contextInitialized( ServletContextEvent event ) {
-        GaeVFS.setRootPath( event.getServletContext().getRealPath( "/" ) );
+        // configure GaeVFS as default provider for NIO2
+        System.setProperty( "java.nio.file.spi.DefaultFileSystemProvider",
+                            "com.newatlanta.appengine.nio.file.spi.GaeFileSystemProvider" );
         try {
             // use reflection in case H2 is not installed
             Class<?> fileSystemClass = Class.forName( "org.h2.store.fs.FileSystem" );
