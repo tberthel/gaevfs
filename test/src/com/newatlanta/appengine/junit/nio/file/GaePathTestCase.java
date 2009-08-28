@@ -20,13 +20,22 @@ import java.io.IOException;
 import org.junit.Test;
 
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
+import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
 import com.newatlanta.nio.file.FileAlreadyExistsException;
 import com.newatlanta.nio.file.NoSuchFileException;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.Paths;
+import com.newatlanta.nio.file.attribute.AclFileAttributeView;
 import com.newatlanta.nio.file.attribute.Attributes;
+import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
+import com.newatlanta.nio.file.attribute.DosFileAttributeView;
+import com.newatlanta.nio.file.attribute.FileAttributeView;
+import com.newatlanta.nio.file.attribute.FileOwnerAttributeView;
+import com.newatlanta.nio.file.attribute.FileTime;
+import com.newatlanta.nio.file.attribute.PosixFileAttributeView;
+import com.newatlanta.nio.file.attribute.UserDefinedFileAttributeView;
 
 /**
  * Tests <code>com.newatlanta.appengine.nio.file.GaePath</code>.
@@ -231,7 +240,7 @@ public class GaePathTestCase extends GaeVfsTestCase {
         dirPath = dirPath.createDirectory();
         assertNotNull( dirPath );
         assertTrue( dirPath.exists() );
-        //assertTrue( Attributes.readBasicFileAttributes( dirPath ).isDirectory() );
+        assertTrue( Attributes.readBasicFileAttributes( dirPath ).isDirectory() );
         // check parent: equals? isSameFile? compareTo?
         
         // create a directory within a GaeVFS directory
@@ -407,13 +416,93 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testGetAttribute() {
-        fail( "Not yet implemented" );
+    public void testGetAttribute() throws IOException {
+        Path path = Paths.get( "/attributeTest" ).createDirectory();
+        assertTrue( path.exists() );
+        
+        // test basic attributes without specifying view name
+        Object attr = path.getAttribute( "lastModifiedTime" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof FileTime );
+        assertFalse( ((FileTime)attr).toMillis() == 0 );
+        
+        attr = path.getAttribute( "size" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof Long );
+        assertEquals( 0, ((Long)attr).longValue() );
+        
+        attr = path.getAttribute( "isRegularFile" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof Boolean );
+        assertFalse( ((Boolean)attr).booleanValue() );
+        
+        attr = path.getAttribute( "isDirectory" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof Boolean );
+        assertTrue( ((Boolean)attr).booleanValue() );
+        
+        // test basic attributes specifying view name
+        attr = path.getAttribute( "basic:lastModifiedTime" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof FileTime );
+        assertFalse( ((FileTime)attr).toMillis() == 0 );
+        
+        attr = path.getAttribute( "basic:size" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof Long );
+        assertEquals( 0, ((Long)attr).longValue() );
+        
+        attr = path.getAttribute( "basic:isRegularFile" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof Boolean );
+        assertFalse( ((Boolean)attr).booleanValue() );
+        
+        attr = path.getAttribute( "basic:isDirectory" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof Boolean );
+        assertTrue( ((Boolean)attr).booleanValue() );
+        
+        // test gae attribute without specifying view name
+        assertNull( path.getAttribute( "blockSize" ) );
+        
+        // test gae attributes specifying view name
+        attr = path.getAttribute( "gae:blockSize" );
+        assertNotNull( attr );
+        assertTrue( attr instanceof Integer );
+        assertEquals( 0, ((Integer)attr).intValue() );
+        
+        // test unsupported basic attributes without specifying view name
+        assertNull( path.getAttribute( "lastAccessTime" ) );
+        assertNull( path.getAttribute( "creationTime" ) );
+        assertNull( path.getAttribute( "isSymbolicLink" ) );
+        assertNull( path.getAttribute( "isOther" ) );
+        assertNull( path.getAttribute( "fileKey" ) );
+        
+        // test unsupported basic attribute specifying view name
+        assertNull( path.getAttribute( "basic:lastAccessTime" ) );
+        assertNull( path.getAttribute( "basic:creationTime" ) );
+        assertNull( path.getAttribute( "basic:isSymbolicLink" ) );
+        assertNull( path.getAttribute( "basic:isOther" ) );
+        assertNull( path.getAttribute( "basic:fileKey" ) );
+        
+        // test unsupported view
+        assertNull( path.getAttribute( "posix:group" ) );
     }
 
     @Test
     public void testGetFileAttributeView() {
-        fail( "Not yet implemented" );
+        Path rootPath = Paths.get( "/" );
+        FileAttributeView attr = rootPath.getFileAttributeView( BasicFileAttributeView.class );
+        assertNotNull( attr );
+        assertEquals( "basic", attr.name() );
+        attr = rootPath.getFileAttributeView( GaeFileAttributeView.class );
+        assertNotNull( attr );
+        assertEquals( "gae", attr.name() );
+        assertNull( rootPath.getFileAttributeView( AclFileAttributeView.class ) );
+        assertNull( rootPath.getFileAttributeView( DosFileAttributeView.class ) );
+        assertNull( rootPath.getFileAttributeView( FileOwnerAttributeView.class ) );
+        assertNull( rootPath.getFileAttributeView( PosixFileAttributeView.class ) );
+        assertNull( rootPath.getFileAttributeView( UserDefinedFileAttributeView.class ) ); 
     }
 
     @Test
