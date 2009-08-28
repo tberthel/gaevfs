@@ -29,6 +29,7 @@ import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 
 import com.newatlanta.appengine.locks.ExclusiveLock;
+import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
@@ -48,6 +49,7 @@ import com.newatlanta.nio.file.DirectoryStream.Filter;
 import com.newatlanta.nio.file.WatchEvent.Kind;
 import com.newatlanta.nio.file.WatchEvent.Modifier;
 import com.newatlanta.nio.file.attribute.Attributes;
+import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
 import com.newatlanta.nio.file.attribute.FileAttribute;
 import com.newatlanta.nio.file.attribute.FileAttributeView;
 
@@ -132,7 +134,7 @@ public class GaePath extends Path {
                 throw new FileAlreadyExistsException( toString() );
             }
         } finally {
-            lock.unlock();
+            parent.lock.unlock();
         }
     }
 
@@ -331,8 +333,7 @@ public class GaePath extends Path {
 
     @Override
     public Path readSymbolicLink() throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -408,8 +409,13 @@ public class GaePath extends Path {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     public <V extends FileAttributeView> V getFileAttributeView( Class<V> type, LinkOption ... options ) {
-        // TODO Auto-generated method stub
+        if ( type == BasicFileAttributeView.class ) {
+            return (V)new GaeFileAttributeView( "basic", fileObject );
+        } else if ( type == GaeFileAttributeView.class ) {
+            return (V)new GaeFileAttributeView( "gae", fileObject );
+        }
         return null;
     }
 
@@ -427,5 +433,4 @@ public class GaePath extends Path {
         // TODO Auto-generated method stub
 
     }
-
 }
