@@ -72,6 +72,7 @@
             <test name="com.newatlanta.appengine.junit.locks.ExclusiveLockTestCase"/>
             <test name="com.newatlanta.appengine.junit.locks.SharedLockTestCase"/>
             <test name="com.newatlanta.appengine.junit.locks.ReadWriteLockTestCase"/>
+            <test name="com.newatlanta.appengine.junit.locks.SleepTimerTestCase"/>
         </junit>
     </target>
 	
