@@ -108,7 +108,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         metadata.setUnindexedProperty( BLOCK_SIZE, Long.valueOf( size ) );
     }
     
-    private int getBlockSize() throws FileSystemException {
+    public int getBlockSize() throws FileSystemException {
         return ((Long)metadata.getProperty( BLOCK_SIZE )).intValue();
     }
 
