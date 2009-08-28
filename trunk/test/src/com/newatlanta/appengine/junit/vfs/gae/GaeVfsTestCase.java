@@ -36,6 +36,8 @@ public abstract class GaeVfsTestCase extends LocalDatastoreTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        System.setProperty( "java.nio.file.spi.DefaultFileSystemProvider",
+                            "com.newatlanta.appengine.nio.file.spi.GaeFileSystemProvider" );
     }
     
     @Override
