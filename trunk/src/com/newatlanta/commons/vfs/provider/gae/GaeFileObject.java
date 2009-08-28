@@ -102,14 +102,20 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     public void setBlockSize( int size ) throws FileSystemException {
         if ( exists() ) {
-            throw new FileSystemException( "cannot set block size after file is created" );
+            throw new FileSystemException( "Could not set the block size of \"" +
+                                    getName() + "\" because it already exists." );
         }
         // exists() guarantees that metadata != null
         metadata.setUnindexedProperty( BLOCK_SIZE, Long.valueOf( size ) );
     }
     
     public int getBlockSize() throws FileSystemException {
-        return ((Long)metadata.getProperty( BLOCK_SIZE )).intValue();
+        Long blockSize = (Long)metadata.getProperty( BLOCK_SIZE );
+        if ( blockSize == null ) {
+            throw new FileSystemException( "Could not get the block size of \"" +
+                                                getName() + "\"" );
+        }
+        return blockSize.intValue();
     }
 
     @SuppressWarnings("unchecked")

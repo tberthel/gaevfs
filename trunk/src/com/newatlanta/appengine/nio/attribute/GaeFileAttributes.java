@@ -15,6 +15,9 @@
  */
 package com.newatlanta.appengine.nio.attribute;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 
@@ -24,6 +27,26 @@ import com.newatlanta.nio.file.attribute.FileTime;
 
 public class GaeFileAttributes implements BasicFileAttributes {
 
+    // supported view names
+    public static final String BASIC_VIEW = "basic";
+    public static final String GAE_VIEW = "gae";
+    
+    // supported basic attribute names
+    public static final String LAST_MODIFIED_TIME = "lastModifiedTime";
+    public static final String SIZE = "size";
+    public static final String IS_REGULAR_FILE = "isRegularFile";
+    public static final String IS_DIRECTORY = "isDirectory";
+    
+    // supported gae attribute names
+    public static final String BLOCK_SIZE = "blockSize";
+    
+    // currently unsupported basic attribute names
+    public static final String LAST_ACCESS_TIME = "lastAccessTime";
+    public static final String CREATION_TIME = "creationTime";
+    public static final String IS_SYMBOLIC_LINK = "isSymbolicLink";
+    public static final String IS_OTHER = "isOther";
+    public static final String FILE_KEY = "fileKey";
+    
     private FileObject fileObject;
     
     GaeFileAttributes( FileObject fileObject ) {
@@ -85,7 +108,7 @@ public class GaeFileAttributes implements BasicFileAttributes {
         }
     }
     
-    public int getBlockSize() {
+    public int blockSize() {
         try {
             if ( fileObject instanceof GaeFileObject ) {
                 ((GaeFileObject)fileObject).getBlockSize();
@@ -93,5 +116,34 @@ public class GaeFileAttributes implements BasicFileAttributes {
         } catch ( FileSystemException e ) {
         }
         return 0;
+    }
+    
+    public Map<String, ?> getSupportedAttributes( String viewName ) {
+        Map<String, Object> attrMap = new HashMap<String, Object>();
+        attrMap.put( LAST_MODIFIED_TIME, lastModifiedTime() );
+        attrMap.put( SIZE, size() );
+        attrMap.put( IS_REGULAR_FILE, isRegularFile() );
+        attrMap.put( IS_DIRECTORY, isDirectory() );
+        if ( GAE_VIEW.equals( viewName ) ) {
+            attrMap.put( BLOCK_SIZE, blockSize() );
+        }
+        return attrMap;
+    }
+    
+    public Object getAttribute( String viewName, String attrName ) {
+        if ( LAST_MODIFIED_TIME.equals( attrName ) ) {
+            return lastModifiedTime();
+        } else if ( SIZE.equals( attrName ) ) {
+            return size();
+        } else if ( IS_REGULAR_FILE.equals( attrName ) ) {
+            return isRegularFile();
+        } else if ( IS_DIRECTORY.equals( attrName ) ) {
+            return isDirectory();
+        } else if ( GAE_VIEW.equals( viewName ) ) {
+            if ( BLOCK_SIZE.equals( attrName ) ) {
+                return blockSize();
+            }
+        }
+        return null;
     }
 }
