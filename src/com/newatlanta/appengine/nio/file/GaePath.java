@@ -15,21 +15,27 @@
  */
 package com.newatlanta.appengine.nio.file;
 
+import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.BASIC_VIEW;
+import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.GAE_VIEW;
+
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.nio.channels.SeekableByteChannel;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringTokenizer;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 
 import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
+import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
@@ -403,34 +409,84 @@ public class GaePath extends Path {
             throw new IOError( e );
         }
     }
-
-    public Object getAttribute( String attribute, LinkOption ... options ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <V extends FileAttributeView> V getFileAttributeView( Class<V> type, LinkOption ... options ) {
-        if ( type == BasicFileAttributeView.class ) {
-            return (V)new GaeFileAttributeView( "basic", fileObject );
-        } else if ( type == GaeFileAttributeView.class ) {
-            return (V)new GaeFileAttributeView( "gae", fileObject );
-        }
-        return null;
-    }
-
+    
     public InputStream newInputStream( OpenOption ... options ) throws IOException {
         // TODO Auto-generated method stub
         return null;
     }
-
-    public Map<String, ?> readAttributes( String attributes, LinkOption ... options ) throws IOException {
-        // TODO Auto-generated method stub
+    
+    @SuppressWarnings("unchecked")
+    public <V extends FileAttributeView> V getFileAttributeView( Class<V> type,
+            LinkOption ... options )
+    {
+        if ( type == BasicFileAttributeView.class ) {
+            return (V)new GaeFileAttributeView( BASIC_VIEW, fileObject );
+        } else if ( type == GaeFileAttributeView.class ) {
+            return (V)new GaeFileAttributeView( GAE_VIEW, fileObject );
+        }
         return null;
     }
+    
+    private GaeFileAttributeView getGaeFileAttributeView( String viewName ) {
+        if ( BASIC_VIEW.equals( viewName ) || GAE_VIEW.equals( viewName ) ) {
+            return new GaeFileAttributeView( viewName, fileObject );
+        }
+        return null;
+    }
+    
+    public Object getAttribute( String attribute, LinkOption ... options ) throws IOException {
+        AttributeName attr = new AttributeName( attribute );
+        GaeFileAttributeView attrView = getGaeFileAttributeView( attr.viewName );
+        if ( attrView == null ) {
+            return null;
+        }
+        return attrView.readAttributes().getAttribute( attr.viewName, attr.attrName );
+    }
 
-    public void setAttribute( String attribute, Object value, LinkOption ... options ) throws IOException {
+    public Map<String, ?> readAttributes( String attributes, LinkOption ... options )
+            throws IOException
+    {
+        AttributeName attr = new AttributeName( attributes );
+        GaeFileAttributeView gaeAttrView = getGaeFileAttributeView( attr.viewName );
+        if ( gaeAttrView == null ) {
+            return new HashMap<String, Object>();
+        }
+        if ( "*".equals( attr.attrName ) ) {
+            return gaeAttrView.readAttributes().getSupportedAttributes( attr.viewName );
+        } else {
+            Map<String, Object> attrMap = new HashMap<String, Object>();
+            GaeFileAttributes gaeAttrs = gaeAttrView.readAttributes();
+            StringTokenizer st = new StringTokenizer( attr.attrName, "," );
+            while ( st.hasMoreTokens() ) {
+                String attrName = st.nextToken();
+                Object attrValue = gaeAttrs.getAttribute( attr.viewName, attrName );
+                if ( attrValue != null ) {
+                    attrMap.put( attrName, attrValue );
+                }
+            }
+            return attrMap;
+        }
+    }
+
+    public void setAttribute( String attribute, Object value, LinkOption ... options )
+            throws IOException {
         // TODO Auto-generated method stub
-
+    }
+    
+    private class AttributeName {
+        
+        private String viewName;
+        private String attrName;
+        
+        private AttributeName( String attribute ) {
+            int colonPos = attribute.indexOf( ':' );
+            if ( colonPos == -1 ) {
+                viewName = BASIC_VIEW;
+                attrName = attribute;
+            } else {
+                viewName = attribute.substring( 0, colonPos++ );
+                attrName = attribute.substring( colonPos );
+            }
+        }
     }
 }
