@@ -111,12 +111,12 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
         @Override
         public void lock() {
             super.lock(); // acquire the exclusive lock
-            long sleepTime = 1;
+            SleepTimer timer = new SleepTimer();
             boolean readLocked = true;
             try {
                 while ( readLocked = readLock.isLocked() ) { // make sure no readers
                     try {
-                        Thread.sleep( calcSleepTime( sleepTime ) );
+                        Thread.sleep( timer.nextSleepTime() );
                     } catch ( InterruptedException ignore ) {
                     }
                 }
@@ -136,11 +136,11 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
         @Override
         public void lockInterruptibly() throws InterruptedException {
             super.lockInterruptibly(); // acquire the exclusive lock
-            long sleepTime = 1;
+            SleepTimer timer = new SleepTimer();
             boolean readLocked = true;
             try {
                 while ( readLocked = readLock.isLocked() ) { // make sure no readers
-                    Thread.sleep( calcSleepTime( sleepTime ) );
+                    Thread.sleep( timer.nextSleepTime() );
                 }
             } finally {
                 if ( readLocked ) {
@@ -162,13 +162,13 @@ public class ReadWriteLock implements java.util.concurrent.locks.ReadWriteLock {
             if ( super.tryLock( time, unit ) ) { // acquire the exclusive lock
                 try {
                     long waitTime = Math.max( 0, unit.toMillis( time ) );
-                    long sleepTime = 1;
+                    SleepTimer timer = new SleepTimer();
                     do {
                         if ( !readLock.isLocked() ) { // make sure no readers
                             readLocked = false;
                             return true;
                         }
-                        Thread.sleep( calcSleepTime( sleepTime ) );
+                        Thread.sleep( timer.nextSleepTime() );
                     } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
                 } finally {
                     if ( readLocked ) {

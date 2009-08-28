@@ -36,15 +36,6 @@ public abstract class AbstractLock implements Lock {
     protected static final Logger log = Logger.getLogger(
                                     AbstractLock.class.getPackage().getName() );
 
-    private static final long MAX_SLEEP_TIME = 128; // milliseconds
-    
-    /**
-     * Doubles each invocation until the maximum is reached (or exceeded).
-     */
-    protected static long calcSleepTime( long sleepTime ) {
-        return ( sleepTime < MAX_SLEEP_TIME ? sleepTime <<= 1 : MAX_SLEEP_TIME );
-    }
-
     /**
      * Acquires the lock. If the lock is not available then the current thread
      * becomes disabled for thread scheduling purposes and lies dormant until
@@ -54,10 +45,10 @@ public abstract class AbstractLock implements Lock {
      * run forever.
      */
     public void lock() {
-        long sleepTime = 1;
+        SleepTimer timer = new SleepTimer();
         while ( !tryLock() ) {
             try {
-                Thread.sleep( calcSleepTime( sleepTime ) );
+                Thread.sleep( timer.nextSleepTime() );
             } catch ( InterruptedException ignore ) {
             }
         }
@@ -70,9 +61,9 @@ public abstract class AbstractLock implements Lock {
      * run forever.
      */
     public void lockInterruptibly() throws InterruptedException {
-        long sleepTime = 1;
+        SleepTimer timer = new SleepTimer();
         while ( !tryLock() ) {
-            Thread.sleep( calcSleepTime( sleepTime ) );
+            Thread.sleep( timer.nextSleepTime() );
         }
     }
 
@@ -85,12 +76,12 @@ public abstract class AbstractLock implements Lock {
     public boolean tryLock( long time, TimeUnit unit ) throws InterruptedException {
         long waitTime = Math.max( 0, unit.toMillis( time ) );
         long startTime = System.currentTimeMillis();
-        long sleepTime = 1;
+        SleepTimer timer = new SleepTimer();
         do {
             if ( tryLock() ) {
                 return true;
             }
-            Thread.sleep( calcSleepTime( sleepTime ) );
+            Thread.sleep( timer.nextSleepTime() );
         } while ( ( System.currentTimeMillis() - startTime ) < waitTime );
         return false;
     }
@@ -100,5 +91,37 @@ public abstract class AbstractLock implements Lock {
      */
     public Condition newCondition() {
         throw new UnsupportedOperationException();
+    }
+    
+    protected class SleepTimer {
+        
+        private static final long MAX_SLEEP_TIME = 128; // milliseconds
+        
+        private long sleepTime;
+        private long maxTime;
+        
+        public SleepTimer() {
+            this( 1, MAX_SLEEP_TIME );
+        }
+        
+        public SleepTimer( long start, long max ) {
+            if ( ( start < 0 ) || ( max < 0 ) || ( start > max ) ) {
+                throw new IllegalArgumentException();
+            }
+            sleepTime = start;
+            maxTime = max;
+        }
+        
+        /**
+         * Doubles each invocation until the maximum is reached (or exceeded).
+         */
+        public long nextSleepTime() {
+            if ( sleepTime < maxTime ) {
+                long returnValue = sleepTime;
+                sleepTime <<= 1;
+                return returnValue;
+            }
+            return maxTime;
+        }
     }
 }
