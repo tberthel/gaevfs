@@ -594,7 +594,42 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testSetAttribute() {
-        fail( "Not yet implemented" );
+    public void testSetAttribute() throws IOException {
+        Path path = Paths.get( "test.txt" );
+        assertTrue( path.notExists() );
+        
+        // supported attributes
+        path.setAttribute( "gae:blockSize", 64 );
+        
+        // unsupported basic attributes without view
+        assertUnsupportedSetAttribute( path, "lastModifiedTime" );
+        assertUnsupportedSetAttribute( path, "size" );
+        assertUnsupportedSetAttribute( path, "isRegularFile" );
+        assertUnsupportedSetAttribute( path, "isDirectory" );
+        assertUnsupportedSetAttribute( path, "lastAccessTime" );
+        assertUnsupportedSetAttribute( path, "creationTime" );
+        assertUnsupportedSetAttribute( path, "isSymbolicLink" );
+        assertUnsupportedSetAttribute( path, "isOther" );
+        assertUnsupportedSetAttribute( path, "fileKey" );
+        
+        // unsupported basic attributes with view
+        assertUnsupportedSetAttribute( path, "basic:lastModifiedTime" );
+        assertUnsupportedSetAttribute( path, "basic:size" );
+        assertUnsupportedSetAttribute( path, "basic:isRegularFile" );
+        assertUnsupportedSetAttribute( path, "basic:isDirectory" );
+        assertUnsupportedSetAttribute( path, "basic:lastAccessTime" );
+        assertUnsupportedSetAttribute( path, "basic:creationTime" );
+        assertUnsupportedSetAttribute( path, "basic:isSymbolicLink" );
+        assertUnsupportedSetAttribute( path, "basic:isOther" );
+        assertUnsupportedSetAttribute( path, "basic:fileKey" );
+    }
+    
+    private static void assertUnsupportedSetAttribute( Path path, String attribute )
+            throws IOException {
+        try {
+            path.setAttribute( attribute, null );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
     }
 }
