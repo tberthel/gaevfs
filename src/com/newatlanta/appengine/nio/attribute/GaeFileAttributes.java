@@ -17,7 +17,9 @@ package com.newatlanta.appengine.nio.attribute;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
@@ -125,6 +127,13 @@ public class GaeFileAttributes implements BasicFileAttributes {
         } else {
             throw new UnsupportedOperationException();
         }
+    }
+    
+    public static Set<String> supportedFileAttributeViews() {
+        Set<String> viewSet = new HashSet<String>();
+        viewSet.add( BASIC_VIEW );
+        viewSet.add( GAE_VIEW );
+        return viewSet;
     }
     
     public Map<String, ?> getSupportedAttributes( String viewName ) {
