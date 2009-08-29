@@ -18,6 +18,7 @@ package com.newatlanta.appengine.nio.file;
 import java.io.IOException;
 import java.util.Set;
 
+import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
 import com.newatlanta.nio.file.FileStore;
 import com.newatlanta.nio.file.FileSystem;
 import com.newatlanta.nio.file.Path;
@@ -100,7 +101,6 @@ public class GaeFileSystem extends FileSystem {
 
     @Override
     public Set<String> supportedFileAttributeViews() {
-        // TODO Auto-generated method stub
-        return null;
+        return GaeFileAttributes.supportedFileAttributeViews();
     }
 }
