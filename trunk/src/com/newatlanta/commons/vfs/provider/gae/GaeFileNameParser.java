@@ -79,7 +79,7 @@ public class GaeFileNameParser extends AbstractFileNameParser {
     public static String getRootPath( FileName baseName ) throws FileSystemException {
         FileName rootName = baseName.getRoot();
         if ( rootName instanceof GaeFileName ) {
-            return ( (GaeFileName)rootName ).getRootPath();
+            return ((GaeFileName)rootName).getRootPath();
         } else {
             StringBuffer rootPath = new StringBuffer();
             UriParser.extractScheme( baseName.getURI(), rootPath );
