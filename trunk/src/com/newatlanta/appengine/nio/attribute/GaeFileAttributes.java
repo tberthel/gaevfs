@@ -15,6 +15,7 @@
  */
 package com.newatlanta.appengine.nio.attribute;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -118,6 +119,14 @@ public class GaeFileAttributes implements BasicFileAttributes {
         return 0;
     }
     
+    public void setBlockSize( int blockSize ) throws IOException {
+        if ( fileObject instanceof GaeFileObject ) {
+            ((GaeFileObject)fileObject).setBlockSize( blockSize );
+        } else {
+            throw new UnsupportedOperationException();
+        }
+    }
+    
     public Map<String, ?> getSupportedAttributes( String viewName ) {
         Map<String, Object> attrMap = new HashMap<String, Object>();
         attrMap.put( LAST_MODIFIED_TIME, lastModifiedTime() );
@@ -140,10 +149,26 @@ public class GaeFileAttributes implements BasicFileAttributes {
         } else if ( IS_DIRECTORY.equals( attrName ) ) {
             return isDirectory();
         } else if ( GAE_VIEW.equals( viewName ) ) {
+            // may support other gae attributes in the future
             if ( BLOCK_SIZE.equals( attrName ) ) {
                 return blockSize();
             }
         }
         return null;
+    }
+    
+    public void setAttribute( String viewName, String attrName, Object attrValue )
+            throws IOException
+    {
+        if ( GAE_VIEW.equals( viewName ) ) {
+            // may support other gae attributes in the future
+            if ( BLOCK_SIZE.equals( attrName ) ) {
+                setBlockSize( ((Integer)attrValue).intValue() );
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        } else {
+            throw new UnsupportedOperationException();
+        }
     }
 }

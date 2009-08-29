@@ -257,7 +257,6 @@ public class GaePath extends Path {
 
     @Override
     public boolean isHidden() throws IOException {
-        // TODO Auto-generated method stub
         return false;
     }
 
@@ -313,6 +312,11 @@ public class GaePath extends Path {
         return null;
     }
 
+    public InputStream newInputStream( OpenOption ... options ) throws IOException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+    
     @Override
     public OutputStream newOutputStream( OpenOption ... options ) throws IOException {
         // TODO Auto-generated method stub
@@ -410,11 +414,6 @@ public class GaePath extends Path {
         }
     }
     
-    public InputStream newInputStream( OpenOption ... options ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-    
     @SuppressWarnings("unchecked")
     public <V extends FileAttributeView> V getFileAttributeView( Class<V> type,
             LinkOption ... options )
@@ -469,8 +468,13 @@ public class GaePath extends Path {
     }
 
     public void setAttribute( String attribute, Object value, LinkOption ... options )
-            throws IOException {
-        // TODO Auto-generated method stub
+            throws IOException
+    {
+        AttributeName attr = new AttributeName( attribute );
+        GaeFileAttributeView attrView = getGaeFileAttributeView( attr.viewName );
+        if ( attrView != null ) {
+            attrView.readAttributes().setAttribute( attr.viewName, attr.attrName, value );
+        }
     }
     
     private class AttributeName {
