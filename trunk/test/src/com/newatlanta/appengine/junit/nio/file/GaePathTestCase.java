@@ -52,7 +52,8 @@ public class GaePathTestCase extends GaeVfsTestCase {
 
     @Test
     public void testGetFileSystem() {
-        fail( "Not yet implemented" );
+        assertNotNull( Paths.get( "/" ).getFileSystem() );
+        assertNotNull( Paths.get( "docs/small.txt" ).getFileSystem() );
     }
 
     @Test
