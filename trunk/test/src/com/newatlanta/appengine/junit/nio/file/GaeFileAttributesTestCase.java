@@ -104,4 +104,12 @@ public class GaeFileAttributesTestCase extends GaeVfsTestCase {
         assertFalse( attr.isSymbolicLink() );
         assertNull( attr.lastAccessTime() );
     }
+    
+    @Test
+    public void testSetTimes() throws IOException {
+        Path path = Paths.get( "test.txt" ).createFile();
+        long currentTime = System.currentTimeMillis();
+        Attributes.setLastModifiedTime( path, FileTime.fromMillis( currentTime ) );
+        assertEquals( currentTime, Attributes.readBasicFileAttributes( path ).lastModifiedTime().toMillis() );
+    }
 }
