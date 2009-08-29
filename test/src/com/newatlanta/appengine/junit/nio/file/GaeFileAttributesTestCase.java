@@ -16,15 +16,24 @@
 package com.newatlanta.appengine.junit.nio.file;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 
 import org.junit.Test;
 
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.Paths;
+import com.newatlanta.nio.file.attribute.AclEntry;
 import com.newatlanta.nio.file.attribute.Attributes;
 import com.newatlanta.nio.file.attribute.BasicFileAttributes;
+import com.newatlanta.nio.file.attribute.DosFileAttributes;
+import com.newatlanta.nio.file.attribute.FileStoreSpaceAttributes;
 import com.newatlanta.nio.file.attribute.FileTime;
+import com.newatlanta.nio.file.attribute.PosixFileAttributes;
+import com.newatlanta.nio.file.attribute.PosixFilePermission;
+import com.newatlanta.nio.file.attribute.UserPrincipal;
 
 public class GaeFileAttributesTestCase extends GaeVfsTestCase {
     
@@ -111,5 +120,60 @@ public class GaeFileAttributesTestCase extends GaeVfsTestCase {
         long currentTime = System.currentTimeMillis();
         Attributes.setLastModifiedTime( path, FileTime.fromMillis( currentTime ) );
         assertEquals( currentTime, Attributes.readBasicFileAttributes( path ).lastModifiedTime().toMillis() );
+        Attributes.setLastAccessTime( path, FileTime.fromMillis( currentTime ) ); // does nothing
+    }
+    
+    @Test
+    public void testAttributesClass() throws IOException {
+        Path path = Paths.get( "test.txt" ).createFile();
+        
+        try {
+            @SuppressWarnings("unused")
+            List<AclEntry> aclList = Attributes.getAcl( path );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+        
+        try {
+            Attributes.setAcl( path, new ArrayList<AclEntry>() );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+        
+        try {
+            @SuppressWarnings("unused")
+            UserPrincipal owner = Attributes.getOwner( path );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+        
+        try {
+            Attributes.setOwner( path, null );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+        
+        try {
+            @SuppressWarnings("unused")
+            DosFileAttributes dosAttrs = Attributes.readDosFileAttributes( path );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+        
+        try {
+            @SuppressWarnings("unused")
+            PosixFileAttributes posixAttrs = Attributes.readPosixFileAttributes( path );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+        
+        try {
+            Attributes.setPosixFilePermissions( path, new HashSet<PosixFilePermission>() );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+        
+        // this one should actually work, needs GaePath.getFileStore() to be implemented
+        FileStoreSpaceAttributes fsAttrs = Attributes.readFileStoreSpaceAttributes( path.getFileStore() );
     }
 }
