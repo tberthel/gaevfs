@@ -16,6 +16,7 @@
 package com.newatlanta.appengine.junit.nio.file;
 
 import java.io.IOException;
+import java.util.Map;
 
 import org.junit.Test;
 
@@ -205,6 +206,16 @@ public class GaePathTestCase extends GaeVfsTestCase {
     public void testNewDirectoryStreamString() {
         fail( "Not yet implemented" );
     }
+    
+    @Test
+    public void testNewDirectoryStreamFilterOfQsuperPath() {
+        fail( "Not yet implemented" );
+    }
+    
+    @Test
+    public void testNewDirectoryStreamFilterOfQsuperPath1() {
+        fail( "Not yet implemented" );
+    }
 
     @Test
     public void testCreateFile() {
@@ -293,10 +304,17 @@ public class GaePathTestCase extends GaeVfsTestCase {
     public void testNewOutputStream() {
         fail( "Not yet implemented" );
     }
+    
+    @Test
+    public void testNewInputStream() {
+        fail( "Not yet implemented" );
+    }
 
     @Test
-    public void testIsHidden() {
-        fail( "Not yet implemented" );
+    public void testIsHidden() throws IOException {
+        Path rootPath = Paths.get( "/" );
+        assertTrue( rootPath.exists() );
+        assertFalse( rootPath.isHidden() );
     }
 
     /**
@@ -401,11 +419,6 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testNewDirectoryStreamFilterOfQsuperPath() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
     public void testRegisterWatchServiceKindOfQArrayModifierArray() {
         fail( "Not yet implemented" );
     }
@@ -414,79 +427,60 @@ public class GaePathTestCase extends GaeVfsTestCase {
     public void testRegisterWatchServiceKindOfQArray() {
         fail( "Not yet implemented" );
     }
+    
+    @Test
+    public void testRegisterWatchServiceKindOfQArrayModifierArray1() {
+        fail( "Not yet implemented" );
+    }
+
+    @Test
+    public void testRegisterWatchServiceKindOfQArray1() {
+        fail( "Not yet implemented" );
+    }
 
     @Test
     public void testGetAttribute() throws IOException {
         Path path = Paths.get( "/attributeTest" ).createDirectory();
         assertTrue( path.exists() );
         
-        // test basic attributes without specifying view name
-        Object attr = path.getAttribute( "lastModifiedTime" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof FileTime );
-        assertFalse( ((FileTime)attr).toMillis() == 0 );
+        // basic attributes without specifying view name
+        assertFileTimeAttr( path.getAttribute( "lastModifiedTime" ) );
+        assertLongAttr( path.getAttribute( "size" ), 0 );
+        assertBooleanAttr( path.getAttribute( "isRegularFile" ), false );
+        assertBooleanAttr( path.getAttribute( "isDirectory" ), true );
         
-        attr = path.getAttribute( "size" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof Long );
-        assertEquals( 0, ((Long)attr).longValue() );
+        // basic attributes specifying view name
+        assertFileTimeAttr( path.getAttribute( "basic:lastModifiedTime" ) );
+        assertLongAttr( path.getAttribute( "basic:size" ), 0 );        
+        assertBooleanAttr( path.getAttribute( "basic:isRegularFile" ), false );
+        assertBooleanAttr( path.getAttribute( "basic:isDirectory" ), true );
         
-        attr = path.getAttribute( "isRegularFile" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof Boolean );
-        assertFalse( ((Boolean)attr).booleanValue() );
-        
-        attr = path.getAttribute( "isDirectory" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof Boolean );
-        assertTrue( ((Boolean)attr).booleanValue() );
-        
-        // test basic attributes specifying view name
-        attr = path.getAttribute( "basic:lastModifiedTime" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof FileTime );
-        assertFalse( ((FileTime)attr).toMillis() == 0 );
-        
-        attr = path.getAttribute( "basic:size" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof Long );
-        assertEquals( 0, ((Long)attr).longValue() );
-        
-        attr = path.getAttribute( "basic:isRegularFile" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof Boolean );
-        assertFalse( ((Boolean)attr).booleanValue() );
-        
-        attr = path.getAttribute( "basic:isDirectory" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof Boolean );
-        assertTrue( ((Boolean)attr).booleanValue() );
-        
-        // test gae attribute without specifying view name
+        // gae attribute without specifying view name
         assertNull( path.getAttribute( "blockSize" ) );
         
-        // test gae attributes specifying view name
-        attr = path.getAttribute( "gae:blockSize" );
-        assertNotNull( attr );
-        assertTrue( attr instanceof Integer );
-        assertEquals( 0, ((Integer)attr).intValue() );
+        // gae attributes specifying view name
+        assertIntegerAttr( path.getAttribute( "gae:blockSize" ), 0 );
         
-        // test unsupported basic attributes without specifying view name
+        // unsupported basic attributes without specifying view name
         assertNull( path.getAttribute( "lastAccessTime" ) );
         assertNull( path.getAttribute( "creationTime" ) );
         assertNull( path.getAttribute( "isSymbolicLink" ) );
         assertNull( path.getAttribute( "isOther" ) );
         assertNull( path.getAttribute( "fileKey" ) );
         
-        // test unsupported basic attribute specifying view name
+        // unsupported basic attribute specifying view name
         assertNull( path.getAttribute( "basic:lastAccessTime" ) );
         assertNull( path.getAttribute( "basic:creationTime" ) );
         assertNull( path.getAttribute( "basic:isSymbolicLink" ) );
         assertNull( path.getAttribute( "basic:isOther" ) );
         assertNull( path.getAttribute( "basic:fileKey" ) );
         
-        // test unsupported view
+        // unsupported views
+        assertNull( path.getAttribute( "dos:archive" ) );
         assertNull( path.getAttribute( "posix:group" ) );
+        assertNull( path.getAttribute( "acl:acl" ) );
+        assertNull( path.getAttribute( "unix:uid" ) );
+        assertNull( path.getAttribute( "user:test" ) );
     }
 
     @Test
@@ -506,33 +500,101 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testNewInputStream() {
-        fail( "Not yet implemented" );
+    public void testReadAttributes() throws IOException {
+        Path path = Paths.get( "/attributeTest" ).createDirectory();
+        assertTrue( path.exists() );
+        
+        // all basic attributes without specifying view name
+        Map<String, ?> attrMap = path.readAttributes( "*" );
+        assertDirBasicAttributes( attrMap, 4 );
+        
+        // specified basic attributes without view name
+        attrMap = path.readAttributes( "size,isDirectory,lastAccessTime,creationTime" );
+        assertNotEmptyMap( attrMap, 2 );
+        assertLongAttr( attrMap.get( "size" ), 0 );
+        assertBooleanAttr( attrMap.get( "isDirectory" ), true );
+        assertNull( attrMap.get( "lastAccessTime" ) );
+        assertNull( attrMap.get( "creationTime" ) );
+        
+        // all basic attributes specifying view name
+        attrMap = path.readAttributes( "basic:*" );
+        assertDirBasicAttributes( attrMap, 4 );
+        
+        // specified basic attributes with view name
+        attrMap = path.readAttributes( "basic:lastModifiedTime,isRegularFile,isSymbolicLink,fileKey" );
+        assertNotEmptyMap( attrMap, 2 );
+        assertFileTimeAttr( attrMap.get( "lastModifiedTime" ) );
+        assertBooleanAttr( attrMap.get( "isRegularFile" ), false );
+        assertNull( attrMap.get( "isSymbolicLink" ) );
+        assertNull( attrMap.get( "fileKey" ) );
+        
+        // gae attributes without view name
+        assertEmptyMap( path.readAttributes( "blockSize" ) );
+        
+        // all gae attributes with view name
+        attrMap = path.readAttributes( "gae:*" );
+        assertDirBasicAttributes( attrMap, 5 );
+        assertIntegerAttr( attrMap.get( "blockSize" ), 0 );
+        
+        // specified gae attribute with view name
+        attrMap = path.readAttributes( "gae:blockSize" );
+        assertNotEmptyMap( attrMap, 1 );
+        assertIntegerAttr( attrMap.get( "blockSize" ), 0 );
+        
+        // unsupported views
+        assertEmptyMap( path.readAttributes( "dos:*" ) );
+        assertEmptyMap( path.readAttributes( "posix:*" ) );
+        assertEmptyMap( path.readAttributes( "user:*" ) );
     }
-
-    @Test
-    public void testReadAttributes() {
-        fail( "Not yet implemented" );
+    
+    private static void assertEmptyMap( Map<String, ?> attrMap ) {
+        assertNotNull( attrMap );
+        assertTrue( attrMap.isEmpty() );
+    }
+    
+    private static void assertNotEmptyMap( Map<String, ?> attrMap, int size ) {
+        assertNotNull( attrMap );
+        assertFalse( attrMap.isEmpty() );
+        assertEquals( size, attrMap.size() );
+    }
+    
+    private static void assertDirBasicAttributes( Map<String, ?> attrMap, int size ) {
+        assertNotNull( attrMap );
+        assertFalse( attrMap.isEmpty() );
+        assertEquals( size, attrMap.size() );
+        
+        assertFileTimeAttr( attrMap.get( "lastModifiedTime" ) );
+        assertLongAttr( attrMap.get( "size" ), 0 );
+        assertBooleanAttr( attrMap.get( "isRegularFile" ), false );
+        assertBooleanAttr( attrMap.get( "isDirectory" ), true ); 
+    }
+    
+    private static void assertFileTimeAttr( Object attr ) {
+        assertNotNull( attr );
+        assertTrue( attr instanceof FileTime );
+        assertFalse( ((FileTime)attr).toMillis() == 0 );
+    }
+    
+    private static void assertLongAttr( Object attr, long value ) {
+        assertNotNull( attr );
+        assertTrue( attr instanceof Long );
+        assertEquals( value, ((Long)attr).longValue() );
+    }
+    
+    private static void assertIntegerAttr( Object attr, int value ) {
+        assertNotNull( attr );
+        assertTrue( attr instanceof Integer );
+        assertEquals( value, ((Integer)attr).intValue() );
+    }
+    
+    private static void assertBooleanAttr( Object attr, boolean value ) {
+        assertNotNull( attr );
+        assertTrue( attr instanceof Boolean );
+        assertEquals( value, ((Boolean)attr).booleanValue() );
     }
 
     @Test
     public void testSetAttribute() {
         fail( "Not yet implemented" );
     }
-
-    @Test
-    public void testNewDirectoryStreamFilterOfQsuperPath1() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
-    public void testRegisterWatchServiceKindOfQArrayModifierArray1() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
-    public void testRegisterWatchServiceKindOfQArray1() {
-        fail( "Not yet implemented" );
-    }
-
 }
