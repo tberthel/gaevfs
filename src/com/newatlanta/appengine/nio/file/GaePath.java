@@ -49,6 +49,7 @@ import com.newatlanta.nio.file.LinkOption;
 import com.newatlanta.nio.file.NoSuchFileException;
 import com.newatlanta.nio.file.OpenOption;
 import com.newatlanta.nio.file.Path;
+import com.newatlanta.nio.file.ProviderMismatchException;
 import com.newatlanta.nio.file.WatchKey;
 import com.newatlanta.nio.file.WatchService;
 import com.newatlanta.nio.file.DirectoryStream.Filter;
@@ -63,10 +64,12 @@ public class GaePath extends Path {
     
     private FileSystem fileSystem;
     private FileObject fileObject;
+    private String path;
     private ExclusiveLock lock;
 
     public GaePath( FileSystem fileSystem, String path ) {
         this.fileSystem = fileSystem;
+        this.path = path;
         try {
             fileObject = GaeVFS.resolveFile( path );
         } catch ( FileSystemException e ) {
@@ -94,17 +97,58 @@ public class GaePath extends Path {
             }
         }
     }
-
+    
     @Override
-    public int compareTo( Path other ) {
-        // TODO Auto-generated method stub
-        return 0;
+    public boolean exists() {
+        try {
+            checkAccess();
+            return true;
+        } catch ( IOException e ) {
+            return false;
+        }
+    }
+    
+    @Override
+    public boolean notExists() {
+        try {
+            checkAccess();
+            return false;
+        } catch ( NoSuchFileException e ) {
+            return true; // confirmed does not exist
+        } catch ( IOException e ) {
+            return false; // unknown
+        }
     }
 
     @Override
-    public Path copyTo( Path target, CopyOption ... options ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+    public int compareTo( Path other ) {
+        // throws NullPointerException and ClassCastException per Comparable
+        return path.compareTo( ((GaePath)other).path );
+    }
+    
+    @Override
+    public boolean equals( Object other ) {
+        if ( ( other == null ) || !( other instanceof GaePath ) ) {
+            return false;
+        }
+        return path.equals( ((GaePath)other).path );
+    }
+    
+    @Override
+    public int hashCode() {
+        return path.hashCode();
+    }
+    
+    @Override
+    public boolean isSameFile( Path other ) throws IOException {
+        if ( ( other == null ) || !( other instanceof GaePath ) ) {
+            return false;
+        }
+        if ( ( this == other ) || this.equals( other ) ) {
+            return true;
+        }
+        return fileObject.getName().getPath().equals(
+                                ((GaePath)other).fileObject.getName().getPath() );
     }
 
     @Override
@@ -172,28 +216,6 @@ public class GaePath extends Path {
     }
 
     @Override
-    public boolean endsWith( Path other ) {
-        // TODO Auto-generated method stub
-        return false;
-    }
-
-    @Override
-    public boolean equals( Object other ) {
-        // TODO Auto-generated method stub
-        return false;
-    }
-
-    @Override
-    public boolean exists() {
-        try {
-            checkAccess();
-            return true;
-        } catch ( IOException e ) {
-            return false;
-        }
-    }
-
-    @Override
     public FileStore getFileStore() throws IOException {
         // TODO Auto-generated method stub
         return null;
@@ -206,9 +228,7 @@ public class GaePath extends Path {
 
     @Override
     public Path getName() {
-//        return fileObject.getName().getBaseName();
-        // TODO Auto-generated method stub
-        return null;
+        return new GaePath( fileSystem, fileObject.getName().getBaseName() );
     }
 
     @Override
@@ -221,6 +241,18 @@ public class GaePath extends Path {
     public int getNameCount() {
         // TODO Auto-generated method stub
         return 0;
+    }
+    
+    @Override
+    public Iterator<Path> iterator() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+    
+    @Override
+    public Path subpath( int beginIndex, int endIndex ) {
+        // TODO Auto-generated method stub
+        return null;
     }
 
     @Override
@@ -239,41 +271,33 @@ public class GaePath extends Path {
 
     @Override
     public Path getRoot() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public int hashCode() {
-        // TODO Auto-generated method stub
-        return 0;
+        return new GaePath( fileSystem, fileObject.getName().getRootURI() );
     }
 
     @Override
     public boolean isAbsolute() {
-        // TODO Auto-generated method stub
-        return false;
+        return startsWith( getRoot() );
     }
 
     @Override
     public boolean isHidden() throws IOException {
-        return false;
+        return false; // hidden files not supported
     }
-
+    
     @Override
-    public boolean isSameFile( Path other ) throws IOException {
-        // TODO Auto-generated method stub
-        return false;
-    }
-
-    @Override
-    public Iterator<Path> iterator() {
+    public Path copyTo( Path target, CopyOption ... options ) throws IOException {
+        if ( !( target instanceof GaePath ) ) {
+            throw new ProviderMismatchException();
+        }
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public Path moveTo( Path target, CopyOption ... options ) throws IOException {
+        if ( !( target instanceof GaePath ) ) {
+            throw new ProviderMismatchException();
+        }
         // TODO Auto-generated method stub
         // if directory, then lock to prevent creation of children
         if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
@@ -325,20 +349,8 @@ public class GaePath extends Path {
 
     @Override
     public Path normalize() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public boolean notExists() {
-        try {
-            checkAccess();
-            return false;
-        } catch ( NoSuchFileException e ) {
-            return true; // confirmed does not exist
-        } catch ( IOException e ) {
-            return false; // unknown
-        }
+        // FileObject paths are normalized upon creation
+        return new GaePath( fileSystem, fileObject.getName().getPath() );
     }
 
     @Override
@@ -348,61 +360,82 @@ public class GaePath extends Path {
 
     @Override
     public WatchKey register( WatchService watcher, Kind<?>[] events, Modifier ... modifiers ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public WatchKey register( WatchService watcher, Kind<?> ... events ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public Path relativize( Path other ) {
-        // TODO Auto-generated method stub
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public Path resolve( Path other ) {
-        // TODO Auto-generated method stub
-        return null;
+        if ( other == null ) {
+            return this;
+        }
+        if ( !( other instanceof GaePath ) ) {
+            throw new ProviderMismatchException();
+        }
+        if ( other.isAbsolute() ) {
+            return other;
+        }
+        return resolve( ((GaePath)other).path );
     }
 
     @Override
     public Path resolve( String other ) {
-        // TODO Auto-generated method stub
-        return null;
+        try {
+            return new GaePath( fileSystem, fileObject.resolveFile( other ) );
+        } catch ( FileSystemException e ) {
+            throw new InvalidPathException( other, e.toString() );
+        }
+    }
+    
+    @Override
+    public Path relativize( Path other ) {
+        if ( !( other instanceof GaePath ) ) {
+            throw new ProviderMismatchException();
+        }
+        if ( this.equals( other ) ) {
+            return null;
+        }
+        try {
+            return new GaePath( fileSystem, fileObject.getName().getRelativeName(
+                                            ((GaePath)other).fileObject.getName() ) );
+        } catch ( FileSystemException e ) {
+            throw new InvalidPathException( other.toString(), e.toString() );
+        }
     }
 
     @Override
     public boolean startsWith( Path other ) {
-        // TODO Auto-generated method stub
-        return false;
+        if ( !( other instanceof GaePath ) ) {
+            throw new ProviderMismatchException();
+        }
+        return path.startsWith( ((GaePath)other).path );
     }
-
+    
     @Override
-    public Path subpath( int beginIndex, int endIndex ) {
-        // TODO Auto-generated method stub
-        return null;
+    public boolean endsWith( Path other ) {
+        if ( !( other instanceof GaePath ) ) {
+            throw new ProviderMismatchException();
+        }
+        return path.endsWith( ((GaePath)other).path );
     }
 
     @Override
     public Path toAbsolutePath() {
-        // TODO Auto-generated method stub
-        return null;
+        return new GaePath( fileSystem, fileObject.getName().getURI() );
     }
 
     @Override
     public Path toRealPath( boolean resolveLinks ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        return toAbsolutePath();
     }
 
     @Override
     public String toString() {
-        return fileObject.toString();
+        return path;
     }
 
     @Override

@@ -38,7 +38,6 @@ public class GaeFileSystem extends FileSystem {
     @Override
     public void close() throws IOException {
         // TODO Auto-generated method stub
-
     }
 
     @Override
@@ -66,14 +65,12 @@ public class GaeFileSystem extends FileSystem {
 
     @Override
     public String getSeparator() {
-        // TODO Auto-generated method stub
-        return null;
+        return java.io.File.separator;
     }
 
     @Override
     public UserPrincipalLookupService getUserPrincipalLookupService() {
-        // TODO Auto-generated method stub
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -84,14 +81,12 @@ public class GaeFileSystem extends FileSystem {
 
     @Override
     public boolean isReadOnly() {
-        // TODO Auto-generated method stub
         return false;
     }
 
     @Override
     public WatchService newWatchService() throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
