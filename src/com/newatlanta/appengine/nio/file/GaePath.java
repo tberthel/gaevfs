@@ -157,7 +157,7 @@ public class GaePath extends Path {
     @Override
     public Path createDirectory( FileAttribute<?> ... attrs ) throws IOException {
         if ( attrs.length > 0 ) {
-            throw new UnsupportedOperationException( "attributes not supported for create" );
+            throw new UnsupportedOperationException( attrs[ 0 ].name() );
         }
         GaePath parent = getParent();
         parent.lock.lock(); // prevent delete or rename of parent
@@ -174,11 +174,15 @@ public class GaePath extends Path {
         }
     }
 
-    /**
-     * attributes: block size, compression (?)
-     */
     @Override
     public Path createFile( FileAttribute<?> ... attrs ) throws IOException {
+        for ( FileAttribute<?> attr : attrs ) {
+            if ( attr.name().equals( GaeFileAttributes.BLOCK_SIZE ) ) {
+                GaeVFS.setBlockSize( fileObject, (Integer)attr.value() );
+            } else {
+                throw new UnsupportedOperationException( attr.name() );
+            }
+        }
         GaePath parent = getParent();
         parent.lock.lock(); // prevent delete or rename of parent
         try {
