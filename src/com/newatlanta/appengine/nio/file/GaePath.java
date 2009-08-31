@@ -156,6 +156,9 @@ public class GaePath extends Path {
 
     @Override
     public Path createDirectory( FileAttribute<?> ... attrs ) throws IOException {
+        if ( attrs.length > 0 ) {
+            throw new UnsupportedOperationException( "attributes not supported for create" );
+        }
         GaePath parent = getParent();
         parent.lock.lock(); // prevent delete or rename of parent
         try {
