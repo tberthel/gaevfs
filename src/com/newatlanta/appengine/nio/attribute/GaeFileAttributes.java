@@ -26,6 +26,7 @@ import org.apache.commons.vfs.FileSystemException;
 
 import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
 import com.newatlanta.nio.file.attribute.BasicFileAttributes;
+import com.newatlanta.nio.file.attribute.FileAttribute;
 import com.newatlanta.nio.file.attribute.FileTime;
 
 public class GaeFileAttributes implements BasicFileAttributes {
@@ -114,7 +115,7 @@ public class GaeFileAttributes implements BasicFileAttributes {
     public int blockSize() {
         try {
             if ( fileObject instanceof GaeFileObject ) {
-                ((GaeFileObject)fileObject).getBlockSize();
+                return ((GaeFileObject)fileObject).getBlockSize();
             }
         } catch ( FileSystemException e ) {
         }
@@ -178,6 +179,33 @@ public class GaeFileAttributes implements BasicFileAttributes {
             }
         } else {
             throw new UnsupportedOperationException();
+        }
+    }
+    
+    /**
+     * Convenience method for use with Path.createFile():
+     * 
+     *     Path filePath = Paths.get( "myFile.txt" );
+     *     filePath.createFile( withBlockSize( 4 ) );
+     */
+    public static GaeBlockSizeAttribute withBlockSize( int size ) {
+        return new GaeBlockSizeAttribute( size );
+    }
+    
+    private static class GaeBlockSizeAttribute implements FileAttribute<Integer> {
+
+        private int blockSize;
+        
+        private GaeBlockSizeAttribute( int size ) {
+            blockSize = size;
+        }
+        
+        public String name() {
+            return BLOCK_SIZE;
+        }
+
+        public Integer value() {
+            return blockSize;
         }
     }
 }
