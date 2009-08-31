@@ -24,8 +24,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.nio.channels.SeekableByteChannel;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
@@ -81,6 +83,7 @@ public class GaePath extends Path {
     private GaePath( FileSystem fileSystem, FileObject fileObject ) {
         this.fileSystem = fileSystem;
         this.fileObject = fileObject;
+        path = fileObject.getName().getPath();
         lock = new ExclusiveLock( fileObject.getName().getPath() );
     }
 
@@ -200,25 +203,24 @@ public class GaePath extends Path {
 
     @Override
     public void delete() throws IOException {
-        // TODO Auto-generated method stub
         // if directory, then lock to prevent creation of children
         if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
         }
         //fileObject.delete();
+        // TODO Auto-generated method stub
     }
 
     @Override
     public void deleteIfExists() throws IOException {
-        // TODO Auto-generated method stub
         // if directory, then lock to prevent creation of children
         if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
         }
+        // TODO Auto-generated method stub
     }
 
     @Override
     public FileStore getFileStore() throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        return GaeFileStore.getInstance();
     }
 
     @Override
@@ -233,26 +235,46 @@ public class GaePath extends Path {
 
     @Override
     public Path getName( int index ) {
-        // TODO Auto-generated method stub
-        return null;
+        StringTokenizer st = new StringTokenizer( path, fileSystem.getSeparator() );
+        int numEntries = st.countTokens();
+        if ( ( index < 0 ) || ( index >= numEntries ) ) {
+            throw new IllegalArgumentException();
+        }
+        for ( int i = 0; i < numEntries; i++ ) {
+            st.nextToken();
+        }
+        return new GaePath( fileSystem, st.nextToken() );
     }
 
     @Override
     public int getNameCount() {
-        // TODO Auto-generated method stub
-        return 0;
+        StringTokenizer st = new StringTokenizer( path, fileSystem.getSeparator() );
+        return st.countTokens();
     }
     
     @Override
     public Iterator<Path> iterator() {
-        // TODO Auto-generated method stub
-        return null;
+        StringTokenizer st = new StringTokenizer( path, fileSystem.getSeparator() );
+        List<Path> entryList = new ArrayList<Path>();
+        for ( int i = 0; i < st.countTokens(); i++ ) {
+            entryList.add( new GaePath( fileSystem, st.nextToken() ) );
+        }
+        return entryList.iterator();
     }
     
     @Override
     public Path subpath( int beginIndex, int endIndex ) {
-        // TODO Auto-generated method stub
-        return null;
+        StringTokenizer st = new StringTokenizer( path, fileSystem.getSeparator(), true );
+        int numEntries = st.countTokens();
+        if ( ( beginIndex < 0 ) || ( beginIndex >= numEntries ) ||
+                ( endIndex <= beginIndex ) || ( endIndex > numEntries ) ) {
+            throw new IllegalArgumentException();
+        }
+        StringBuffer sb = new StringBuffer();
+        for ( int i = beginIndex; i < endIndex; i++ ) {
+            sb.append( st.nextToken() );
+        }
+        return new GaePath( fileSystem, sb.toString() );
     }
 
     @Override
@@ -298,10 +320,10 @@ public class GaePath extends Path {
         if ( !( target instanceof GaePath ) ) {
             throw new ProviderMismatchException();
         }
-        // TODO Auto-generated method stub
         // if directory, then lock to prevent creation of children
         if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
         }
+        // TODO Auto-generated method stub
         return null;
     }
 
