@@ -15,6 +15,10 @@
  */
 package com.newatlanta.appengine.junit.nio.file;
 
+import static com.newatlanta.nio.file.attribute.Attributes.readBasicFileAttributes;
+import static com.newatlanta.nio.file.attribute.PosixFilePermissions.asFileAttribute;
+import static com.newatlanta.nio.file.attribute.PosixFilePermissions.fromString;
+
 import java.io.IOException;
 import java.util.Map;
 
@@ -29,7 +33,6 @@ import com.newatlanta.nio.file.NoSuchFileException;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.Paths;
 import com.newatlanta.nio.file.attribute.AclFileAttributeView;
-import com.newatlanta.nio.file.attribute.Attributes;
 import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
 import com.newatlanta.nio.file.attribute.DosFileAttributeView;
 import com.newatlanta.nio.file.attribute.FileAttributeView;
@@ -63,6 +66,11 @@ public class GaePathTestCase extends GaeVfsTestCase {
 
     @Test
     public void testGetRoot() {
+        Path rootPath = Paths.get( "/" );
+        assertFalse( rootPath.isAbsolute() );
+        Path rootRootPath = rootPath.getRoot();
+        assertTrue( rootRootPath.isAbsolute() );
+        
         fail( "Not yet implemented" );
     }
 
@@ -226,69 +234,95 @@ public class GaePathTestCase extends GaeVfsTestCase {
     @Test
     public void testCreateDirectory() throws IOException {
         // attempt to create a directory with a non-existing parent
-        Path dirPath = Paths.get( "abc/def" );
-        assertFalse( dirPath.exists() );
+        Path dirPath = Paths.get( "foo/bar" );
+        assertTrue( dirPath.notExists() );
+        assertTrue( dirPath.getParent().notExists() );
         try {
             dirPath.createDirectory();
             fail( "expected NoSuchFileException" );
         } catch ( NoSuchFileException e ) {
         }
         
-        // attempt to create a directory within a non-directory parent (?)
-//        Path filePath = Paths.get( "images/large.jpg" );
-//        dirPath = filePath.resolve( "newDir" ); // TODO: finish when Path.resolve() supported
-//        dirPath.createDirectory();
+        Path filePath = Paths.get( "images/large.jpg" );
+        assertTrue( filePath.exists() );
+        assertTrue( readBasicFileAttributes( filePath ).isRegularFile() );
         
-        // create a directory within a local directory
-        Path imagesPath = Paths.get( "images" );
-//        dirPath = imagesPath.resolve( "test1" ); // TODO: finish when Path.resolve() supported
-//        dirPath = dirPath.createDirectory();
-//        assertNotNull( dirPath );
-//        assertTrue( Attributes.readBasicFileAttributes( dirPath ).isDirectory() );
-        // check parent: equals? isSameFile? compareTo?
-        
-        // create a directory within a local directory
-        dirPath = Paths.get( "images/test2" );
-        dirPath = dirPath.createDirectory();
-        assertNotNull( dirPath );
-        assertTrue( dirPath.exists() );
-        assertTrue( Attributes.readBasicFileAttributes( dirPath ).isDirectory() );
-        // check parent: equals? isSameFile? compareTo?
-        
-        // create a directory within a GaeVFS directory
-        dirPath = Paths.get( "/images/test2/test3" );
-        dirPath = dirPath.createDirectory();
-        assertNotNull( dirPath );
-        assertTrue( dirPath.exists() );
-        // check parent: equals? isSameFile? compareTo?
-        
-        // attempt to create a local directory that already exists
         try {
-            assertTrue( imagesPath.exists() );
+            // attempt to create a directory from an existing local file
+            filePath.createDirectory();
+            fail( "expected IOException" );
+        } catch ( IOException e ) {
+        }
+        
+        // attempt to create a directory with a non-directory parent
+        dirPath = filePath.resolve( "foo" );
+        assertTrue( dirPath.notExists() );
+        assertTrue( dirPath.getParent().isSameFile( filePath ) );
+        try {
+            dirPath.createDirectory();
+            fail( "expected IOException" );
+        } catch ( IOException e ) {
+        }
+        
+        Path imagesPath = Paths.get( "images" );
+        assertTrue( imagesPath.exists() );
+        assertTrue( readBasicFileAttributes( imagesPath ).isDirectory() );
+        
+        try {
+            // attempt to create a local directory that already exists
             imagesPath.createDirectory();
             fail( "expected FileAlreadyExistsException" );
         } catch ( FileAlreadyExistsException e ) {
         }
         
-        // attempt to create a GaeVFS directory that already exists
+        // create a directory within a local directory
+        dirPath = imagesPath.resolve( "foo" );
+        assertTrue( dirPath.notExists() );
+        assertTrue( dirPath.createDirectory().exists() );
+        assertTrue( readBasicFileAttributes( dirPath ).isDirectory() );
+        assertTrue( dirPath.getParent().isSameFile( imagesPath ) );
+        
+        // create a directory within a local directory
+        dirPath = Paths.get( "images/bar" );
+        assertTrue( dirPath.notExists() );
+        assertTrue( dirPath.createDirectory().exists() );
+        assertTrue( readBasicFileAttributes( dirPath ).isDirectory() );
+        assertTrue( dirPath.getParent().isSameFile( imagesPath ) );
+        
+        // create a directory within a GaeVFS directory
+        dirPath = Paths.get( "/images/bar/baz" );
+        assertTrue( dirPath.notExists() );
+        assertTrue( dirPath.createDirectory().exists() );
+        assertTrue( readBasicFileAttributes( dirPath ).isDirectory() );
+        
         try {
-            assertTrue( dirPath.exists() );
+            // attempt to create a GaeVFS directory that already exists
             dirPath.createDirectory();
             fail( "expected FileAlreadyExistsException" );
         } catch ( FileAlreadyExistsException e ) {
         }
         
-        // attempt to create a directory from an existing local file
+        // attempt to create a directory from an existing GaeVFS file
+        filePath = Paths.get( "images/bar/fubar.jpg" );
+        assertTrue( filePath.notExists() );
+        assertTrue( filePath.createFile().exists() );
+        assertTrue( readBasicFileAttributes( filePath ).isRegularFile() );
+        dirPath = filePath.resolve( "baz" );
+        assertTrue( dirPath.notExists() );
         try {
-            Path filePath = Paths.get( "images/large.jpg" );
-            assertTrue( filePath.exists() );
-            filePath.createDirectory();
-            fail( "expected FileAlreadyExistsException" );
-        } catch ( FileAlreadyExistsException e ) {
+            dirPath.createDirectory();
+            fail( "expected IOExeption" );
+        } catch ( IOException e ) {
         }
         
-        // attempt to create a directory from an existing GaeVFS file
-        fail( "Not yet implemented" );
+        // attempt to specify attributes when creating directory
+        dirPath = Paths.get( "images/fubar" );
+        assertTrue( dirPath.notExists() );
+        try {
+            dirPath.createDirectory( asFileAttribute( fromString( "rwxr-x---" ) ) );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
     }
 
     @Test
