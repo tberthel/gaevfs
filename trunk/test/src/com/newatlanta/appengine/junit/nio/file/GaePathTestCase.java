@@ -29,7 +29,9 @@ import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
+import com.newatlanta.nio.file.DirectoryNotEmptyException;
 import com.newatlanta.nio.file.FileAlreadyExistsException;
+import com.newatlanta.nio.file.Files;
 import com.newatlanta.nio.file.NoSuchFileException;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.Paths;
@@ -146,19 +148,67 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testDelete() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
-    public void testDeleteIfExists() {
-        fail( "Not yet implemented" );
+    public void testDelete() throws IOException {
+        // delete non-existing directory
+        Path dirPath = Paths.get( "foo" );
+        assertTrue( dirPath.notExists() );
+        try {
+            dirPath.delete();
+        } catch ( NoSuchFileException e ) {
+            assertEquals( dirPath.toString(), e.getFile() );
+        }
+        dirPath.deleteIfExists();
+        
+        try {
+            // attempt to delete local directory
+            getLocalDirectory().delete();
+            fail( "expected DirectoryNotEmptyException" );
+        } catch ( DirectoryNotEmptyException e ) {
+        }
+        
+        // attempt to delete local file
+        //getLocalFile().delete();
+        
+        // create gae directories and files to test
+        dirPath = Paths.get( "/foo/bar" );
+        Files.createDirectories( dirPath );
+        assertTrue( dirPath.exists() );
+        Path parent = dirPath.getParent();
+        assertTrue( parent.exists() );
+        Path file = dirPath.resolve( "baz.txt" );
+        assertTrue( file.createFile().exists() );
+        assertTrue( file.getParent().isSameFile( dirPath ) );
+        
+        // attempt to delete non-empty gae directories
+        try {
+            dirPath.delete();
+            fail( "expected DirectoryNotEmptyException" );
+        } catch ( DirectoryNotEmptyException e ) {
+            assertTrue( dirPath.exists() );
+        }
+        
+        try {
+            parent.delete();
+            fail( "expected DirectoryNotEmptyException" );
+        } catch ( DirectoryNotEmptyException e ) {
+            assertTrue( parent.exists() );
+        }
+        
+        // delete gae file
+        file.delete();
+        assertTrue( file.notExists() );
+        
+        // delete empty gae directories
+        dirPath.delete();
+        assertTrue( dirPath.notExists() );
+        parent.delete();
+        assertTrue( parent.notExists() );
     }
 
     @Test
     public void testCreateSymbolicLink() throws IOException {
         try {
-            Paths.get( "abc" ).createSymbolicLink( Paths.get( "def" ) );
+            Paths.get( "foo" ).createSymbolicLink( Paths.get( "bar" ) );
             fail( "expected UnsupportedOperationException" );
         } catch ( UnsupportedOperationException e ) {
         }
@@ -167,7 +217,7 @@ public class GaePathTestCase extends GaeVfsTestCase {
     @Test
     public void testCreateLink() throws IOException {
         try {
-            Paths.get( "abc" ).createLink( Paths.get( "def" ) );
+            Paths.get( "foo" ).createLink( Paths.get( "bar" ) );
             fail( "expected UnsupportedOperationException" );
         } catch ( UnsupportedOperationException e ) {
         }
@@ -176,7 +226,7 @@ public class GaePathTestCase extends GaeVfsTestCase {
     @Test
     public void testReadSymbolicLink() throws IOException {
         try {
-            Paths.get( "abc" ).readSymbolicLink();
+            Paths.get( "foo" ).readSymbolicLink();
             fail( "expected UnsupportedOperationException" );
         } catch ( UnsupportedOperationException e ) {
         }
@@ -318,6 +368,13 @@ public class GaePathTestCase extends GaeVfsTestCase {
         Path filePath = Paths.get( "images/large.jpg" );
         assertTrue( filePath.exists() );
         assertTrue( readBasicFileAttributes( filePath ).isRegularFile() );
+        try {
+            // junit testing doesn't enforce read-only access to the local file
+            // system, so set the read-only permission manually for this file
+            filePath.checkAccess( AccessMode.WRITE );
+            fail( "expected AccessDeniedException" );
+        } catch ( AccessDeniedException e ) {
+        }
         return filePath;
     }
     
