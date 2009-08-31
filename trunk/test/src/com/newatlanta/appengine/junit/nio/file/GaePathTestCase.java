@@ -15,6 +15,7 @@
  */
 package com.newatlanta.appengine.junit.nio.file;
 
+import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
 import static com.newatlanta.nio.file.attribute.Attributes.readBasicFileAttributes;
 import static com.newatlanta.nio.file.attribute.PosixFilePermissions.asFileAttribute;
 import static com.newatlanta.nio.file.attribute.PosixFilePermissions.fromString;
@@ -227,12 +228,7 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testCreateFile() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
-    public void testCreateDirectory() throws IOException {
+    public void testCreateWithNonExistingParent() throws IOException {
         // attempt to create a directory with a non-existing parent
         Path dirPath = Paths.get( "foo/bar" );
         assertTrue( dirPath.notExists() );
@@ -243,79 +239,156 @@ public class GaePathTestCase extends GaeVfsTestCase {
         } catch ( NoSuchFileException e ) {
         }
         
-        Path filePath = Paths.get( "images/large.jpg" );
-        assertTrue( filePath.exists() );
-        assertTrue( readBasicFileAttributes( filePath ).isRegularFile() );
-        
+        // attempt to create a file with a non-existing parent
+        Path filePath = dirPath.resolve( "test.txt" );
+        assertTrue( filePath.notExists() );
+        assertTrue( filePath.getParent().notExists() );
+        try {
+            filePath.createFile();
+            fail( "expected NoSuchFileException" );
+        } catch ( NoSuchFileException e ) {
+        }
+    }
+    
+    @Test
+    public void testCreateFromExistingLocalFile() throws IOException {
+        Path localFile = getLocalFile();
         try {
             // attempt to create a directory from an existing local file
-            filePath.createDirectory();
+            localFile.createDirectory();
             fail( "expected IOException" );
         } catch ( IOException e ) {
         }
-        
-        // attempt to create a directory with a non-directory parent
-        dirPath = filePath.resolve( "foo" );
-        assertTrue( dirPath.notExists() );
-        assertTrue( dirPath.getParent().isSameFile( filePath ) );
         try {
+            // attempt to create a file from an existing local file
+            localFile.createFile();
+            fail( "expected IOException" );
+        } catch ( IOException e ) {
+        }
+    }
+    
+    @Test
+    public void testCreateFromExistingLocalDirectory() throws IOException {
+        Path localDir = getLocalDirectory();
+        try {
+            // attempt to create a directory from an existing local directory
+            localDir.createDirectory();
+            fail( "expected FileAlreadyExistsException" );
+        } catch ( FileAlreadyExistsException e ) {
+        }
+        
+        try {
+            // attempt to create a file from an existing local directory
+            localDir.createFile();
+            fail( "expected FileAlreadyExistsException" );
+        } catch ( FileAlreadyExistsException e ) {
+        }
+    }
+    
+    @Test
+    public void testCreateWithNonDirectoryLocalParent() throws IOException {
+        Path localFile = getLocalFile();
+        Path dirPath = localFile.resolve( "foo" );
+        assertTrue( dirPath.notExists() );
+        assertTrue( dirPath.getParent().isSameFile( localFile ) );
+        
+        try {
+            // attempt to create a directory with a non-directory local parent
             dirPath.createDirectory();
             fail( "expected IOException" );
         } catch ( IOException e ) {
         }
         
+        try {
+            // attempt to create a file with a non-directory local parent
+            dirPath.createFile();
+            fail( "expected IOException" );
+        } catch ( IOException e ) {
+        }
+    }
+    
+    private Path getLocalDirectory() throws IOException {
         Path imagesPath = Paths.get( "images" );
         assertTrue( imagesPath.exists() );
         assertTrue( readBasicFileAttributes( imagesPath ).isDirectory() );
-        
-        try {
-            // attempt to create a local directory that already exists
-            imagesPath.createDirectory();
-            fail( "expected FileAlreadyExistsException" );
-        } catch ( FileAlreadyExistsException e ) {
-        }
+        return imagesPath;
+    }
+
+    private Path getLocalFile() throws IOException {
+        Path filePath = Paths.get( "images/large.jpg" );
+        assertTrue( filePath.exists() );
+        assertTrue( readBasicFileAttributes( filePath ).isRegularFile() );
+        return filePath;
+    }
+    
+    @Test
+    public void testCreateSpecifyingBlockSize() throws IOException {
+        // specify blockSize attribute when creating a file
+        Path filePath = Paths.get( "/images/test.png" );
+        assertTrue( filePath.notExists() );
+        assertTrue( filePath.createFile( withBlockSize( 4 ) ).exists() );
+        assertIntegerAttr( filePath.getAttribute( "gae:blockSize" ), 4 * 1024 );
+        assertBooleanAttr( filePath.getAttribute( "isRegularFile" ), true );
+    }
+    
+    @Test
+    public void testCreateDirectoriesAndFiles() throws IOException {
+        Path imagesPath = getLocalDirectory();
         
         // create a directory within a local directory
-        dirPath = imagesPath.resolve( "foo" );
-        assertTrue( dirPath.notExists() );
-        assertTrue( dirPath.createDirectory().exists() );
-        assertTrue( readBasicFileAttributes( dirPath ).isDirectory() );
-        assertTrue( dirPath.getParent().isSameFile( imagesPath ) );
+        Path dirPath = assertCreateDirectory( imagesPath.resolve( "foo" ), imagesPath );
+        
+        // create a file within a local directory
+        Path filePath = assertCreateFile( imagesPath.resolve( "test.jpg" ), imagesPath );
         
         // create a directory within a local directory
-        dirPath = Paths.get( "images/bar" );
-        assertTrue( dirPath.notExists() );
-        assertTrue( dirPath.createDirectory().exists() );
-        assertTrue( readBasicFileAttributes( dirPath ).isDirectory() );
-        assertTrue( dirPath.getParent().isSameFile( imagesPath ) );
+        dirPath = assertCreateDirectory( Paths.get( "images/bar" ), imagesPath );
+        
+        // create a file within a local directory
+        filePath = assertCreateFile( Paths.get( "images/test.gif" ), imagesPath );
         
         // create a directory within a GaeVFS directory
-        dirPath = Paths.get( "/images/bar/baz" );
-        assertTrue( dirPath.notExists() );
-        assertTrue( dirPath.createDirectory().exists() );
-        assertTrue( readBasicFileAttributes( dirPath ).isDirectory() );
+        dirPath = assertCreateDirectory( Paths.get( "/images/bar/baz" ) );
+        
+        // create a file within a GaeVFS directory
+        filePath = assertCreateFile( Paths.get( "/images/bar/test.gif" ) );
         
         try {
             // attempt to create a GaeVFS directory that already exists
+            assertTrue( dirPath.exists() );
             dirPath.createDirectory();
             fail( "expected FileAlreadyExistsException" );
         } catch ( FileAlreadyExistsException e ) {
         }
         
-        // attempt to create a directory from an existing GaeVFS file
-        filePath = Paths.get( "images/bar/fubar.jpg" );
-        assertTrue( filePath.notExists() );
-        assertTrue( filePath.createFile().exists() );
-        assertTrue( readBasicFileAttributes( filePath ).isRegularFile() );
+        try {
+            // attempt to create a GaeVFS file that already exists
+            assertTrue( filePath.exists() );
+            filePath.createFile();
+            fail( "expected FileAlreadyExistsException" );
+        } catch ( FileAlreadyExistsException e ) {
+        }
+        
+        // attempt to create a directory with a non-directory GaeVFS parent
         dirPath = filePath.resolve( "baz" );
         assertTrue( dirPath.notExists() );
+        assertTrue( dirPath.getParent().isSameFile( filePath ) );
         try {
             dirPath.createDirectory();
             fail( "expected IOExeption" );
         } catch ( IOException e ) {
         }
         
-        // attempt to specify attributes when creating directory
+        // attempt to create a file with a non-directory GaeVFS parent
+        filePath = filePath.resolve( "test.gif" );
+        assertTrue( filePath.notExists() );
+        try {
+            filePath.createFile();
+            fail( "expected IOExeption" );
+        } catch ( IOException e ) {
+        }
+        
+        // attempt to specify attributes when creating a directory
         dirPath = Paths.get( "images/fubar" );
         assertTrue( dirPath.notExists() );
         try {
@@ -323,6 +396,43 @@ public class GaePathTestCase extends GaeVfsTestCase {
             fail( "expected UnsupportedOperationException" );
         } catch ( UnsupportedOperationException e ) {
         }
+
+        // attempt to specify invalid attributes when creating a file
+        filePath = Paths.get( "images/fubar.png" );
+        assertTrue( filePath.notExists() );
+        try {
+            filePath.createFile( asFileAttribute( fromString( "rwxr-x---" ) ) );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+    }
+
+    private Path assertCreateFile( Path file ) throws IOException {
+        return assertCreateFile( file, null );
+    }
+    
+    private Path assertCreateFile( Path file, Path parent ) throws IOException {
+        assertTrue( file.notExists() );
+        assertTrue( file.createFile().exists() );
+        assertTrue( readBasicFileAttributes( file ).isRegularFile() );
+        if ( parent != null ) {
+            assertTrue( file.getParent().isSameFile( parent ) );
+        }
+        return file;
+    }
+
+    private Path assertCreateDirectory( Path dir ) throws IOException {
+        return assertCreateDirectory( dir, null );
+    }
+    
+    private Path assertCreateDirectory( Path dir, Path parent ) throws IOException {
+        assertTrue( dir.notExists() );
+        assertTrue( dir.createDirectory().exists() );
+        assertTrue( readBasicFileAttributes( dir ).isDirectory() );
+        if ( parent != null ) {
+            assertTrue( dir.getParent().isSameFile( parent ) );
+        }
+        return dir;
     }
 
     @Test
@@ -390,12 +500,13 @@ public class GaePathTestCase extends GaeVfsTestCase {
         assertTrue( filePath.exists() );
         assertFalse( filePath.notExists() );
         filePath.checkAccess( AccessMode.READ );
-        // JUnit test environment does not enforce read-only access to local files
-//        try {
-//            filePath.checkAccess( AccessMode.WRITE );
-//            fail( "expected AccessDeniedException" );
-//        } catch ( AccessDeniedException e ) {
-//        }
+        // JUnit test environment does not enforce read-only access to local files,
+        // so set "read-only" file system permission in order for this test to pass
+        try {
+            filePath.checkAccess( AccessMode.WRITE );
+            fail( "expected AccessDeniedException" );
+        } catch ( AccessDeniedException e ) {
+        }
         try {
             filePath.checkAccess( AccessMode.EXECUTE );
             fail( "expected AccessDeniedException" );
