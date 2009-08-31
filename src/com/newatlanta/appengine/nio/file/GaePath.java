@@ -236,9 +236,11 @@ public class GaePath extends Path {
         return new GaePath( fileSystem, fileObject.getName().getBaseName() );
     }
 
+    private static final String PATH_DELIMS = "/\\"; // include Windows for development
+    
     @Override
     public Path getName( int index ) {
-        StringTokenizer st = new StringTokenizer( path, fileSystem.getSeparator() );
+        StringTokenizer st = new StringTokenizer( path, PATH_DELIMS );
         int numEntries = st.countTokens();
         if ( ( index < 0 ) || ( index >= numEntries ) ) {
             throw new IllegalArgumentException();
@@ -251,15 +253,14 @@ public class GaePath extends Path {
 
     @Override
     public int getNameCount() {
-        StringTokenizer st = new StringTokenizer( path, fileSystem.getSeparator() );
-        return st.countTokens();
+        return new StringTokenizer( path, PATH_DELIMS ).countTokens();
     }
     
     @Override
     public Iterator<Path> iterator() {
-        StringTokenizer st = new StringTokenizer( path, fileSystem.getSeparator() );
+        StringTokenizer st = new StringTokenizer( path, PATH_DELIMS );
         List<Path> entryList = new ArrayList<Path>();
-        for ( int i = 0; i < st.countTokens(); i++ ) {
+        while ( st.hasMoreTokens() ) {
             entryList.add( new GaePath( fileSystem, st.nextToken() ) );
         }
         return entryList.iterator();
@@ -267,7 +268,7 @@ public class GaePath extends Path {
     
     @Override
     public Path subpath( int beginIndex, int endIndex ) {
-        StringTokenizer st = new StringTokenizer( path, fileSystem.getSeparator(), true );
+        StringTokenizer st = new StringTokenizer( path, PATH_DELIMS, true );
         int numEntries = st.countTokens();
         if ( ( beginIndex < 0 ) || ( beginIndex >= numEntries ) ||
                 ( endIndex <= beginIndex ) || ( endIndex > numEntries ) ) {
