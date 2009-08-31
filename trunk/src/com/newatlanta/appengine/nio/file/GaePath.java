@@ -42,6 +42,7 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
 import com.newatlanta.nio.file.CopyOption;
+import com.newatlanta.nio.file.DirectoryNotEmptyException;
 import com.newatlanta.nio.file.DirectoryStream;
 import com.newatlanta.nio.file.FileAlreadyExistsException;
 import com.newatlanta.nio.file.FileStore;
@@ -57,7 +58,6 @@ import com.newatlanta.nio.file.WatchService;
 import com.newatlanta.nio.file.DirectoryStream.Filter;
 import com.newatlanta.nio.file.WatchEvent.Kind;
 import com.newatlanta.nio.file.WatchEvent.Modifier;
-import com.newatlanta.nio.file.attribute.Attributes;
 import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
 import com.newatlanta.nio.file.attribute.FileAttribute;
 import com.newatlanta.nio.file.attribute.FileAttributeView;
@@ -210,19 +210,31 @@ public class GaePath extends Path {
 
     @Override
     public void delete() throws IOException {
-        // if directory, then lock to prevent creation of children
-        if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
-        }
-        //fileObject.delete();
-        // TODO Auto-generated method stub
+        checkAccess();
+        doDelete();
     }
 
     @Override
     public void deleteIfExists() throws IOException {
-        // if directory, then lock to prevent creation of children
-        if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
+        if ( exists() ) {
+            doDelete();
         }
-        // TODO Auto-generated method stub
+    }
+    
+    private void doDelete() throws IOException {
+        if ( fileObject.getType().hasChildren() ) { // directory
+            lock.lock(); // prevent rename or create children
+            try {
+                if ( fileObject.getChildren().length > 0 ) { // not empty
+                    throw new DirectoryNotEmptyException( toString() );
+                }
+                fileObject.delete();
+            } finally {
+                lock.unlock();
+            }
+        } else { // file
+            fileObject.delete();
+        }
     }
 
     @Override
@@ -329,7 +341,7 @@ public class GaePath extends Path {
             throw new ProviderMismatchException();
         }
         // if directory, then lock to prevent creation of children
-        if ( Attributes.readBasicFileAttributes( this ).isDirectory() ) {
+        if ( fileObject.getType().hasChildren() ) {
         }
         // TODO Auto-generated method stub
         return null;
