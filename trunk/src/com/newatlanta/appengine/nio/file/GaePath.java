@@ -23,9 +23,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
-import java.nio.channels.SeekableByteChannel;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,7 @@ import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
 import com.newatlanta.nio.file.CopyOption;
@@ -53,6 +55,7 @@ import com.newatlanta.nio.file.NoSuchFileException;
 import com.newatlanta.nio.file.OpenOption;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.ProviderMismatchException;
+import com.newatlanta.nio.file.StandardOpenOption;
 import com.newatlanta.nio.file.WatchKey;
 import com.newatlanta.nio.file.WatchService;
 import com.newatlanta.nio.file.DirectoryStream.Filter;
@@ -379,14 +382,54 @@ public class GaePath extends Path {
     }
 
     public InputStream newInputStream( OpenOption ... options ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        for ( OpenOption option : options ) {
+            if ( option != StandardOpenOption.READ ) {
+                throw new UnsupportedOperationException( option.toString() );
+            }
+        }
+        checkAccess( AccessMode.READ );
+        // TODO: Commons VFS automatically returns a buffered stream, but the
+        // docs for this method state: "The stream will not be buffered."
+        return fileObject.getContent().getInputStream();
     }
     
     @Override
     public OutputStream newOutputStream( OpenOption ... options ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        Set<OpenOption> optionsSet = new HashSet<OpenOption>( options.length );
+        Collections.addAll( optionsSet, options );
+        if ( optionsSet.contains( StandardOpenOption.READ ) ) {
+            throw new UnsupportedOperationException( StandardOpenOption.READ.name() );
+        }
+        if ( optionsSet.contains( StandardOpenOption.SYNC ) ) {
+            throw new UnsupportedOperationException( StandardOpenOption.SYNC.name() );
+        }
+        if ( optionsSet.contains( StandardOpenOption.DSYNC ) ) {
+            throw new UnsupportedOperationException( StandardOpenOption.DSYNC.name() );
+        }
+        if ( optionsSet.contains( StandardOpenOption.DELETE_ON_CLOSE ) ) {
+            throw new UnsupportedOperationException( StandardOpenOption.DELETE_ON_CLOSE.name() );
+        }
+        if ( optionsSet.contains( StandardOpenOption.SPARSE ) ) {
+            throw new UnsupportedOperationException( StandardOpenOption.SPARSE.name() );
+        }
+        boolean append = optionsSet.contains( StandardOpenOption.APPEND );
+        boolean truncate = optionsSet.contains( StandardOpenOption.TRUNCATE_EXISTING );
+        if ( append && truncate ) {
+            throw new IllegalArgumentException( "cannot specify both " +
+                                    StandardOpenOption.APPEND.name() + " and " +
+                                    StandardOpenOption.TRUNCATE_EXISTING.name() );
+        }
+        if ( optionsSet.contains( StandardOpenOption.CREATE_NEW ) ||
+            ( optionsSet.contains( StandardOpenOption.CREATE ) && notExists() ) )
+        {
+            createFile();
+        }
+        if ( truncate ) {
+            // TODO: how to truncate? delete and create new?
+        }
+        // TODO: Commons VFS automatically returns a buffered stream, but the
+        // docs for this method state: "The stream will not be buffered."
+        return fileObject.getContent().getOutputStream( append );
     }
 
     @Override
