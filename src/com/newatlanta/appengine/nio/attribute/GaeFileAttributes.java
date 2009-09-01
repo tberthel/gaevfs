@@ -40,6 +40,8 @@ public class GaeFileAttributes implements BasicFileAttributes {
     public static final String SIZE = "size";
     public static final String IS_REGULAR_FILE = "isRegularFile";
     public static final String IS_DIRECTORY = "isDirectory";
+    public static final String IS_SYMBOLIC_LINK = "isSymbolicLink";
+    public static final String IS_OTHER = "isOther";
     
     // supported gae attribute names
     public static final String BLOCK_SIZE = "blockSize";
@@ -47,8 +49,6 @@ public class GaeFileAttributes implements BasicFileAttributes {
     // currently unsupported basic attribute names
     public static final String LAST_ACCESS_TIME = "lastAccessTime";
     public static final String CREATION_TIME = "creationTime";
-    public static final String IS_SYMBOLIC_LINK = "isSymbolicLink";
-    public static final String IS_OTHER = "isOther";
     public static final String FILE_KEY = "fileKey";
     
     private FileObject fileObject;
@@ -77,7 +77,7 @@ public class GaeFileAttributes implements BasicFileAttributes {
     }
 
     public boolean isOther() {
-        return false; // not supported
+        return false;
     }
 
     public boolean isRegularFile() {
@@ -89,7 +89,7 @@ public class GaeFileAttributes implements BasicFileAttributes {
     }
 
     public boolean isSymbolicLink() {
-        return false; // not supported
+        return false;
     }
 
     public FileTime lastAccessTime() {
@@ -143,6 +143,8 @@ public class GaeFileAttributes implements BasicFileAttributes {
         attrMap.put( SIZE, size() );
         attrMap.put( IS_REGULAR_FILE, isRegularFile() );
         attrMap.put( IS_DIRECTORY, isDirectory() );
+        attrMap.put( IS_SYMBOLIC_LINK, Boolean.FALSE );
+        attrMap.put( IS_OTHER, Boolean.FALSE );
         if ( GAE_VIEW.equals( viewName ) ) {
             attrMap.put( BLOCK_SIZE, blockSize() );
         }
@@ -158,6 +160,10 @@ public class GaeFileAttributes implements BasicFileAttributes {
             return isRegularFile();
         } else if ( IS_DIRECTORY.equals( attrName ) ) {
             return isDirectory();
+        } else if ( IS_SYMBOLIC_LINK.equals( attrName ) ) {
+            return Boolean.FALSE;
+        } else if ( IS_OTHER.endsWith( attrName ) ) {
+            return Boolean.FALSE;
         } else if ( GAE_VIEW.equals( viewName ) ) {
             // may support other gae attributes in the future
             if ( BLOCK_SIZE.equals( attrName ) ) {
