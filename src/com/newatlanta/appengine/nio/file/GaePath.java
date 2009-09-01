@@ -17,6 +17,15 @@ package com.newatlanta.appengine.nio.file;
 
 import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.BASIC_VIEW;
 import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.GAE_VIEW;
+import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
+import static com.newatlanta.nio.file.StandardOpenOption.CREATE;
+import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
+import static com.newatlanta.nio.file.StandardOpenOption.DELETE_ON_CLOSE;
+import static com.newatlanta.nio.file.StandardOpenOption.DSYNC;
+import static com.newatlanta.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.nio.file.StandardOpenOption.SPARSE;
+import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
+import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 
 import java.io.IOError;
 import java.io.IOException;
@@ -35,10 +44,13 @@ import java.util.StringTokenizer;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
+import org.apache.commons.vfs.RandomAccessContent;
+import org.apache.commons.vfs.util.RandomAccessMode;
 
 import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
+import com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
@@ -55,7 +67,6 @@ import com.newatlanta.nio.file.NoSuchFileException;
 import com.newatlanta.nio.file.OpenOption;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.ProviderMismatchException;
-import com.newatlanta.nio.file.StandardOpenOption;
 import com.newatlanta.nio.file.WatchKey;
 import com.newatlanta.nio.file.WatchService;
 import com.newatlanta.nio.file.DirectoryStream.Filter;
@@ -383,53 +394,66 @@ public class GaePath extends Path {
 
     public InputStream newInputStream( OpenOption ... options ) throws IOException {
         for ( OpenOption option : options ) {
-            if ( option != StandardOpenOption.READ ) {
+            if ( option != READ ) {
                 throw new UnsupportedOperationException( option.toString() );
             }
         }
         checkAccess( AccessMode.READ );
-        // TODO: Commons VFS automatically returns a buffered stream, but the
-        // docs for this method state: "The stream will not be buffered."
-        return fileObject.getContent().getInputStream();
+        // don't use fileObject.getContent().getInputStream(); this avoids
+        // automatic buffering by Commons VFS
+        return fileObject.getContent().getRandomAccessContent(
+                                            RandomAccessMode.READ ).getInputStream();
     }
     
     @Override
     public OutputStream newOutputStream( OpenOption ... options ) throws IOException {
-        Set<OpenOption> optionsSet = new HashSet<OpenOption>( options.length );
-        Collections.addAll( optionsSet, options );
-        if ( optionsSet.contains( StandardOpenOption.READ ) ) {
-            throw new UnsupportedOperationException( StandardOpenOption.READ.name() );
+        Set<OpenOption> optionSet = checkUnsupportedOpenOptions( options );
+        if ( optionSet.contains( READ ) ) {
+            throw new IllegalArgumentException( READ.name() );
         }
-        if ( optionsSet.contains( StandardOpenOption.SYNC ) ) {
-            throw new UnsupportedOperationException( StandardOpenOption.SYNC.name() );
-        }
-        if ( optionsSet.contains( StandardOpenOption.DSYNC ) ) {
-            throw new UnsupportedOperationException( StandardOpenOption.DSYNC.name() );
-        }
-        if ( optionsSet.contains( StandardOpenOption.DELETE_ON_CLOSE ) ) {
-            throw new UnsupportedOperationException( StandardOpenOption.DELETE_ON_CLOSE.name() );
-        }
-        if ( optionsSet.contains( StandardOpenOption.SPARSE ) ) {
-            throw new UnsupportedOperationException( StandardOpenOption.SPARSE.name() );
-        }
-        boolean append = optionsSet.contains( StandardOpenOption.APPEND );
-        boolean truncate = optionsSet.contains( StandardOpenOption.TRUNCATE_EXISTING );
-        if ( append && truncate ) {
-            throw new IllegalArgumentException( "cannot specify both " +
-                                    StandardOpenOption.APPEND.name() + " and " +
-                                    StandardOpenOption.TRUNCATE_EXISTING.name() );
-        }
-        if ( optionsSet.contains( StandardOpenOption.CREATE_NEW ) ||
-            ( optionsSet.contains( StandardOpenOption.CREATE ) && notExists() ) )
-        {
+        if ( optionSet.contains( CREATE_NEW ) ||
+                ( optionSet.contains( CREATE ) && notExists() ) ) {
             createFile();
+        } else {
+            checkAccess( AccessMode.WRITE );
         }
-        if ( truncate ) {
-            // TODO: how to truncate? delete and create new?
+        // don't use fileObject.getContent().getOutputStream(); this avoids
+        // automatic buffering by Commons VFS and the enforcement of one open
+        // output stream
+        RandomAccessContent content = fileObject.getContent().getRandomAccessContent(
+                                                        RandomAccessMode.READWRITE );
+        if ( !( content instanceof GaeRandomAccessContent ) ) {
+            throw new UnsupportedOperationException(); // this should never happen
         }
-        // TODO: Commons VFS automatically returns a buffered stream, but the
-        // docs for this method state: "The stream will not be buffered."
-        return fileObject.getContent().getOutputStream( append );
+        GaeRandomAccessContent gaeContent = (GaeRandomAccessContent)content;
+        if ( optionSet.contains( APPEND ) ) {
+            gaeContent.seek( content.length() );
+        } else if ( optionSet.contains( TRUNCATE_EXISTING ) ) {
+            gaeContent.setLength( 0 );
+        }
+        return gaeContent;
+    }
+    
+    private Set<OpenOption> checkUnsupportedOpenOptions( OpenOption ... options ) {
+        Set<OpenOption> optionSet = new HashSet<OpenOption>( options.length );
+        Collections.addAll( optionSet, options );
+        if ( optionSet.contains( SYNC ) ) {
+            throw new UnsupportedOperationException( SYNC.name() );
+        }
+        if ( optionSet.contains( DSYNC ) ) {
+            throw new UnsupportedOperationException( DSYNC.name() );
+        }
+        if ( optionSet.contains( DELETE_ON_CLOSE ) ) {
+            throw new UnsupportedOperationException( DELETE_ON_CLOSE.name() );
+        }
+        if ( optionSet.contains( SPARSE ) ) {
+            throw new UnsupportedOperationException( SPARSE.name() );
+        }
+        if ( optionSet.contains( APPEND ) && optionSet.contains( TRUNCATE_EXISTING ) ) {
+            throw new IllegalArgumentException( "cannot specify both " +
+                            APPEND.name() + " and " + TRUNCATE_EXISTING.name() );
+        }
+        return optionSet;
     }
 
     @Override
