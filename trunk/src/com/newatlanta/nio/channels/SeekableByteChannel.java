@@ -23,9 +23,14 @@
  * have any questions.
  */
 
-package java.nio.channels;
+package com.newatlanta.nio.channels;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.ByteChannel;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.NonWritableChannelException;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.io.IOException;
 
 /**

@@ -70,7 +70,7 @@
  * java.nio.file.StandardOpenOption#DSYNC DSYNC} options are used when opening a file
  * to require that updates to the file are written synchronously to the underlying
  * storage device. In the case of the default provider, and the file resides on
- * a local storage device, and the {@link java.nio.channels.SeekableByteChannel
+ * a local storage device, and the {@link com.newatlanta.nio.channels.SeekableByteChannel
  * seekable} channel is connected to a file that was opened with one of these
  * options, then an invocation of the {@link
  * java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer) write}

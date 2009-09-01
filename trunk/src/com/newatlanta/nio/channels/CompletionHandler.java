@@ -23,7 +23,7 @@
  * have any questions.
  */
 
-package java.nio.channels;
+package com.newatlanta.nio.channels;
 
 /**
  * A handler for consuming the result of an asynchronous I/O operation.

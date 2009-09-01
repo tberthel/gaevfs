@@ -23,9 +23,12 @@
  * have any questions.
  */
 
-package java.nio.channels;
+package com.newatlanta.nio.channels;
 
 import java.io.IOException;
+import java.nio.channels.Channel;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.FileChannel;
 
 /**
  * A token representing a lock on a region of a file.

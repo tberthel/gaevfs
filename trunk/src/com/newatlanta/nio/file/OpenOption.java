@@ -32,7 +32,7 @@ package com.newatlanta.nio.file;
  * Path#newOutputStream(OpenOption[]) newOutputStream}, {@link
  * Path#newByteChannel newByteChannel}, {@link
  * java.nio.channels.FileChannel#open FileChannel.open}, and {@link
- * java.nio.channels.AsynchronousFileChannel#open AsynchronousFileChannel.open}
+ * com.newatlanta.nio.channels.AsynchronousFileChannel#open AsynchronousFileChannel.open}
  * when opening or creating a file.
  *
  * <p> The {@link StandardOpenOption} enumeration type defines the

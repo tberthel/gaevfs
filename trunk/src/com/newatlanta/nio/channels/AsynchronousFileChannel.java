@@ -23,9 +23,16 @@
  * have any questions.
  */
 
-package java.nio.channels;
+package com.newatlanta.nio.channels;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousCloseException;
+import java.nio.channels.Channel;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.NonReadableChannelException;
+import java.nio.channels.NonWritableChannelException;
+import java.nio.channels.OverlappingFileLockException;
 import java.io.IOException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;

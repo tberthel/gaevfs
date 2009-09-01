@@ -25,13 +25,13 @@
 
 package com.newatlanta.nio.file;
 
-import java.nio.channels.SeekableByteChannel;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.Set;
 
+import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.attribute.*;
 
 /**
