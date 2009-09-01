@@ -21,6 +21,9 @@ import static com.newatlanta.nio.file.attribute.PosixFilePermissions.asFileAttri
 import static com.newatlanta.nio.file.attribute.PosixFilePermissions.fromString;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.junit.Test;
@@ -35,6 +38,7 @@ import com.newatlanta.nio.file.Files;
 import com.newatlanta.nio.file.NoSuchFileException;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.Paths;
+import com.newatlanta.nio.file.StandardOpenOption;
 import com.newatlanta.nio.file.attribute.AclFileAttributeView;
 import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
 import com.newatlanta.nio.file.attribute.DosFileAttributeView;
@@ -508,8 +512,67 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
     
     @Test
-    public void testNewInputStream() {
-        fail( "Not yet implemented" );
+    public void testNewInputStream() throws IOException {
+        // attempt to get an InputStream on a file that doesn't exist
+        Path path = Paths.get( "doesNotExist.txt" );
+        assertTrue( path.notExists() );
+        try {
+            path.newInputStream();
+            fail( "expected NoSuchFileException" );
+        } catch ( NoSuchFileException e ) {
+        }
+        
+        // attempt to get an InputStream on a directory
+        path = Paths.get( "docs" );
+        assertTrue( path.exists() );
+        assertTrue( readBasicFileAttributes( path ).isDirectory() );
+        try {
+            path.newInputStream();
+            fail( "expected IOException" );
+        } catch ( IOException e ) {
+        }
+        
+        // local file
+        path = Paths.get( "/docs/small.txt" );
+        assertTrue( path.exists() );
+        assertTrue( readBasicFileAttributes( path ).isRegularFile() );
+        
+        // test open options
+        for ( StandardOpenOption option: StandardOpenOption.values() ) {
+            try {
+                path.newInputStream( option );
+                assertTrue( option == StandardOpenOption.READ );
+            } catch ( UnsupportedOperationException e ) {
+                assertTrue( option != StandardOpenOption.READ );
+            }
+        }
+        
+        // default open options
+        InputStream in = path.newInputStream();
+        int inSize = (int)readBasicFileAttributes( path ).size();
+        byte[] inBytes = new byte[ inSize ];
+        assertEquals( inSize, in.read( inBytes ) );
+        assertEquals( 0, in.available() );
+        in.close();
+        
+        Path newTxt = Paths.get( "docs/new.txt" );
+        assertCreateFile( newTxt );
+        
+        OutputStream out = newTxt.newOutputStream();
+        out.write( inBytes );
+        out.close();
+        
+        int newSize = (int)readBasicFileAttributes( newTxt ).size();
+        assertEquals( inSize, newSize );
+        
+        // gae file
+        in = newTxt.newInputStream();
+        byte[] newBytes = new byte[ newSize ];
+        assertEquals( newSize, in.read( newBytes ) );
+        assertEquals( 0, in.available() );
+        in.close();
+        
+        assertTrue( Arrays.equals( inBytes, newBytes ) );
     }
 
     @Test
