@@ -24,10 +24,10 @@
  */
 package com.newatlanta.nio.file;
 
-import java.nio.channels.SeekableByteChannel;
 import java.util.Set;
 import java.io.IOException;
 
+import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.attribute.*;
 
 /**

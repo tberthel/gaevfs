@@ -25,7 +25,7 @@
 
 package com.newatlanta.nio.file.spi;
 
-import java.nio.channels.*;
+import java.nio.channels.FileChannel;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -33,6 +33,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.io.IOException;
 
+import com.newatlanta.nio.channels.*;
 import com.newatlanta.nio.file.*;
 import com.newatlanta.nio.file.attribute.FileAttribute;
 
@@ -70,7 +71,7 @@ import com.newatlanta.nio.file.attribute.FileAttribute;
  * #newFileChannel newFileChannel} and {@link #newAsynchronousFileChannel
  * AsynchronousFileChannel} methods are defined to open or create files, returning
  * a channel to access the file. These methods are invoked by static factory
- * methods defined in the {@link java.nio.channels} package.
+ * methods defined in the {@link com.newatlanta.nio.channels} package.
  *
  * <p> All of the methods in this class are safe for use by multiple concurrent
  * threads.
