@@ -651,12 +651,16 @@ public class GaePathTestCase extends GaeVfsTestCase {
         assertLongAttr( path.getAttribute( "size" ), 0 );
         assertBooleanAttr( path.getAttribute( "isRegularFile" ), false );
         assertBooleanAttr( path.getAttribute( "isDirectory" ), true );
+        assertBooleanAttr( path.getAttribute( "isSymbolicLink" ), false );
+        assertBooleanAttr( path.getAttribute( "isOther" ), false );
         
         // basic attributes specifying view name
         assertFileTimeAttr( path.getAttribute( "basic:lastModifiedTime" ) );
         assertLongAttr( path.getAttribute( "basic:size" ), 0 );        
         assertBooleanAttr( path.getAttribute( "basic:isRegularFile" ), false );
         assertBooleanAttr( path.getAttribute( "basic:isDirectory" ), true );
+        assertBooleanAttr( path.getAttribute( "basic:isSymbolicLink" ), false );
+        assertBooleanAttr( path.getAttribute( "basic:isOther" ), false );
         
         // gae attribute without specifying view name
         assertNull( path.getAttribute( "blockSize" ) );
@@ -667,15 +671,11 @@ public class GaePathTestCase extends GaeVfsTestCase {
         // unsupported basic attributes without specifying view name
         assertNull( path.getAttribute( "lastAccessTime" ) );
         assertNull( path.getAttribute( "creationTime" ) );
-        assertNull( path.getAttribute( "isSymbolicLink" ) );
-        assertNull( path.getAttribute( "isOther" ) );
         assertNull( path.getAttribute( "fileKey" ) );
         
         // unsupported basic attribute specifying view name
         assertNull( path.getAttribute( "basic:lastAccessTime" ) );
         assertNull( path.getAttribute( "basic:creationTime" ) );
-        assertNull( path.getAttribute( "basic:isSymbolicLink" ) );
-        assertNull( path.getAttribute( "basic:isOther" ) );
         assertNull( path.getAttribute( "basic:fileKey" ) );
         
         // unsupported views
@@ -709,7 +709,7 @@ public class GaePathTestCase extends GaeVfsTestCase {
         
         // all basic attributes without specifying view name
         Map<String, ?> attrMap = path.readAttributes( "*" );
-        assertDirBasicAttributes( attrMap, 4 );
+        assertDirBasicAttributes( attrMap, 6 );
         
         // specified basic attributes without view name
         attrMap = path.readAttributes( "size,isDirectory,lastAccessTime,creationTime" );
@@ -721,14 +721,14 @@ public class GaePathTestCase extends GaeVfsTestCase {
         
         // all basic attributes specifying view name
         attrMap = path.readAttributes( "basic:*" );
-        assertDirBasicAttributes( attrMap, 4 );
+        assertDirBasicAttributes( attrMap, 6 );
         
         // specified basic attributes with view name
         attrMap = path.readAttributes( "basic:lastModifiedTime,isRegularFile,isSymbolicLink,fileKey" );
-        assertNotEmptyMap( attrMap, 2 );
+        assertNotEmptyMap( attrMap, 3 );
         assertFileTimeAttr( attrMap.get( "lastModifiedTime" ) );
         assertBooleanAttr( attrMap.get( "isRegularFile" ), false );
-        assertNull( attrMap.get( "isSymbolicLink" ) );
+        assertBooleanAttr( attrMap.get( "isSymbolicLink" ), false );
         assertNull( attrMap.get( "fileKey" ) );
         
         // gae attributes without view name
@@ -736,7 +736,7 @@ public class GaePathTestCase extends GaeVfsTestCase {
         
         // all gae attributes with view name
         attrMap = path.readAttributes( "gae:*" );
-        assertDirBasicAttributes( attrMap, 5 );
+        assertDirBasicAttributes( attrMap, 7 );
         assertIntegerAttr( attrMap.get( "blockSize" ), 0 );
         
         // specified gae attribute with view name
