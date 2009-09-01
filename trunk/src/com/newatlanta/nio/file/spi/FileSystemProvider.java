@@ -25,7 +25,6 @@
 
 package com.newatlanta.nio.file.spi;
 
-import java.nio.channels.FileChannel;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
