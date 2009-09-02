@@ -44,13 +44,11 @@ import java.util.StringTokenizer;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
-import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
 import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
-import com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
@@ -247,6 +245,7 @@ public class GaePath extends Path {
                 lock.unlock();
             }
         } else { // file
+            fileObject.close();
             fileObject.delete();
         }
     }
@@ -405,38 +404,43 @@ public class GaePath extends Path {
                                             RandomAccessMode.READ ).getInputStream();
     }
     
+    /**
+     * There are three issues with this method:
+     * 
+     *  1) Commons VFS automatically buffers the OutputStream, but the docs for
+     *     this method say it's not buffered. Also, because GaeVFS effectively
+     *     does it's own buffering, this may not be efficient.
+     *     
+     *  2) Commons VFS enforces that only one OutputStream can be opened at a
+     *     time (this may not be a bad thing). Note that GaeVFS does not attempt
+     *     to enforce "only one open OutputStream" across JVM instances.
+     *     
+     *  3) Only the WRITE, CREATE, CREATE_NEW, and APPEND options are supported.
+     *     
+     *  To avoid these issues, use a SeekableByteChannel for writing output.
+     */
     @Override
     public OutputStream newOutputStream( OpenOption ... options ) throws IOException {
-        Set<OpenOption> optionSet = checkUnsupportedOpenOptions( options );
-        if ( optionSet.contains( READ ) ) {
-            throw new IllegalArgumentException( READ.name() );
-        }
-        if ( optionSet.contains( CREATE_NEW ) ||
-                ( optionSet.contains( CREATE ) && notExists() ) ) {
-            createFile();
+        Set<OpenOption> optionSet = checkOutputStreamOpenOptions( options );
+        if ( optionSet.contains( CREATE_NEW ) ) {
+            createFile(); // throws FileAlreadyExistsException
+        } else if ( optionSet.contains( CREATE ) ) {
+            try {
+                createFile();
+            } catch ( FileAlreadyExistsException ignore ) {
+            }
         } else {
             checkAccess( AccessMode.WRITE );
         }
-        // don't use fileObject.getContent().getOutputStream(); this avoids
-        // automatic buffering by Commons VFS and the enforcement of one open
-        // output stream
-        RandomAccessContent content = fileObject.getContent().getRandomAccessContent(
-                                                        RandomAccessMode.READWRITE );
-        if ( !( content instanceof GaeRandomAccessContent ) ) {
-            throw new UnsupportedOperationException(); // this should never happen
-        }
-        GaeRandomAccessContent gaeContent = (GaeRandomAccessContent)content;
-        if ( optionSet.contains( APPEND ) ) {
-            gaeContent.seek( content.length() );
-        } else if ( optionSet.contains( TRUNCATE_EXISTING ) ) {
-            gaeContent.setLength( 0 );
-        }
-        return gaeContent;
+        return fileObject.getContent().getOutputStream( optionSet.contains( APPEND ) );
     }
     
-    private Set<OpenOption> checkUnsupportedOpenOptions( OpenOption ... options ) {
+    private Set<OpenOption> checkOutputStreamOpenOptions( OpenOption ... options ) {
         Set<OpenOption> optionSet = new HashSet<OpenOption>( options.length );
         Collections.addAll( optionSet, options );
+        if ( optionSet.contains( READ ) ) {
+            throw new IllegalArgumentException( READ.name() );
+        }
         if ( optionSet.contains( SYNC ) ) {
             throw new UnsupportedOperationException( SYNC.name() );
         }
@@ -449,9 +453,8 @@ public class GaePath extends Path {
         if ( optionSet.contains( SPARSE ) ) {
             throw new UnsupportedOperationException( SPARSE.name() );
         }
-        if ( optionSet.contains( APPEND ) && optionSet.contains( TRUNCATE_EXISTING ) ) {
-            throw new IllegalArgumentException( "cannot specify both " +
-                            APPEND.name() + " and " + TRUNCATE_EXISTING.name() );
+        if ( optionSet.contains( TRUNCATE_EXISTING ) ) {
+            throw new UnsupportedOperationException( TRUNCATE_EXISTING.name() );
         }
         return optionSet;
     }
