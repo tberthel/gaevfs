@@ -27,8 +27,8 @@ import java.util.List;
 import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
+import org.apache.commons.vfs.FileSystemManager;
 import org.apache.commons.vfs.FileType;
-import org.apache.commons.vfs.NameScope;
 import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.provider.AbstractFileObject;
 import org.apache.commons.vfs.provider.AbstractFileSystem;
@@ -73,7 +73,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String BLOCK_SIZE = "block-size";
 
     private Entity metadata; // the wrapped GAE datastore entity
-    private FileObject parent;
 
     private boolean isCombinedLocal;
 
@@ -82,16 +81,22 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
     
     /**
-     * Override the superclass implementation because we need to resolve via
-     * GaeVFS in order to create "shadows" for local directories.
+     * Override the superclass implementation to make sure GaeVFS "shadows"
+     * exist for local directories.
      */
     @Override
     public FileObject getParent() throws FileSystemException {
-        if ( ( parent == null ) && ( this != getFileSystem().getRoot() ) ) {
-            FileName parentName = getName().getParent();
-            if ( parentName != null ) { // might be redundant
-                parent = resolveFile( parentName.getPath(), NameScope.FILE_SYSTEM );
-            }  
+        FileObject parent = super.getParent();
+        if ( ( parent != null ) && !parent.exists() ) {
+            // check for existing local directory
+            FileSystemManager manager = getFileSystem().getFileSystemManager();
+            FileObject localDir = manager.resolveFile( "file://" +
+                    GaeFileNameParser.getRootPath( manager.getBaseFile().getName() ) +
+                        parent.getName().getPath() );
+            
+            if ( localDir.exists() && localDir.getType().hasChildren() ) {
+                parent.createFolder(); // make sure GaeVFS "shadow" folder exists
+            }
         }
         return parent;
     }
