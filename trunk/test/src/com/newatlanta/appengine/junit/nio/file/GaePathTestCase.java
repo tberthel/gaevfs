@@ -22,18 +22,19 @@ import static com.newatlanta.nio.file.attribute.PosixFilePermissions.fromString;
 import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
 import static com.newatlanta.nio.file.StandardOpenOption.CREATE;
 import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
-//import static com.newatlanta.nio.file.StandardOpenOption.DELETE_ON_CLOSE;
-//import static com.newatlanta.nio.file.StandardOpenOption.DSYNC;
-//import static com.newatlanta.nio.file.StandardOpenOption.READ;
-//import static com.newatlanta.nio.file.StandardOpenOption.SPARSE;
-//import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
-//import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static com.newatlanta.nio.file.StandardOpenOption.DELETE_ON_CLOSE;
+import static com.newatlanta.nio.file.StandardOpenOption.DSYNC;
+import static com.newatlanta.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.nio.file.StandardOpenOption.SPARSE;
+import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
+import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,7 @@ import org.junit.Test;
 
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
+import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
 import com.newatlanta.nio.file.DirectoryNotEmptyException;
@@ -510,13 +512,100 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testNewByteChannelSetOfQextendsOpenOptionFileAttributeOfQArray() {
-        fail( "Not yet implemented" );
+    public void testNewByteChannel() throws IOException {
+        // attempt to get a ByteChannel on a file that doesn't exist
+        Path newTxt = Paths.get( "docs/new.txt" );
+        assertTrue( newTxt.notExists() );
+        try {
+            newTxt.newByteChannel();
+            fail( "expected NoSuchFileException" );
+        } catch ( NoSuchFileException e ) {
+        }
+        
+        // unsupported options
+        assertUnsupportedNewByteChannelOption( newTxt, SYNC );
+        assertUnsupportedNewByteChannelOption( newTxt, DSYNC );
+        assertUnsupportedNewByteChannelOption( newTxt, DELETE_ON_CLOSE );
+        assertUnsupportedNewByteChannelOption( newTxt, WRITE, CREATE, SPARSE );
+        
+        // illegal options
+        try {
+            newTxt.newByteChannel( APPEND, READ );
+            fail( "expected IllegalArgumentException" );
+        } catch ( IllegalArgumentException e ) {
+        }
+        try {
+            newTxt.newByteChannel( APPEND, TRUNCATE_EXISTING );
+            fail( "expected IllegalArgumentException" );
+        } catch ( IllegalArgumentException e ) {
+        }
+        
+        // ignored options if not writing
+        try {
+            newTxt.newByteChannel( CREATE );
+            fail( "expected NoSuchFileException" );
+        } catch ( NoSuchFileException e ) {
+        }
+        try {
+            newTxt.newByteChannel( CREATE_NEW );
+            fail( "expected NoSuchFileException" );
+        } catch ( NoSuchFileException e ) {
+        }
+        try {
+            newTxt.newByteChannel( SPARSE );
+            fail( "expected NoSuchFileException" );
+        } catch ( NoSuchFileException e ) {
+        }
+        
+        // CREATE_NEW option on non-existing file
+        assertNotNull( newTxt.newByteChannel( WRITE, CREATE_NEW ) );
+        assertTrue( newTxt.exists() );
+        try {
+            // CREATE_NEW option on existing file
+            newTxt.newByteChannel( APPEND, CREATE_NEW ); // APPEND implies WRITE
+            fail( "expected FileAlreadyExistsException" );
+        } catch ( FileAlreadyExistsException e ) {
+        }
+        
+        // CREATE option on non-existing file, with attributes
+        newTxt.delete();
+        assertTrue( newTxt.notExists() );
+        SeekableByteChannel fc = newTxt.newByteChannel( EnumSet.of( WRITE, CREATE ),
+                                                            withBlockSize( 256 ) );
+        assertNotNull( fc );
+        assertTrue( newTxt.exists() );
+        
+        // CREATE option on existing file
+        fc.close();
+        fc = newTxt.newByteChannel( APPEND, CREATE ); // APPEND implies WRITE
+        assertNotNull( fc );
+        assertTrue( newTxt.exists() );
+        
+        // APPEND option
+        fc.close();
+        fc = newTxt.newByteChannel( APPEND ); // APPEND implies WRITE
+        assertNotNull( fc );
+        
+        // TRUNCATE_EXISTING option
+        fc.close();
+        fc = newTxt.newByteChannel( WRITE, TRUNCATE_EXISTING );
+        assertNotNull( fc );
+        
+        // default options (read)
+        fc.close();
+        fc = newTxt.newByteChannel();
+        assertNotNull( fc );
+        fc.close();
+        newTxt.delete();
     }
 
-    @Test
-    public void testNewByteChannelOpenOptionArray() {
-        fail( "Not yet implemented" );
+    private void assertUnsupportedNewByteChannelOption( Path newTxt, OpenOption ... options )
+            throws IOException {
+        try {
+            newTxt.newByteChannel( options );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
     }
 
     @Test
@@ -556,6 +645,11 @@ public class GaePathTestCase extends GaeVfsTestCase {
         // APPEND option
         out.close();
         out = newTxt.newOutputStream( APPEND );
+        assertNotNull( out );
+        
+        // default options
+        out.close();
+        out = newTxt.newOutputStream();
         assertNotNull( out );
         out.close();
         
