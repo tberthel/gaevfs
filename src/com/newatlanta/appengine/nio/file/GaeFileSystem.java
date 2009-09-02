@@ -16,6 +16,8 @@
 package com.newatlanta.appengine.nio.file;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
@@ -42,8 +44,9 @@ public class GaeFileSystem extends FileSystem {
 
     @Override
     public Iterable<FileStore> getFileStores() {
-        // TODO Auto-generated method stub
-        return null;
+        List<FileStore> fileStores = new ArrayList<FileStore>();
+        fileStores.add( GaeFileStore.getInstance() );
+        return fileStores;
     }
 
     @Override
@@ -76,7 +79,7 @@ public class GaeFileSystem extends FileSystem {
     @Override
     public boolean isOpen() {
         // TODO Auto-generated method stub
-        return false;
+        return true;
     }
 
     @Override

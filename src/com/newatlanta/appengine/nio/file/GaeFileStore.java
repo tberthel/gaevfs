@@ -39,7 +39,7 @@ public class GaeFileStore extends FileStore {
 
     @Override
     public <V extends FileStoreAttributeView> V getFileStoreAttributeView( Class<V> type ) {
-        return null;
+        return null; // TODO: default block size?
     }
 
     @Override
@@ -54,12 +54,12 @@ public class GaeFileStore extends FileStore {
 
     @Override
     public boolean supportsFileAttributeView( Class<? extends FileAttributeView> type ) {
-        return false;
+        return false; // TODO: default block size?
     }
 
     @Override
     public boolean supportsFileAttributeView( String name ) {
-        return false;
+        return false; // TODO: default block size?
     }
 
     @Override

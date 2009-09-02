@@ -20,16 +20,22 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 
-import com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent;
+import org.apache.commons.vfs.RandomAccessContent;
+
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.channels.FileLock;
 
 public class GaeFileChannel extends FileChannel {
     
-    private GaeRandomAccessContent rac;
+    private RandomAccessContent rac;
+    private boolean append;
 
-    public GaeFileChannel( GaeRandomAccessContent rac ) {
-        this.rac = rac;
+    public GaeFileChannel( RandomAccessContent randomAccessContent ) {
+        this( randomAccessContent, false );
+    }
+    public GaeFileChannel( RandomAccessContent randomAccessContent, boolean append ) {
+        this.rac = randomAccessContent;
+        this.append = append;
     }
     
     @Override
@@ -70,13 +76,13 @@ public class GaeFileChannel extends FileChannel {
     public int read( ByteBuffer dst ) throws IOException {
         int len = dst.remaining();
         if ( dst.hasArray() ) {
-            return rac.read( dst.array(), dst.arrayOffset(), dst.remaining() );
+            rac.readFully( dst.array(), dst.arrayOffset(), dst.remaining() );
         } else {
             byte[] b = new byte[ len ];
-            int bytesRead = rac.read( b, 0, len );
+            rac.readFully( b, 0, len );
             dst.put( b );
-            return bytesRead;
         }
+        return len - dst.remaining();
     }
 
     @Override
@@ -99,7 +105,7 @@ public class GaeFileChannel extends FileChannel {
     @Override
     public synchronized GaeFileChannel truncate( long size ) throws IOException {
         rac.setLength( size );
-        return null;
+        return this;
     }
 
     @Override
@@ -123,6 +129,8 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public synchronized int write( ByteBuffer src, long writePos ) throws IOException {
+        // TODO: this is wrong! need to allow other concurrent operations, if
+        // not changing file size (not allowed to modify file pointer)
         long origPosition = position();
         try {
             return position( writePos ).write( src );
@@ -133,6 +141,9 @@ public class GaeFileChannel extends FileChannel {
     
     @Override
     public synchronized int write( ByteBuffer src ) throws IOException {
+        if ( append ) {
+            rac.seek( rac.length() ); // advance file pointer to end of file
+        }
         int len = src.remaining();
         if ( src.hasArray() ) { 
             rac.write( src.array(), src.arrayOffset(), len );

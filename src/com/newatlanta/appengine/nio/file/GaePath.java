@@ -26,6 +26,7 @@ import static com.newatlanta.nio.file.StandardOpenOption.READ;
 import static com.newatlanta.nio.file.StandardOpenOption.SPARSE;
 import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
 import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
 
 import java.io.IOError;
 import java.io.IOException;
@@ -49,7 +50,9 @@ import org.apache.commons.vfs.util.RandomAccessMode;
 import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
+import com.newatlanta.appengine.nio.channels.GaeFileChannel;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
@@ -353,7 +356,7 @@ public class GaePath extends Path {
         if ( !( target instanceof GaePath ) ) {
             throw new ProviderMismatchException();
         }
-        // if directory, then lock to prevent creation of children
+        // if directory, then lock to prevent creation of children while moving
         if ( fileObject.getType().hasChildren() ) {
         }
         // TODO Auto-generated method stub
@@ -361,16 +364,74 @@ public class GaePath extends Path {
     }
 
     @Override
-    public SeekableByteChannel newByteChannel( Set<? extends OpenOption> options, FileAttribute<?> ... attrs )
-            throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+    public FileChannel newByteChannel( Set<? extends OpenOption> options,
+                                          FileAttribute<?> ... attrs ) throws IOException {
+        checkByteChannelOpenOptions( options );
+        if ( options.contains( CREATE_NEW ) ) {
+            createFile( attrs ); // throws FileAlreadyExistsException
+        } else if ( options.contains( CREATE ) ) {
+            try {
+                createFile( attrs );
+            } catch ( FileAlreadyExistsException ignore ) {
+            }
+        }
+        RandomAccessMode mode = RandomAccessMode.READ;
+        if ( options.contains( WRITE ) ) {
+            checkAccess( AccessMode.READ, AccessMode.WRITE );
+            mode = RandomAccessMode.READWRITE;
+        } else {
+            checkAccess( AccessMode.READ );
+        }
+        FileChannel fc = new GaeFileChannel( fileObject.getContent().getRandomAccessContent( mode ),
+                                                options.contains( APPEND ) );
+        if ( options.contains( TRUNCATE_EXISTING ) ) {
+            fc.truncate( 0 );
+        }
+        return fc;
+    }
+    
+    @SuppressWarnings("unchecked")
+    private static void checkByteChannelOpenOptions( Set<? extends OpenOption> options ) {
+        if ( options.contains( SYNC ) ) {
+            throw new UnsupportedOperationException( SYNC.name() );
+        }
+        if ( options.contains( DSYNC ) ) {
+            throw new UnsupportedOperationException( DSYNC.name() );
+        }
+        if ( options.contains( DELETE_ON_CLOSE ) ) {
+            throw new UnsupportedOperationException( DELETE_ON_CLOSE.name() );
+        }
+        if ( options.contains( APPEND ) ) {
+            if ( options.contains( READ ) ) {
+                throw new IllegalArgumentException( "Cannot specify both " + APPEND.name()
+                                        + " and " + READ.name() + " options." );
+            }
+            if ( options.contains( TRUNCATE_EXISTING ) ) {
+                throw new IllegalArgumentException( "Cannot specify both " + APPEND.name()
+                        + " and " + TRUNCATE_EXISTING.name() + " options." );
+            }
+            ((Set<OpenOption>)options).add( WRITE ); // APPEND implies WRITE
+        }
+        if ( !options.contains( WRITE ) ) { // some options ignored if not writing
+            options.remove( TRUNCATE_EXISTING );
+            options.remove( CREATE );
+            options.remove( CREATE_NEW );
+            options.remove( SPARSE ); // ignored if not creating new file
+        }
+        if ( options.contains( SPARSE ) ) {
+            throw new UnsupportedOperationException( SPARSE.name() );
+        }
     }
 
     @Override
     public SeekableByteChannel newByteChannel( OpenOption ... options ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        return newByteChannel( getOpenOptionSet( options ), new FileAttribute[ 0 ] );
+    }
+
+    private static Set<OpenOption> getOpenOptionSet( OpenOption ... options ) {
+        Set<OpenOption> optionSet = new HashSet<OpenOption>( options.length );
+        Collections.addAll( optionSet, options );
+        return optionSet;
     }
 
     @Override
@@ -386,7 +447,8 @@ public class GaePath extends Path {
     }
 
     @Override
-    public DirectoryStream<Path> newDirectoryStream( Filter<? super Path> filter ) throws IOException {
+    public DirectoryStream<Path> newDirectoryStream( Filter<? super Path> filter )
+            throws IOException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -429,15 +491,13 @@ public class GaePath extends Path {
                 createFile();
             } catch ( FileAlreadyExistsException ignore ) {
             }
-        } else {
-            checkAccess( AccessMode.WRITE );
         }
+        checkAccess( AccessMode.WRITE );
         return fileObject.getContent().getOutputStream( optionSet.contains( APPEND ) );
     }
     
-    private Set<OpenOption> checkOutputStreamOpenOptions( OpenOption ... options ) {
-        Set<OpenOption> optionSet = new HashSet<OpenOption>( options.length );
-        Collections.addAll( optionSet, options );
+    private static Set<OpenOption> checkOutputStreamOpenOptions( OpenOption ... options ) {
+        Set<OpenOption> optionSet = getOpenOptionSet( options );
         if ( optionSet.contains( READ ) ) {
             throw new IllegalArgumentException( READ.name() );
         }

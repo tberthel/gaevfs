@@ -19,11 +19,17 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import com.newatlanta.appengine.nio.file.GaeFileSystem;
+import com.newatlanta.appengine.nio.file.GaePath;
+import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.file.FileSystem;
 import com.newatlanta.nio.file.FileSystemAlreadyExistsException;
+import com.newatlanta.nio.file.OpenOption;
 import com.newatlanta.nio.file.Path;
+import com.newatlanta.nio.file.ProviderMismatchException;
+import com.newatlanta.nio.file.attribute.FileAttribute;
 import com.newatlanta.nio.file.spi.FileSystemProvider;
 import com.newatlanta.nio.file.FileSystemNotFoundException;
 
@@ -76,5 +82,14 @@ public class GaeFileSystemProvider extends FileSystemProvider {
         FileSystem fs = new GaeFileSystem( this );
         fileSystems.put( uri, fs );
         return fs;
+    }
+    
+    @Override
+    public FileChannel newFileChannel( Path path, Set<? extends OpenOption> options,
+                                        FileAttribute<?> ... attrs ) throws IOException {
+        if ( !( path instanceof GaePath ) ) {
+            throw new ProviderMismatchException();
+        }
+        return ((GaePath)path).newByteChannel( options, attrs );
     }
 }
