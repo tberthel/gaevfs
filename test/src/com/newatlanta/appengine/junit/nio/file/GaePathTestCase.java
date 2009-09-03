@@ -36,7 +36,9 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import org.junit.Test;
@@ -46,7 +48,9 @@ import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
+import com.newatlanta.nio.file.ClosedDirectoryStreamException;
 import com.newatlanta.nio.file.DirectoryNotEmptyException;
+import com.newatlanta.nio.file.DirectoryStream;
 import com.newatlanta.nio.file.FileAlreadyExistsException;
 import com.newatlanta.nio.file.Files;
 import com.newatlanta.nio.file.NoSuchFileException;
@@ -277,7 +281,61 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testNewDirectoryStream() {
+    public void testNewDirectoryStream() throws IOException {
+        Path dirPath = Paths.get( "/" );
+        assertTrue( dirPath.exists() );
+        DirectoryStream<Path> dirStream = dirPath.newDirectoryStream();
+        assertNotNull( dirStream );
+        try {
+            for ( Path child : dirStream ) {
+                assertTrue( child.exists() );
+                // TODO: if child is a local file and dirPath is a GaeVFS directory,
+                // then the following assertion fails
+                //assertTrue( child.getParent().isSameFile( dirPath ) );
+                
+                // TODO: make sure Paths are correct
+            }
+            
+            try {
+                // can't get iterator more than once
+                dirStream.iterator();
+                fail( "expected IllegalStateException" );
+            } catch ( IllegalStateException e ) {
+            }
+        } finally {
+            dirStream.close();
+        }
+        
+        // TODO: this fails, probably due to Commons VFS caching of children
+        dirStream = dirPath.newDirectoryStream();
+        Iterator<Path> pathIter = dirStream.iterator();
+        while ( pathIter.hasNext() ) {
+            pathIter.next();
+        }
+        try {
+            pathIter.next();
+            fail( "expected NoSuchElementException" );
+        } catch ( NoSuchElementException e ) {
+        }
+        
+        dirStream.close();
+        try {
+            pathIter.hasNext();
+            fail( "expected ClosedDirectoryStreamException" );
+        } catch ( ClosedDirectoryStreamException e ) {
+        }
+        try {
+            pathIter.next();
+            fail( "expected ClosedDirectoryStreamException" );
+        } catch ( ClosedDirectoryStreamException e ) {
+        }
+        try {
+            pathIter.remove();
+            fail( "expected ClosedDirectoryStreamException" );
+        } catch ( ClosedDirectoryStreamException e ) {
+        }
+        
+        // TODO: test pathIter.remove()
         fail( "Not yet implemented" );
     }
 
