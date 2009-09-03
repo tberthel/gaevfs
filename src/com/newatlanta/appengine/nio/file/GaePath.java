@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.concurrent.locks.Lock;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
@@ -51,9 +52,9 @@ import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
+import com.newatlanta.commons.vfs.provider.gae.GaeOutputStream;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.channels.FileChannel;
-import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
 import com.newatlanta.nio.file.CopyOption;
@@ -65,6 +66,7 @@ import com.newatlanta.nio.file.FileSystem;
 import com.newatlanta.nio.file.InvalidPathException;
 import com.newatlanta.nio.file.LinkOption;
 import com.newatlanta.nio.file.NoSuchFileException;
+import com.newatlanta.nio.file.NotDirectoryException;
 import com.newatlanta.nio.file.OpenOption;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.ProviderMismatchException;
@@ -82,7 +84,7 @@ public class GaePath extends Path {
     private FileSystem fileSystem;
     private FileObject fileObject;
     private String path;
-    private ExclusiveLock lock;
+    private Lock lock; // access via getLock()
 
     public GaePath( FileSystem fileSystem, String path ) {
         this.fileSystem = fileSystem;
@@ -92,14 +94,19 @@ public class GaePath extends Path {
         } catch ( FileSystemException e ) {
             throw new InvalidPathException( path, e.toString() );
         }
-        lock = new ExclusiveLock( fileObject.getName().getPath() );
     }
     
-    private GaePath( FileSystem fileSystem, FileObject fileObject ) {
+    GaePath( FileSystem fileSystem, FileObject fileObject ) {
         this.fileSystem = fileSystem;
         this.fileObject = fileObject;
         path = fileObject.getName().getPath();
-        lock = new ExclusiveLock( fileObject.getName().getPath() );
+    }
+    
+    private synchronized Lock getLock() {
+        if ( lock == null ) {
+            lock = new ExclusiveLock( fileObject.getName().getPath() );
+        }
+        return lock;
     }
 
     @Override
@@ -175,7 +182,7 @@ public class GaePath extends Path {
             throw new UnsupportedOperationException( attrs[ 0 ].name() );
         }
         GaePath parent = getParent();
-        parent.lock.lock(); // prevent delete or rename of parent
+        parent.getLock().lock(); // prevent delete or rename of parent
         try {
             parent.checkAccess( AccessMode.WRITE );
             if ( notExists() ) {
@@ -199,7 +206,7 @@ public class GaePath extends Path {
             }
         }
         GaePath parent = getParent();
-        parent.lock.lock(); // prevent delete or rename of parent
+        parent.getLock().lock(); // prevent delete or rename of parent
         try {
             parent.checkAccess( AccessMode.WRITE );
             if ( notExists() ) {
@@ -238,7 +245,7 @@ public class GaePath extends Path {
     
     private void doDelete() throws IOException {
         if ( fileObject.getType().hasChildren() ) { // directory
-            lock.lock(); // prevent rename or create children
+            getLock().lock(); // prevent rename or create children
             try {
                 if ( fileObject.getChildren().length > 0 ) { // not empty
                     throw new DirectoryNotEmptyException( toString() );
@@ -362,6 +369,27 @@ public class GaePath extends Path {
         // TODO Auto-generated method stub
         return null;
     }
+    
+    @Override
+    public DirectoryStream<Path> newDirectoryStream() throws IOException {
+        if ( !fileObject.getType().hasChildren() ) {
+            throw new NotDirectoryException( toString() );
+        }
+        return new GaeDirectoryStream( fileSystem, fileObject.getChildren() );
+    }
+
+    @Override
+    public DirectoryStream<Path> newDirectoryStream( String glob ) throws IOException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public DirectoryStream<Path> newDirectoryStream( Filter<? super Path> filter )
+            throws IOException {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
     @Override
     public FileChannel newByteChannel( Set<? extends OpenOption> options,
@@ -424,7 +452,7 @@ public class GaePath extends Path {
     }
 
     @Override
-    public SeekableByteChannel newByteChannel( OpenOption ... options ) throws IOException {
+    public FileChannel newByteChannel( OpenOption ... options ) throws IOException {
         return newByteChannel( getOpenOptionSet( options ), new FileAttribute[ 0 ] );
     }
 
@@ -432,25 +460,6 @@ public class GaePath extends Path {
         Set<OpenOption> optionSet = new HashSet<OpenOption>( options.length );
         Collections.addAll( optionSet, options );
         return optionSet;
-    }
-
-    @Override
-    public DirectoryStream<Path> newDirectoryStream() throws IOException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public DirectoryStream<Path> newDirectoryStream( String glob ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public DirectoryStream<Path> newDirectoryStream( Filter<? super Path> filter )
-            throws IOException {
-        // TODO Auto-generated method stub
-        return null;
     }
 
     public InputStream newInputStream( OpenOption ... options ) throws IOException {
@@ -494,6 +503,8 @@ public class GaePath extends Path {
         }
         checkAccess( AccessMode.WRITE );
         return fileObject.getContent().getOutputStream( optionSet.contains( APPEND ) );
+//        return new GaeOutputStream( fileObject.getContent().getRandomAccessContent(
+//                    RandomAccessMode.READWRITE ), optionSet.contains( APPEND ) );
     }
     
     private static Set<OpenOption> checkOutputStreamOpenOptions( OpenOption ... options ) {
