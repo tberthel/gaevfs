@@ -32,6 +32,7 @@ import java.security.PrivilegedAction;
 import java.util.*;
 import java.lang.reflect.Constructor;
 
+import com.newatlanta.appengine.nio.file.spi.GaeFileSystemProvider;
 import com.newatlanta.nio.file.spi.FileSystemProvider;
 
 /**
@@ -107,7 +108,7 @@ public final class FileSystems {
         // returns default provider
         private static FileSystemProvider getDefaultProvider() {
             // GaeVFS: can't use sun.nio.fs.DefaultFileSystemProvider
-            FileSystemProvider provider = null; // sun.nio.fs.DefaultFileSystemProvider.create();
+            FileSystemProvider provider = GaeFileSystemProvider.create(); // sun.nio.fs.DefaultFileSystemProvider.create();
 
             // if the property java.nio.file.spi.DefaultFileSystemProvider is
             // set then its value is the name of the default provider (or a list)
@@ -117,7 +118,7 @@ public final class FileSystems {
                 for (String cn: propValue.split(",")) {
                     try {
                         Class<?> c = Class
-                            .forName(cn); //, true, ClassLoader.getSystemClassLoader()); // GaeVFS
+                            .forName(cn, true, ClassLoader.getSystemClassLoader());
                         Constructor<?> ctor = c
                             .getDeclaredConstructor(FileSystemProvider.class);
                         provider = (FileSystemProvider)ctor.newInstance(provider);
