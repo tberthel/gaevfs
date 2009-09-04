@@ -15,6 +15,8 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import java.util.logging.Logger;
+
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 
@@ -35,6 +37,8 @@ import org.apache.commons.vfs.FileSystemException;
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeVFS {
+    
+    static final Logger log = Logger.getLogger( GaeVFS.class.getName() );
 
     private static final int DEFAULT_BLOCK_SIZE = 1024 * 128; // max 1024 x 1023
     
