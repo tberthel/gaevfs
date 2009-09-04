@@ -272,6 +272,7 @@ public class GaePath extends Path {
 
     @Override
     public Path getName() {
+        // TODO: THIS IS NOT RIGHT--THE ABSOLUTE PATH IS INCORRECT
         return new GaePath( fileSystem, fileObject.getName().getBaseName() );
     }
 
@@ -475,21 +476,6 @@ public class GaePath extends Path {
                                             RandomAccessMode.READ ).getInputStream();
     }
     
-    /**
-     * There are three issues with this method:
-     * 
-     *  1) Commons VFS automatically buffers the OutputStream, but the docs for
-     *     this method say it's not buffered. Also, because GaeVFS effectively
-     *     does it's own buffering, this may not be efficient.
-     *     
-     *  2) Commons VFS enforces that only one OutputStream can be opened at a
-     *     time (this may not be a bad thing). Note that GaeVFS does not attempt
-     *     to enforce "only one open OutputStream" across JVM instances.
-     *     
-     *  3) Only the WRITE, CREATE, CREATE_NEW, and APPEND options are supported.
-     *     
-     *  To avoid these issues, use a SeekableByteChannel for writing output.
-     */
     @Override
     public OutputStream newOutputStream( OpenOption ... options ) throws IOException {
         Set<OpenOption> optionSet = checkOutputStreamOpenOptions( options );
@@ -502,9 +488,11 @@ public class GaePath extends Path {
             }
         }
         checkAccess( AccessMode.WRITE );
-        return fileObject.getContent().getOutputStream( optionSet.contains( APPEND ) );
-//        return new GaeOutputStream( fileObject.getContent().getRandomAccessContent(
-//                    RandomAccessMode.READWRITE ), optionSet.contains( APPEND ) );
+        // don't use fileObject.getContent().getOutputStream(); this avoids
+        // automatic buffering by Commons VFS, and Commons VFS restriction that
+        // allows only one open OutputStream
+        return new GaeOutputStream( fileObject.getContent().getRandomAccessContent(
+                    RandomAccessMode.READWRITE ), optionSet.contains( APPEND ) );
     }
     
     private static Set<OpenOption> checkOutputStreamOpenOptions( OpenOption ... options ) {
