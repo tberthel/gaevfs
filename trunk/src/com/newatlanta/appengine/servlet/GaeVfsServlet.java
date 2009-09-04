@@ -13,15 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.newatlanta.commons.vfs.provider.gae;
+package com.newatlanta.appengine.servlet;
 
+import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
+import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
+import static com.newatlanta.nio.file.attribute.Attributes.readBasicFileAttributes;
+
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.text.DateFormat;
 import java.text.NumberFormat;
-import java.util.Date;
+import java.util.Iterator;
 import java.util.StringTokenizer;
+import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -35,7 +40,11 @@ import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.commons.fileupload.util.Streams;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringEscapeUtils;
-import org.apache.commons.vfs.FileObject;
+
+import com.newatlanta.nio.file.Files;
+import com.newatlanta.nio.file.Path;
+import com.newatlanta.nio.file.Paths;
+import com.newatlanta.nio.file.attribute.BasicFileAttributes;
 
 /**
  * <code>GaeVfsServlet</code> uploads files into the GAE virtual file system (GaeVFS)
@@ -44,11 +53,11 @@ import org.apache.commons.vfs.FileObject;
  * for this servlet:
  * <p><code>
  * &lt;listener><br>
- * &nbsp;&nbsp;&nbsp;&nbsp;&lt;listener-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServletEventListener&lt;/listener-class><br>
+ * &nbsp;&nbsp;&nbsp;&nbsp;&lt;listener-class>com.newatlanta.appengine.servlet.GaeVfsServletEventListener&lt;/listener-class><br>
  * &lt;/listener><br>
  * &lt;servlet><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&lt;servlet-name>gaevfs&lt;/servlet-name><br>
- * &nbsp;&nbsp;&nbsp;&nbsp;&lt;servlet-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServlet&lt;/servlet-class><br>
+ * &nbsp;&nbsp;&nbsp;&nbsp;&lt;servlet-class>com.newatlanta.appengine.servlet.GaeVfsServlet&lt;/servlet-class><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&lt;init-param><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;param-name>dirListingAllowed&lt;/param-name><br>
  * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;param-value>true&lt;/param-value><br>
@@ -107,7 +116,6 @@ public class GaeVfsServlet extends HttpServlet {
 
     private boolean dirListingAllowed;
     private String uploadRedirect;
-    private int rootPathLen;
 
     /**
      * Initializes GaeVFS and processes <code>&lt;init-param></code> elements from
@@ -117,23 +125,15 @@ public class GaeVfsServlet extends HttpServlet {
     public void init() throws ServletException {
         dirListingAllowed = Boolean.parseBoolean( getInitParameter( "dirListingAllowed" ) );
         uploadRedirect = getInitParameter( "uploadRedirect" );
-
-        String rootPath = getServletContext().getRealPath( "/" );
-        rootPathLen = rootPath.length();
-
-        // for development on Windows
-        if ( System.getProperty( "os.name" ).startsWith( "Windows" ) ) {
-            rootPathLen++;
-        }
         
         try {
             String initDirs = getInitParameter( "initDirs" );
             if ( initDirs != null ) {
                 StringTokenizer st = new StringTokenizer( initDirs, "," );
                 while ( st.hasMoreTokens() ) {
-                    FileObject fileObject = GaeVFS.resolveFile( "gae://" + st.nextToken() );
-                    if ( !fileObject.exists() ) {
-                        fileObject.createFolder();
+                    Path dirPath = Paths.get( st.nextToken() );
+                    if ( dirPath.notExists() ) {
+                        Files.createDirectories( dirPath );
                     }
                 }
             }
@@ -151,30 +151,31 @@ public class GaeVfsServlet extends HttpServlet {
     public void doGet( HttpServletRequest req, HttpServletResponse res )
             throws ServletException, IOException {
 
-        FileObject fileObject = GaeVFS.resolveFile( req.getRequestURI() );
-        if ( !fileObject.exists() ) {
+        Path path = Paths.get( req.getRequestURI() );
+        if ( path.notExists() ) {
             res.sendError( HttpServletResponse.SC_NOT_FOUND );
             return;
         }
 
-        if ( fileObject.getType().hasChildren() ) { // it's a directory
+        if ( readBasicFileAttributes( path ).isDirectory() ) {
             if ( dirListingAllowed ) {
-                res.getWriter().write( getListHTML( fileObject ) );
+                res.getWriter().write( getListHTML( path ) );
                 res.flushBuffer();
             } else {
-                res.sendError( HttpServletResponse.SC_FORBIDDEN, "Directory listing not allowed" );
+                res.sendError( HttpServletResponse.SC_FORBIDDEN,
+                                             "Directory listing not allowed" );
             }
             return;
         }
 
         // it's file, return it
 
-        // the servlet MIME type is configurable via web.xml, check it first
-        String contentType = getServletContext().getMimeType( fileObject.getName().getBaseName() );
-        res.setContentType( contentType != null ? contentType
-                : fileObject.getContent().getContentInfo().getContentType() );
-
-        copyAndClose( fileObject.getContent().getInputStream(), res.getOutputStream() );
+        // the servlet MIME type is configurable via web.xml
+        String contentType = getServletContext().getMimeType( path.getName().toString() );
+        if ( contentType != null ) {
+            res.setContentType( contentType );
+        }
+        copyAndClose( path.newInputStream(), res.getOutputStream() );
         res.flushBuffer();
     }
 
@@ -185,8 +186,8 @@ public class GaeVfsServlet extends HttpServlet {
      * 
      * Modified to support GAE virtual file system. 
      */
-    private String getListHTML( FileObject fileObject ) throws IOException {
-        String title = "Directory: " + fileObject.getName().getPath();
+    private String getListHTML( Path path ) throws IOException {
+        String title = "Directory: " + path.toString();
 
         StringBuffer buf = new StringBuffer( 4096 );
         buf.append( "<HTML><HEAD><TITLE>" );
@@ -195,9 +196,9 @@ public class GaeVfsServlet extends HttpServlet {
         buf.append( title );
         buf.append( "</H1><TABLE BORDER='0' cellpadding='3'>" );
 
-        if ( fileObject.getParent() != null ) {
+        if ( path.getParent() != null ) {
             buf.append( "<TR><TD><A HREF='" );
-            String parentPath = fileObject.getParent().getName().getPath();
+            String parentPath = path.getParent().toString();
             buf.append( parentPath );
             if ( !parentPath.endsWith( "/" ) ) {
                 buf.append( "/" );
@@ -205,30 +206,29 @@ public class GaeVfsServlet extends HttpServlet {
             buf.append( "'>Parent Directory</A></TD><TD></TD><TD></TD></TR>\n" );
         }
 
-        FileObject[] children = fileObject.getChildren();
-        if ( children.length == 0 ) {
+        Iterator<Path> children = path.newDirectoryStream().iterator();
+        if ( !children.hasNext() ) {
             buf.append( "<TR><TD>[empty directory]</TD></TR>\n" );
         } else {
-            DateFormat dfmt = DateFormat.getDateTimeInstance( DateFormat.MEDIUM, DateFormat.MEDIUM );
             NumberFormat nfmt = NumberFormat.getIntegerInstance();
-
-            buf.append( "<tr><th align='left'>Name</th><th>Size</th><th aligh='left'>Type</th><th align='left'>Date modified</th></tr>" );
-            for ( FileObject child : children ) {
-                buf.append( "<TR><TD><A HREF=\"" );
-                buf.append( child.getName().getPath() );
-                buf.append( "\">" );
-                buf.append( StringEscapeUtils.escapeHtml( child.getName().getBaseName() ) );
-                if ( child.getType().hasChildren() ) {
+            buf.append( "<tr><th align='left'>Name</th><th>Size</th>" +
+                "<th aligh='left'>Type</th><th align='left'>Date modified</th></tr>" );
+            while ( children.hasNext() ) {
+                Path child = children.next();
+                buf.append( "<TR><TD><A HREF=\"" ).append( child ).append( "\">" );
+                buf.append( StringEscapeUtils.escapeHtml( child.getName().toString() ) );
+                BasicFileAttributes childAttrs = readBasicFileAttributes( child );
+                if ( childAttrs.isDirectory() ) {
                     buf.append( '/' );
                 }
                 buf.append( "</TD><TD ALIGN=right>" );
-                if ( child.getType().hasContent() ) {
-                    buf.append( nfmt.format( child.getContent().getSize() ) ).append( " bytes" );
+                if ( childAttrs.isRegularFile() ) {
+                    buf.append( nfmt.format( childAttrs.size() ) ).append( " bytes" );
                 }
                 buf.append( "</TD><TD>" );
-                buf.append( child.getType().getName() );
+                buf.append( childAttrs.isDirectory() ? "directory" : "file" );
                 buf.append( "</TD><TD>" );
-                buf.append( dfmt.format( new Date( child.getContent().getLastModifiedTime() ) ) );
+                buf.append( childAttrs.lastModifiedTime() );
                 buf.append( "</TD></TR>\n" );
             }
         }
@@ -253,7 +253,8 @@ public class GaeVfsServlet extends HttpServlet {
     		throws ServletException, IOException {
         // Check that we have a file upload request
         if ( !ServletFileUpload.isMultipartContent( req ) ) {
-            res.sendError( HttpServletResponse.SC_BAD_REQUEST, "form enctype not multipart/form-data" );
+            res.sendError( HttpServletResponse.SC_BAD_REQUEST,
+                                        "form enctype not multipart/form-data" );
         }
         try {
             String path = "/";
@@ -276,11 +277,19 @@ public class GaeVfsServlet extends HttpServlet {
                         }
                     }
                 } else {
-                    FileObject fileObject = GaeVFS.resolveFile( "gae://" + path + item.getName() );
-                    if ( blockSize > 0 ) {
-                        GaeVFS.setBlockSize( fileObject, blockSize );
+                    Path filePath = Paths.get( path + item.getName() );
+                    if ( filePath.getParent().notExists() ) {
+                        Files.createDirectories( filePath.getParent() );
                     }
-                    copyAndClose( item.openStream(), fileObject.getContent().getOutputStream() );
+                    OutputStream out;
+                    if ( blockSize > 0 ) {
+                        out = filePath.createFile(
+                                withBlockSize( blockSize ) ).newOutputStream();
+                    } else {
+                        out = filePath.newOutputStream( CREATE_NEW );
+                    }
+                    out = new BufferedOutputStream( out, 64 * 1024 );
+                    copyAndClose( item.openStream(), out );
                 }
             }
 
@@ -296,9 +305,14 @@ public class GaeVfsServlet extends HttpServlet {
     /**
      * Copy the InputStream to the OutputStream then close them both.
      */
-    private static void copyAndClose( InputStream in, OutputStream out ) throws IOException {
+    private static void copyAndClose( InputStream in, OutputStream out )
+            throws IOException {
+        long startTime = System.currentTimeMillis();
         IOUtils.copy( in, out );
+        out.flush();
         out.close();
         in.close();
+        Logger.getLogger( Logger.GLOBAL_LOGGER_NAME ).info( "time: " +
+                            ( System.currentTimeMillis() - startTime ) + "ms" );
     }
 }
