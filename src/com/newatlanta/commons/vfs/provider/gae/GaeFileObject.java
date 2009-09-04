@@ -418,7 +418,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * Sets the last modified time of this file.
      */
     @Override
-    protected boolean doSetLastModTime( final long modtime ) {
+    protected boolean doSetLastModTime( long modtime ) {
         metadata.setProperty( LAST_MODIFIED, Long.valueOf( modtime ) );
         return true;
     }
