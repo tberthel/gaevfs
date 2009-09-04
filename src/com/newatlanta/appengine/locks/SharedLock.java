@@ -90,6 +90,9 @@ public class SharedLock extends AbstractLock {
         try {
             // MemcacheService guarantees to never decrement below 0
             Long counter = memcache.increment( key, -1 );
+            if ( counter == null ) { // counter does not exist
+                createCounter();
+            }
             log.info( "released " + key + " " + ( counter != null ? counter.longValue() : "-" ) );
         } catch ( InvalidValueException e ) {
             log.warning( e.toString() );
@@ -101,14 +104,16 @@ public class SharedLock extends AbstractLock {
      */
     public long getCounter() {
         try {
-            Long counter = (Long)memcache.get( key );
-            if ( counter != null ) {
-                return ( counter.longValue() );
+            Long counter;
+            // null value means counter does not exist
+            while ( ( counter = (Long)memcache.get( key ) ) == null ) {
+                createCounter();
             }
+            return ( counter.longValue() );
         } catch ( Exception e ) {
             log.warning( e.toString() );
+            return 0;
         }
-        return 0;
     }
 
     /**
