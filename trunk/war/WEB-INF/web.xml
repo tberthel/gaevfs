@@ -5,11 +5,11 @@
 
 <web-app xmlns="http://java.sun.com/xml/ns/javaee" version="2.5">
     <listener>
-        <listener-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServletEventListener</listener-class>
+        <listener-class>com.newatlanta.appengine.servlet.GaeVfsServletEventListener</listener-class>
     </listener>
     <servlet>
         <servlet-name>gaevfs</servlet-name>
-        <servlet-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServlet</servlet-class>
+        <servlet-class>com.newatlanta.appengine.servlet.GaeVfsServlet</servlet-class>
         <init-param>
             <param-name>dirListingAllowed</param-name>
             <param-value>true</param-value>
