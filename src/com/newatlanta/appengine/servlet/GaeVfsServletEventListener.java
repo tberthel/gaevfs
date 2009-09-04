@@ -13,11 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.newatlanta.commons.vfs.provider.gae;
+package com.newatlanta.appengine.servlet;
+
+import java.util.logging.Logger;
 
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 
+import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.h2.store.fs.FileSystemGae;
 
 /**
@@ -25,7 +28,7 @@ import com.newatlanta.h2.store.fs.FileSystemGae;
  * <tt>web.xml</tt>:
  * <p><code>
  * &lt;listener><br>
- * &nbsp;&nbsp;&nbsp;&nbsp;&lt;listener-class>com.newatlanta.commons.vfs.provider.gae.GaeVfsServletEventListener&lt;/listener-class><br>
+ * &nbsp;&nbsp;&nbsp;&nbsp;&lt;listener-class>com.newatlanta.appengine.servlet.GaeVfsServletEventListener&lt;/listener-class><br>
  * &lt;/listener><br>
  * </code><p>
  * 
@@ -34,19 +37,17 @@ import com.newatlanta.h2.store.fs.FileSystemGae;
 public class GaeVfsServletEventListener implements ServletContextListener {
 
     /**
-     * Initializes GaeVFS with the webapp root path. Attempts to register with H2.
+     * Registers with H2.
      */
     public void contextInitialized( ServletContextEvent event ) {
-        // configure GaeVFS as default provider for NIO2
-        System.setProperty( "java.nio.file.spi.DefaultFileSystemProvider",
-                            "com.newatlanta.appengine.nio.file.spi.GaeFileSystemProvider" );
         try {
             // use reflection in case H2 is not installed
             Class<?> fileSystemClass = Class.forName( "org.h2.store.fs.FileSystem" );
-            fileSystemClass.getMethod( "register", fileSystemClass ).invoke( null, FileSystemGae.getInstance() );
-            System.out.println( "Successfully registered GaeVFS with H2" );
+            fileSystemClass.getMethod( "register", fileSystemClass ).invoke( null,
+                                            FileSystemGae.getInstance() );
+            Logger.getLogger( Logger.GLOBAL_LOGGER_NAME ).info( "Successfully registered GaeVFS with H2" );
         } catch ( Exception e ) {
-            System.err.println( "Failed to register GaeVFS with H2: " + e );
+            Logger.getLogger( Logger.GLOBAL_LOGGER_NAME ).info( "Failed to register GaeVFS with H2: " + e );
         }
     }
 
