@@ -38,10 +38,7 @@ public class GaeFileSystemProvider extends FileSystemProvider {
     private Map<URI, FileSystem> fileSystems = new HashMap<URI, FileSystem>();
     
     public static FileSystemProvider create() {
-        return new GaeFileSystemProvider();
-    }
-    
-    public GaeFileSystemProvider() {
+        return new GaeFileSystemProvider( null );
     }
 
     public GaeFileSystemProvider( FileSystemProvider defaultProvider ) {
