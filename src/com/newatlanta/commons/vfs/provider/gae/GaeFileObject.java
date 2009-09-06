@@ -35,15 +35,12 @@ import org.apache.commons.vfs.provider.AbstractFileSystem;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
 import com.google.appengine.api.datastore.DatastoreService;
-import com.google.appengine.api.datastore.DatastoreServiceFactory;
 import com.google.appengine.api.datastore.DatastoreTimeoutException;
 import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
-import com.google.appengine.api.datastore.Query;
-import com.google.appengine.api.memcache.MemcacheService;
-import com.google.appengine.api.memcache.MemcacheServiceFactory;
+import com.newatlanta.appengine.datastore.CachingDatastoreService;
 
 /**
  * Stores metadata for "files" and "folders" within GaeVFS and manages interactions
@@ -59,8 +56,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
-    private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
+    private static DatastoreService datastore = new CachingDatastoreService();
 
     private static final String ENTITY_KIND = "GaeFileObject";
 
@@ -166,11 +162,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     private synchronized void getMetaData( Key key ) throws FileSystemException {
         try {
-            metadata = (Entity)memcache.get( key );
-            if ( metadata == null ) {
-                metadata = getEntity( key );
-                memcache.put( key, metadata );
-            }
+            metadata = datastore.get( key );
         } catch ( EntityNotFoundException e ) {
             metadata = new Entity( ENTITY_KIND, key.getName() );
             setBlockSize( GaeVFS.getBlockSize() );
@@ -381,8 +373,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
 
     private void deleteMetaData() throws FileSystemException {
-        deleteEntity( metadata.getKey() );
-        memcache.delete( metadata.getKey() );
+        datastore.delete( metadata.getKey() );
         // metadata.getProperties().clear(); // see issue #1395
         Object[] properties = metadata.getProperties().keySet().toArray();
         for ( int i = 0; i < properties.length; i++ ) {
@@ -398,11 +389,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private synchronized void putMetaData() throws FileSystemException {
         metadata.setProperty( FILETYPE, getType().getName() );
         doSetLastModTime( System.currentTimeMillis() );
-        putEntity( metadata );
-        // memcache uses a "first created, first deleted" algorithm when purging
-        // so remove first, then put to refresh the creation time
-        memcache.delete( metadata.getKey() );
-        memcache.put( metadata.getKey(), metadata );
+        datastore.put( metadata );
     }
 
     /**
@@ -569,14 +556,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         }
     }
 
-    private void deleteEntity( Key key ) {
-        try {
-            datastore.delete( key );
-        } catch ( DatastoreTimeoutException e ) {
-            datastore.delete( key ); // try twice upon timeout
-        }
-    }
-
     private void deleteEntities( List<Key> keys ) {
         try {
             datastore.delete( keys );
@@ -588,20 +567,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void finalize() throws Throwable {
         if ( getFileSystem() != null ) { // avoid NPE in super.finalize()
             super.finalize();
-        }
-    }
-
-    /**
-     * For testing and debugging.
-     */
-    public static Iterable<Entity> getAllEntities() {
-        return datastore.prepare( new Query( ENTITY_KIND ) ).asIterable();
-    }
-
-    public static void removeAllEntities() {
-        Iterable<Entity> entities = getAllEntities();
-        for ( Entity e : entities ) {
-            datastore.delete( e.getKey() );
         }
     }
 }
