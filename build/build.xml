@@ -12,7 +12,7 @@
 	
 	<path id="build.class.path">
 		<pathelement path="${project.lib.dir}/geronimo-servlet_2.5_spec-1.2.jar"/>
-		<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.2.jar"/>
+		<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.5.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-fileupload-1.2.1.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-io-1.4.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-lang-2.4.jar"/>
@@ -27,6 +27,7 @@
         <pathelement path="${project.lib.dir}/commons-vfs-2.0-SNAPSHOT-tests.jar"/>
         <pathelement path="${project.lib.dir}/junit-4.6.jar"/>
         <pathelement path="${webinf.lib.dir}/commons-collections-3.2.1.jar"/>
+        <pathelement path="${webinf.lib.dir}/appengine-api-labs-1.2.5.jar"/>
     </path>
 	
 	<target name="clean">
