@@ -39,7 +39,7 @@ public class LockingThread extends Thread {
         Thread lockThread = new LockingThread( lock, sleepTime );
         lockThread.start();
         try {
-            Thread.sleep( 200 ); // give lockThread a chance to run
+            Thread.sleep( 500 ); // give lockThread a chance to run
         } catch ( InterruptedException e ) {
         }
         assert( lockThread.isAlive() );
