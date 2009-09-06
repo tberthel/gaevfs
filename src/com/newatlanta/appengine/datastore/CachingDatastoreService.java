@@ -17,7 +17,6 @@ package com.newatlanta.appengine.datastore;
 
 import static com.google.appengine.api.datastore.KeyFactory.createKey;
 import static com.google.appengine.api.datastore.KeyFactory.keyToString;
-import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.url;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,12 +51,18 @@ import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 
+/**
+ * Implements a <code>DatastoreServer</code> that automatically caches entities
+ * in memcache. Uses a write-behind cache when writing entities to the datastore.
+ * 
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
+ */
 @SuppressWarnings("serial")
 public class CachingDatastoreService extends HttpServlet implements DatastoreService {
     
     private static final String QUEUE_NAME = "write-behind-task";
     private static final String KEY_PARAM = "key";
-    private static final TaskOptions TASK_URL = url( "/" + QUEUE_NAME );
+    private static final TaskOptions TASK_URL = TaskOptions.Builder.url( "/" + QUEUE_NAME );
     
     private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
     private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
@@ -102,9 +107,39 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         return entity;
     }
     
+    @SuppressWarnings("unchecked")
     public Map<Key, Entity> get( Iterable<Key> keys ) {
-        // TODO Auto-generated method stub
-        return null;
+        Map<Key, Entity> entityMap = (Map)memcache.getAll( (Collection)keys );
+        if ( entityMap.size() == 0 ) {
+            entityMap = getAndCache( keys );
+        } else if ( entityMap.size() < ((Collection)keys).size() ) {
+            List<Key> notFound = new ArrayList<Key>();
+            for ( Key key : keys ) {
+                if ( !entityMap.containsKey( key ) ) {
+                    notFound.add( key );
+                }
+            }
+            if ( notFound.size() > 0 ) {
+                try {
+                    entityMap.putAll( getAndCache( notFound ) );
+                } catch ( Exception e ) {
+                    log.warning( e.getMessage() );
+                }
+            }
+        }
+        return entityMap;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Key, Entity> getAndCache( Iterable<Key> keys ) {
+        Map<Key, Entity> entityMap;
+        try {
+            entityMap = datastore.get( keys );
+        } catch ( DatastoreTimeoutException e ) {
+            entityMap = datastore.get( keys );
+        }
+        memcache.putAll( (Map)entityMap, expiration, SetPolicy.SET_ALWAYS );
+        return entityMap;
     }
     
     public Entity get( Transaction txn, Key key ) throws EntityNotFoundException {
@@ -166,7 +201,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         } catch ( DatastoreTimeoutException e ) {
             datastore.delete( keys );
         }
-        memcache.deleteAll( (Collection)keys ); // TODO: test to insure this cast really works
+        memcache.deleteAll( (Collection)keys );
     }
     
     public void delete( Transaction txn, Key ... keys ) {
@@ -208,6 +243,12 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     public PreparedQuery prepare( Transaction txn, Query query ) {
         return datastore.prepare( txn, query );
     }
+    
+    /***************************************************************************
+     *                                                                         *
+     *               W R I T E - B E H I N D   T A S K                         *
+     *                                                                         *
+     ***************************************************************************/
     
     @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res )
