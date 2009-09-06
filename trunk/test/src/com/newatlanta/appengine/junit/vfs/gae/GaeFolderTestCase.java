@@ -24,10 +24,10 @@ import org.apache.commons.vfs.Selectors;
 
 import com.google.appengine.api.datastore.Blob;
 import com.google.appengine.api.datastore.DatastoreService;
-import com.google.appengine.api.datastore.DatastoreServiceFactory;
 import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
+import com.newatlanta.appengine.datastore.CachingDatastoreService;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 
 /**
@@ -38,6 +38,14 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 public class GaeFolderTestCase extends GaeVfsTestCase {
 	
 	private static String[] rootChildren = { "/.svn", "/docs", "/images", "/temp", "/test-data", "/testFolder" };
+	
+	private DatastoreService datastore;
+	
+	@Override
+    public void setUp() throws Exception {
+        super.setUp();
+        datastore = new CachingDatastoreService();
+    }
 	
 	public void testFolders() throws Exception {
 		// root object
@@ -153,15 +161,13 @@ public class GaeFolderTestCase extends GaeVfsTestCase {
 		findFiles = rootObject.findFiles( Selectors.SELECT_SELF_AND_CHILDREN );
 	}
 	
-	private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
-	
-	private static void assertEntity( FileObject fileObject ) throws Exception {
+	private void assertEntity( FileObject fileObject ) throws Exception {
 		Key key = KeyFactory.createKey( "GaeFileObject", fileObject.getName().getPath() );
 		assertEntity( datastore.get( key ) );
 	}
 	
 	@SuppressWarnings("unchecked")
-	private static void assertEntity( Entity entity ) throws Exception {
+	private void assertEntity( Entity entity ) throws Exception {
 		assertNotNull( entity );
 		assertTrue( entity.hasProperty( "last-modified" ) );
 		assertTrue( entity.hasProperty( "filetype" ) );
