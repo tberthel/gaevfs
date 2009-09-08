@@ -15,13 +15,15 @@
  */
 package com.newatlanta.appengine.datastore;
 
-import static com.google.appengine.api.datastore.KeyFactory.createKey;
 import static com.google.appengine.api.datastore.KeyFactory.keyToString;
+import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.url;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -37,7 +39,6 @@ import com.google.appengine.api.datastore.DatastoreTimeoutException;
 import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
-import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.datastore.KeyRange;
 import com.google.appengine.api.datastore.PreparedQuery;
 import com.google.appengine.api.datastore.Query;
@@ -45,7 +46,6 @@ import com.google.appengine.api.datastore.Transaction;
 import com.google.appengine.api.labs.taskqueue.Queue;
 import com.google.appengine.api.labs.taskqueue.QueueFactory;
 import com.google.appengine.api.labs.taskqueue.TaskOptions;
-import com.google.appengine.api.labs.taskqueue.TaskOptions.Method;
 import com.google.appengine.api.memcache.Expiration;
 import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
@@ -62,7 +62,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     private static final String QUEUE_NAME = "write-behind-task";
     private static final String KEY_PARAM = "key";
-    private static final TaskOptions TASK_URL = TaskOptions.Builder.url( "/" + QUEUE_NAME );
+    private static final String TASK_URL = "/" + QUEUE_NAME;
     
     private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
     private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
@@ -73,10 +73,10 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     static {
         try {
             queue = QueueFactory.getQueue( QUEUE_NAME );
-            queue.add( TASK_URL ); // test queue configuration
+            queue.add( url( TASK_URL ) ); // verify queue configured
         } catch ( Exception e ) {
             log.info( e.getMessage() );
-            queue = QueueFactory.getDefaultQueue();
+            queue = QueueFactory.getDefaultQueue(); // TODO: test default queue
         }
     }
     
@@ -92,78 +92,108 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     /**
      * Gets an entity. Returns the entity from memcache, if it exists; otherwise,
-     * gets the entity from the datastore, writes it to memcache, then returns it.
+     * gets the entity from the datastore, puts it into memcache, then returns it.
      */
     public Entity get( Key key ) throws EntityNotFoundException {
-        Entity entity = (Entity)memcache.get( key );
+        return get( null, key );
+    }
+    
+    public Entity get( Transaction txn, Key key ) throws EntityNotFoundException {
+        String keyString = keyToString( key );
+        Entity entity = (Entity)memcache.get( keyString );
         if ( entity == null ) {
             try {
-                entity = datastore.get( key );
+                entity = datastore.get( txn, key );
             } catch ( DatastoreTimeoutException e ) {
-                entity = datastore.get( key );
+                entity = datastore.get( txn, key );
             }
-            memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
+            memcache.put( keyString, entity, expiration, SetPolicy.SET_ALWAYS );
         }
         return entity;
     }
     
-    @SuppressWarnings("unchecked")
+    /**
+     * WARNING! Don't rely on the ordering of entities returned by this method.
+     */
     public Map<Key, Entity> get( Iterable<Key> keys ) {
-        Map<Key, Entity> entityMap = (Map)memcache.getAll( (Collection)keys );
-        if ( entityMap.size() == 0 ) {
-            entityMap = getAndCache( keys );
-        } else if ( entityMap.size() < ((Collection)keys).size() ) {
+        return get( null, keys );
+    }
+    
+    
+    @SuppressWarnings("unchecked")
+    public Map<Key, Entity> get( Transaction txn, Iterable<Key> keys ) {
+        // TODO: this method has not been tested
+        Collection<Object> keyStrings = getKeyStrings( keys );
+        Map<Key, Entity> datastoreMap = getDatastoreMap( (Map)memcache.getAll( keyStrings ) );
+        if ( datastoreMap.isEmpty() ) {
+            return getAndCache( txn, keys );
+        }
+        if ( datastoreMap.size() < keyStrings.size() ) {
             List<Key> notFound = new ArrayList<Key>();
             for ( Key key : keys ) {
-                if ( !entityMap.containsKey( key ) ) {
+                if ( !datastoreMap.containsKey( key ) ) {
                     notFound.add( key );
                 }
             }
             if ( notFound.size() > 0 ) {
                 try {
-                    entityMap.putAll( getAndCache( notFound ) );
+                    datastoreMap.putAll( getAndCache( txn, notFound ) );
                 } catch ( Exception e ) {
                     log.warning( e.getMessage() );
                 }
             }
         }
-        return entityMap;
+        return datastoreMap;
+    }
+    
+    private static Collection<Object> getKeyStrings( Iterable<Key> keys ) {
+        Collection<Object> keyStrings = new ArrayList<Object>();
+        for ( Key key : keys ) {
+            keyStrings.add( keyToString( key ) );
+        }
+        return keyStrings;
+    }
+    
+    private static Map<Key, Entity> getDatastoreMap( Map<String, Entity> memcacheMap ) {
+        Map<Key, Entity> datastoreMap = new HashMap<Key, Entity>();
+        for ( Entity entity : memcacheMap.values() ) {
+            datastoreMap.put( entity.getKey(), entity );
+        }
+        return datastoreMap;
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Key, Entity> getAndCache( Iterable<Key> keys ) {
+    private Map<Key, Entity> getAndCache( Transaction txn, Iterable<Key> keys ) {
         Map<Key, Entity> entityMap;
         try {
-            entityMap = datastore.get( keys );
+            entityMap = datastore.get( txn, keys );
         } catch ( DatastoreTimeoutException e ) {
-            entityMap = datastore.get( keys );
+            entityMap = datastore.get( txn, keys );
         }
-        memcache.putAll( (Map)entityMap, expiration, SetPolicy.SET_ALWAYS );
+        memcache.putAll( (Map)getMemcacheMap( entityMap ), expiration, SetPolicy.SET_ALWAYS );
         return entityMap;
     }
     
-    public Entity get( Transaction txn, Key key ) throws EntityNotFoundException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    public Map<Key, Entity> get( Transaction txn, Iterable<Key> keys ) {
-        // TODO Auto-generated method stub
-        return null;
+    private static Map<String, Entity> getMemcacheMap( Map<Key, Entity> datastoreMap ) {
+        Map<String, Entity> memcacheMap = new HashMap<String, Entity>();
+        for ( Entity entity : datastoreMap.values() ) {
+            memcacheMap.put( keyToString( entity.getKey() ), entity );
+        }
+        return memcacheMap;
     }
     
     public Key put( Entity entity ) {
         Key key = entity.getKey();
         if ( !key.isComplete() ) {
-            // TODO: is this really better than just writing the entity to the datastore?
+            // TODO: this path has not been tested
             KeyRange keyRange = datastore.allocateIds( key.getParent(), key.getKind(), 1 );
-            key = createKey( key.getParent(), key.getKind(), keyRange.getStart().getId() );
+            key = keyRange.getStart();
         }
-        memcache.put( key, entity );
+        String keyString = keyToString( key );
+        memcache.put( keyString, entity, expiration, SetPolicy.SET_ALWAYS );
         try {
-            String keyString = keyToString( key );
-            queue.add( TASK_URL.param( KEY_PARAM, keyString ).method( Method.GET ) );
-            log.info( key + " " + keyString );
+            queue.add( url( TASK_URL ).param( KEY_PARAM, keyString ) );
+            log.info( key.toString() );
         } catch ( Exception e ) {
             log.warning( e.getMessage() );
             try {
@@ -175,41 +205,68 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         return key;
     }
     
+    @SuppressWarnings("unchecked")
     public List<Key> put( Iterable<Entity> entities ) {
-        // TODO Auto-generated method stub
-        return null;
+        List<Key> keyList = new ArrayList<Key>();
+        Map<String, Entity> memcacheMap = new HashMap<String, Entity>();
+        TaskOptions taskOptions = url( TASK_URL );
+        int i = 0;
+        for ( Entity entity : entities ) {
+            Key key = entity.getKey();
+            if ( !key.isComplete() ) {
+                // TODO: needs to be implemented
+            }
+            keyList.add( key );
+            String keyString = keyToString( key );
+            memcacheMap.put( keyString, entity );
+            taskOptions.param( KEY_PARAM + i++, keyString );
+            log.info( key.toString() );
+        }
+        memcache.putAll( (Map)memcacheMap, expiration, SetPolicy.SET_ALWAYS );
+        try {
+            queue.add( taskOptions );
+            return keyList;
+        } catch ( Exception e ) {
+            log.warning( e.getMessage() );
+            try {
+                return datastore.put( entities );
+            } catch ( DatastoreTimeoutException t ) {
+                return datastore.put( entities );
+            }
+        }
     }
     
+    /**
+     * Don't use write-behind cache with transactions.
+     */
     public Key put( Transaction txn, Entity entity ) {
-        // TODO Auto-generated method stub
-        return null;
+        return datastore.put( txn, entity );
     }
 
     public List<Key> put( Transaction txn, Iterable<Entity> entities ) {
-        // TODO Auto-generated method stub
-        return null;
+        return datastore.put( txn, entities );
     }
     
     public void delete( Key ... keys ) {
-        delete( Arrays.asList( keys ) );
+        delete( null, Arrays.asList( keys ) );
     }
     
-    @SuppressWarnings("unchecked")
     public void delete( Iterable<Key> keys ) {
-        try {
-            datastore.delete( keys );
-        } catch ( DatastoreTimeoutException e ) {
-            datastore.delete( keys );
-        }
-        memcache.deleteAll( (Collection)keys );
+        delete( null, keys );
     }
     
     public void delete( Transaction txn, Key ... keys ) {
-        // TODO Auto-generated method stub 
+        delete( txn, Arrays.asList( keys ) ); 
     }
 
+    @SuppressWarnings("unchecked")
     public void delete( Transaction txn, Iterable<Key> keys ) {
-        // TODO Auto-generated method stub
+        try {
+            datastore.delete( txn, keys );
+        } catch ( DatastoreTimeoutException e ) {
+            datastore.delete( txn, keys );
+        }
+        memcache.deleteAll( (Collection)keys );
     }
 
     public KeyRange allocateIds( String kind, long num ) {
@@ -236,6 +293,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         return datastore.getCurrentTransaction( returnedIfNoTxn );
     }
 
+    // TODO: is there a way to cache query results?
     public PreparedQuery prepare( Query query ) {
         return datastore.prepare( query );
     }
@@ -253,7 +311,6 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res )
             throws ServletException, IOException {
-        log.info( req.getQueryString() );
         doWriteBehindTask( req, res );
     }
 
@@ -266,28 +323,26 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     @SuppressWarnings("unchecked")
     private static void doWriteBehindTask( HttpServletRequest req, HttpServletResponse res )
             throws IOException {
-        String[] keyArray = req.getParameterValues( KEY_PARAM );
-        if ( ( keyArray != null ) && ( keyArray.length > 0 ) ) {
-            List<Object> keyList = new ArrayList<Object>( keyArray.length );
-            for ( String keyString : keyArray ) {
-                keyList.add( KeyFactory.stringToKey( keyString ) );
-            }
-            Map<Key, Entity> entityMap = (Map)memcache.getAll( keyList );
-            if ( entityMap.size() > 0 ) {
-                Collection<Entity> entities = entityMap.values();
-                // TODO: use of transactions should be optional/configurable.
-                Transaction txn = datastore.beginTransaction();
-                try {
-                    datastore.put( txn, entities );
-                    txn.commit();
-                } catch ( DatastoreTimeoutException e ) { // retry task
-                    res.sendError( HttpServletResponse.SC_REQUEST_TIMEOUT );
-                } catch ( Exception e ) {
-                    log.warning( e.getMessage() ); // don't retry
-                } finally {
-                    if ( txn.isActive() ) {
-                        txn.rollback();
-                    }
+        List<String> keys = new ArrayList<String>();
+        Enumeration<String> paramNames = req.getParameterNames();
+        while ( paramNames.hasMoreElements() ) {
+            // parameters can have only a single value (see issue #2090)
+            keys.add( req.getParameter( paramNames.nextElement() ) );
+        }
+        Map<String, Entity> entityMap = (Map)memcache.getAll( (List)keys );
+        if ( !entityMap.isEmpty() ) {
+            // TODO: using transactions should be optional (see issue #2090)
+            Transaction txn = datastore.beginTransaction();
+            try {
+                datastore.put( txn, entityMap.values() );
+                txn.commit();
+            } catch ( DatastoreTimeoutException e ) { // retry task
+                res.sendError( HttpServletResponse.SC_REQUEST_TIMEOUT );
+            } catch ( Exception e ) {
+                log.warning( e.getMessage() ); // don't retry
+            } finally {
+                if ( txn.isActive() ) {
+                    txn.rollback();
                 }
             }
         }
