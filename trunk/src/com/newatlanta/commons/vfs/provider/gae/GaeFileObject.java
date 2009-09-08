@@ -16,13 +16,16 @@
 package com.newatlanta.commons.vfs.provider.gae;
 
 import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.copyContent;
+import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.isDirty;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
@@ -35,7 +38,6 @@ import org.apache.commons.vfs.provider.AbstractFileSystem;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
 import com.google.appengine.api.datastore.DatastoreService;
-import com.google.appengine.api.datastore.DatastoreTimeoutException;
 import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
@@ -187,6 +189,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected void doDetach() throws FileSystemException {
         metadata = null;
+        //blockMap = null; // TODO
     }
 
     /**
@@ -198,7 +201,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected FileType doGetType() {
         try {
             // the only way to check if the metadata exists is to try to read it
-            if ( ( metadata != null ) && ( getEntity( metadata.getKey() ) != null ) ) {
+            if ( ( metadata != null ) && ( datastore.get( metadata.getKey() ) != null ) ) {
                 return getName().getType();
             }
         } catch ( EntityNotFoundException e ) {
@@ -302,8 +305,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                 // Entity newBlock = newGaeFile.getBlock( i );
                 // newBlock.setPropertiesFrom( getBlock( i ) );
                 // putBlock( newBlock );
-                putBlock( copyContent( getBlock( i ), newGaeFile.getBlock( i ) ) );
-                // TODO: write new blocks in a batch, not one at a time
+                copyContent( getBlock( i ), newGaeFile.getBlock( i ) );
+                putBlocks();
             }
             // TODO: test copying a file to one with a different block size
             newGaeFile.metadata.setProperty( CONTENT_SIZE, this.metadata.getProperty( CONTENT_SIZE ) );
@@ -368,7 +371,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             deleteMetaData();
         } else { // file/folder is being created or modified
-            putMetaData();
+            putMetaData(); // TODO: put blocks and metadata as single operation?
         }
     }
 
@@ -476,35 +479,43 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                                             bAppend && exists() ? doGetContentSize() : 0 );
     }
 
-    /**
-     * The following methods related to blocks are for use by
-     * GaeRandomAccessContent.
-     */
+    /***************************************************************************
+     * The following methods related to blocks are for use by                  * 
+     * GaeRandomAccessContent.                                                 *
+     ***************************************************************************/
+    
+    // TODO: retrieve blocks in bulk
+    private Map<Key, Entity> blockMap = new HashMap<Key, Entity>();
+    
     Entity getBlock( int i ) throws FileSystemException {
         if ( !exists() ) {
             createFile();
         }
-        Entity block = null;
         List<Key> blockKeys = getBlockKeys();
         if ( blockKeys == null ) {
             blockKeys = new ArrayList<Key>();
             metadata.setUnindexedProperty( BLOCK_KEYS, blockKeys );
         }
+        Entity block = null;
         if ( i < blockKeys.size() ) {
             Key key = blockKeys.get( i );
+            block = blockMap.get( key );
+            if ( block != null ) {
+                return block;
+            }
             try {
-                return getEntity( key );
+                block = datastore.get( key );
             } catch ( EntityNotFoundException e ) {
                 blockKeys.remove( key );
                 block = createBlock( blockKeys, i );
             }
-        } else {
+        } else { // i < blockKeys.size()
             for ( int j = blockKeys.size(); j <= i; j++ ) {
                 block = createBlock( blockKeys, j );
             }
         }
-        // a new block was created
-        putMetaData();
+        blockMap.put( block.getKey(), block );
+        putMetaData(); // TODO: here or when writing blocks?
         return block;
     }
 
@@ -513,15 +524,22 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         blockKeys.add( i, block.getKey() );
         return block;
     }
-
-    void putBlock( Entity block ) {
-        putEntity( block );
+    
+    void putBlocks() {
+        for ( Entity block : blockMap.values() ) {
+            if ( !isDirty( block, true ) ) {
+                blockMap.remove( block.getKey() );
+            }
+        }
+        if ( !blockMap.isEmpty() ) {
+            datastore.put( blockMap.values() );
+        }
     }
 
     private void deleteBlocks() throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
         if ( blockKeys != null ) {
-            deleteEntities( blockKeys );
+            datastore.delete( blockKeys );
         }
     }
 
@@ -535,32 +553,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             for ( int i = blockKeys.size() - 1; i > stopIndex; i-- ) {
                 deleteKeyList.add( blockKeys.remove( i ) );
             }
-            deleteEntities( deleteKeyList );
+            datastore.delete( deleteKeyList );
             putMetaData();
-        }
-    }
-
-    private Entity getEntity( Key key ) throws EntityNotFoundException {
-        try {
-            return datastore.get( key );
-        } catch ( DatastoreTimeoutException e ) {
-            return datastore.get( key ); // try twice upon timeout
-        }
-    }
-
-    private void putEntity( Entity entity ) {
-        try {
-            datastore.put( entity );
-        } catch ( DatastoreTimeoutException e ) {
-            datastore.put( entity ); // try twice upon timeout
-        }
-    }
-
-    private void deleteEntities( List<Key> keys ) {
-        try {
-            datastore.delete( keys );
-        } catch ( DatastoreTimeoutException e ) {
-            datastore.delete( keys ); // try twice upon timeout
         }
     }
 

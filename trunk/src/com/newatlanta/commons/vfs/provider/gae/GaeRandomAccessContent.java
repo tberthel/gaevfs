@@ -59,13 +59,14 @@ import com.google.appengine.api.datastore.Entity;
  */
 public class GaeRandomAccessContent extends OutputStream implements RandomAccessContent {
  
-    private static final String CONTENT_BLOB = "content-blob"; // property key
+    // property keys
+    private static final String CONTENT_BLOB = "content-blob";
+    private static final String DIRTY = "dirty";
     
     private GaeFileObject fileObject; // parent file
     
     private Entity block;   // the current block
     private int index;      // index of the current block
-    private boolean dirty;  // current block needs to be written?
     
     private long filePointer; // absolute position within the file
     
@@ -81,6 +82,22 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     static Entity copyContent( Entity oldEntity, Entity newEntity ) {
         newEntity.setProperty( CONTENT_BLOB, oldEntity.getProperty( CONTENT_BLOB ) );
         return newEntity;
+    }
+    
+    static boolean isDirty( Entity block, boolean removeProperty ) {
+        Boolean dirty = (Boolean)block.getProperty( DIRTY );
+        if ( removeProperty ) {
+            block.removeProperty( DIRTY );
+        }
+        return ( ( dirty != null ) && dirty.booleanValue() );
+    }
+    
+    private boolean isDirty() {
+        return isDirty( block, false );
+    }
+    
+    private void setDirty( boolean dirty ) {
+        block.setProperty( DIRTY, Boolean.valueOf( dirty ) );
     }
     
     GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, int _blockSize )
@@ -105,6 +122,11 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     
     @Override
     public synchronized void close() throws IOException {
+        closeBlock();
+        fileObject.putBlocks();
+    }
+    
+    private synchronized void closeBlock() throws IOException {
         flush();
         block = null;
         buffer = null;
@@ -115,8 +137,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     
     @Override
     public synchronized void flush() throws FileSystemException {
-        if ( dirty && ( block != null ) && ( buffer != null ) ) {
-            boolean setBlobProperty = true;
+        if ( ( block != null ) && isDirty() && ( buffer != null ) ) {
             long fileLen = length();
             // if this is the last block for the file, and the buffer is less than
             // half full, only write out the actual number of bytes
@@ -129,14 +150,10 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
                     byte[] outbuf = new byte[ eofoffset ];
                     System.arraycopy( buffer, 0, outbuf, 0, outbuf.length );
                     block.setProperty( CONTENT_BLOB, new Blob( outbuf ) );
-                    setBlobProperty = false;
+                    return;
                 }
             }
-            if ( setBlobProperty ) {
-                block.setProperty( CONTENT_BLOB, new Blob( buffer ) );
-            }
-            fileObject.putBlock( block );
-            dirty = false;
+            block.setProperty( CONTENT_BLOB, new Blob( buffer ) );
         }
     }
 
@@ -165,7 +182,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         }
         int newIndex = calcBlockIndex( pos );
         if ( newIndex != index ) {
-            close();
+            closeBlock();
             index = newIndex;
         }
         filePointer = pos;
@@ -259,7 +276,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             extendBuffer( offset + len );
         }
         System.arraycopy( b, off, buffer, offset, len );
-        dirty = true;
+        setDirty( true );
     }
 
     /**
@@ -290,7 +307,6 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         }
         if ( block == null ) {
             block = fileObject.getBlock( index );
-            dirty = false;
         }
         Blob contentBlob = (Blob)block.getProperty( CONTENT_BLOB );
         buffer = ( contentBlob != null ? contentBlob.getBytes()
