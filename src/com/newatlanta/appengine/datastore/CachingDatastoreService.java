@@ -135,13 +135,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                     notFound.add( key );
                 }
             }
-            if ( notFound.size() > 0 ) {
-                try {
-                    datastoreMap.putAll( getAndCache( txn, notFound ) );
-                } catch ( Exception e ) {
-                    log.warning( e.getMessage() );
-                }
-            }
+            datastoreMap.putAll( getAndCache( txn, notFound ) );
         }
         return datastoreMap;
     }
