@@ -52,7 +52,7 @@ import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 
 /**
- * Implements a <code>DatastoreServer</code> that automatically caches entities
+ * Implements a <code>DatastoreService</code> that automatically caches entities
  * in memcache. Uses a write-behind cache when writing entities to the datastore.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
