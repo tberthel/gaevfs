@@ -253,14 +253,13 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         delete( txn, Arrays.asList( keys ) ); 
     }
 
-    @SuppressWarnings("unchecked")
     public void delete( Transaction txn, Iterable<Key> keys ) {
         try {
             datastore.delete( txn, keys );
         } catch ( DatastoreTimeoutException e ) {
             datastore.delete( txn, keys );
         }
-        memcache.deleteAll( (Collection)keys );
+        memcache.deleteAll( getKeyStrings( keys ) );
     }
 
     public KeyRange allocateIds( String kind, long num ) {
