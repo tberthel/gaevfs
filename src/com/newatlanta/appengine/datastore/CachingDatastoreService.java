@@ -408,32 +408,48 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
      * CA 95054 USA or visit www.sun.com if you need additional information or
      * have any questions.
      */
-    public static byte[] decode( String s ) {
+    private static byte[] decode( String s ) {
         int numChars = s.length();
-        ByteBuffer buff = ByteBuffer.allocate( numChars / 3 );
+        ByteBuffer buff = ByteBuffer.allocate( numChars );
         int i = 0;
-        char c = s.charAt( i );
-        /*
-         * Starting with this instance of %, process all consecutive substrings of
-         * the form %xy. Each substring %xy will yield a byte.
-         */
-        try {
-            // (numChars-i)/3 is an upper bound for the number of remaining bytes
-            while ( ( ( i + 2 ) < numChars ) && ( c == '%' ) ) {
-                buff.put( (byte)Integer.parseInt( s.substring( i + 1, i + 3 ), 16 ) );
-                i += 3;
-                if ( i < numChars ) {
-                    c = s.charAt( i );
-                }
+        while ( i < numChars ) {
+            char c = s.charAt( i );
+            switch ( c ) {
+                case '+' :
+                    buff.put( (byte)' ' );
+                    i++;
+                    break;
+                    
+                case '%' :
+                    /*
+                     * Process all consecutive substrings of the form %xy. Each
+                     * substring %xy will yield a byte.
+                     */
+                    try {
+                        // (numChars-i)/3 is an upper bound for the number of remaining bytes
+                        while ( ( ( i + 2 ) < numChars ) && ( c == '%' ) ) {
+                            buff.put( (byte)Integer.parseInt( s.substring( i + 1, i + 3 ), 16 ) );
+                            i += 3;
+                            if ( i < numChars ) {
+                                c = s.charAt( i );
+                            }
+                        }
+                        // A trailing, incomplete byte encoding such as "%x" will cause an exception to be thrown
+                        if ( ( i < numChars ) && ( c == '%' ) ) {
+                            throw new IllegalArgumentException( "URLDecoder: Incomplete trailing escape (%) pattern" );
+                        }
+                    } catch ( NumberFormatException e ) {
+                        throw new IllegalArgumentException( "URLDecoder: Illegal hex characters in escape (%) pattern - "
+                                + e.getMessage() );
+                    }
+                    break;
+                    
+                default :
+                    buff.put( (byte)c );
+                    i++;
+                    break;
             }
-            // A trailing, incomplete byte encoding such as "%x" will cause an exception to be thrown
-            if ( ( i < numChars ) && ( c == '%' ) ) {
-                throw new IllegalArgumentException( "URLDecoder: Incomplete trailing escape (%) pattern" );
-            }
-        } catch ( NumberFormatException e ) {
-            throw new IllegalArgumentException( "URLDecoder: Illegal hex characters in escape (%) pattern - "
-                    + e.getMessage() );
         }
-        return buff.array();
+        return Arrays.copyOfRange( buff.array(), 0, i );
     }
 }
