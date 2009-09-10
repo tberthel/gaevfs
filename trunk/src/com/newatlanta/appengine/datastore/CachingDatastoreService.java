@@ -15,14 +15,19 @@
  */
 package com.newatlanta.appengine.datastore;
 
-import static com.google.appengine.api.datastore.KeyFactory.keyToString;
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.url;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +50,7 @@ import com.google.appengine.api.datastore.Query;
 import com.google.appengine.api.datastore.Transaction;
 import com.google.appengine.api.labs.taskqueue.Queue;
 import com.google.appengine.api.labs.taskqueue.QueueFactory;
-import com.google.appengine.api.labs.taskqueue.TaskOptions;
+import com.google.appengine.api.labs.taskqueue.TaskOptions.Method;
 import com.google.appengine.api.memcache.Expiration;
 import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
@@ -61,7 +66,6 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 public class CachingDatastoreService extends HttpServlet implements DatastoreService {
     
     private static final String QUEUE_NAME = "write-behind-task";
-    private static final String KEY_PARAM = "key";
     private static final String TASK_URL = "/" + QUEUE_NAME;
     
     private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
@@ -80,14 +84,20 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
     }
     
+    public enum CacheOption {
+        WRITE_THROUGH, WRITE_BEHIND 
+    }
+    
+    private CacheOption cacheOption;
     private Expiration expiration;
     
     public CachingDatastoreService() {
-        this( null );
+        this( CacheOption.WRITE_BEHIND, null );
     }
     
-    public CachingDatastoreService( Expiration expiration ) {
+    public CachingDatastoreService( CacheOption cacheOption, Expiration expiration ) {
         this.expiration = expiration;
+        this.cacheOption = cacheOption;
     }
     
     /**
@@ -99,15 +109,14 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     }
     
     public Entity get( Transaction txn, Key key ) throws EntityNotFoundException {
-        String keyString = keyToString( key );
-        Entity entity = (Entity)memcache.get( keyString );
+        Entity entity = (Entity)memcache.get( key );
         if ( entity == null ) {
             try {
                 entity = datastore.get( txn, key );
             } catch ( DatastoreTimeoutException e ) {
                 entity = datastore.get( txn, key );
             }
-            memcache.put( keyString, entity, expiration, SetPolicy.SET_ALWAYS );
+            memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
         }
         return entity;
     }
@@ -123,57 +132,32 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     @SuppressWarnings("unchecked")
     public Map<Key, Entity> get( Transaction txn, Iterable<Key> keys ) {
         // TODO: this method has not been tested
-        Collection<Object> keyStrings = keysToStrings( keys );
-        Map<Key, Entity> keyEntityMap = mapStringToKey( (Map)memcache.getAll( keyStrings ) );
-        if ( keyEntityMap.isEmpty() ) {
+        Map<Key, Entity> entities = (Map)memcache.getAll( (Collection)keys );
+        if ( entities.isEmpty() ) {
             return getAndCache( txn, keys );
         }
-        if ( keyEntityMap.size() < keyStrings.size() ) {
+        if ( entities.size() < ((Collection)keys).size() ) {
             List<Key> keyList = new ArrayList<Key>();
             for ( Key key : keys ) {
-                if ( !keyEntityMap.containsKey( key ) ) {
+                if ( !entities.containsKey( key ) ) {
                     keyList.add( key );
                 }
             }
-            keyEntityMap.putAll( getAndCache( txn, keyList ) );
+            entities.putAll( getAndCache( txn, keyList ) );
         }
-        return keyEntityMap;
-    }
-    
-    private static Collection<Object> keysToStrings( Iterable<Key> keys ) {
-        Collection<Object> keyStrings = new ArrayList<Object>();
-        for ( Key key : keys ) {
-            keyStrings.add( keyToString( key ) );
-        }
-        return keyStrings;
-    }
-    
-    private static Map<Key, Entity> mapStringToKey( Map<String, Entity> stringEntityMap ) {
-        Map<Key, Entity> keyEntityMap = new HashMap<Key, Entity>();
-        for ( Entity entity : stringEntityMap.values() ) {
-            keyEntityMap.put( entity.getKey(), entity );
-        }
-        return keyEntityMap;
+        return entities;
     }
 
     @SuppressWarnings("unchecked")
     private Map<Key, Entity> getAndCache( Transaction txn, Iterable<Key> keys ) {
-        Map<Key, Entity> keyEntityMap;
+        Map<Key, Entity> entities;
         try {
-            keyEntityMap = datastore.get( txn, keys );
+            entities = datastore.get( txn, keys );
         } catch ( DatastoreTimeoutException e ) {
-            keyEntityMap = datastore.get( txn, keys );
+            entities = datastore.get( txn, keys );
         }
-        memcache.putAll( (Map)mapKeyToString( keyEntityMap ), expiration, SetPolicy.SET_ALWAYS );
-        return keyEntityMap;
-    }
-    
-    private static Map<String, Entity> mapKeyToString( Map<Key, Entity> keyEntityMap ) {
-        Map<String, Entity> stringEntityMap = new HashMap<String, Entity>();
-        for ( Entity entity : keyEntityMap.values() ) {
-            stringEntityMap.put( keyToString( entity.getKey() ), entity );
-        }
-        return stringEntityMap;
+        memcache.putAll( (Map)entities, expiration, SetPolicy.SET_ALWAYS );
+        return entities;
     }
     
     public Key put( Entity entity ) {
@@ -183,51 +167,70 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             KeyRange keyRange = datastore.allocateIds( key.getParent(), key.getKind(), 1 );
             key = keyRange.getStart();
         }
-        String keyString = keyToString( key );
-        memcache.put( keyString, entity, expiration, SetPolicy.SET_ALWAYS );
-        try {
-            queue.add( url( TASK_URL ).param( KEY_PARAM, keyString ) );
-            log.info( key.toString() );
-        } catch ( Exception e ) {
-            log.warning( e.getMessage() );
+        memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
+        if ( cacheOption == CacheOption.WRITE_BEHIND ) {
             try {
-                key = datastore.put( entity );
-            } catch ( DatastoreTimeoutException t ) {
-                key = datastore.put( entity );
+                byte[] objectBytes = serialize( key );
+                // TODO: fix this when issue #2097 is resolved
+//                String contentType = "application/x-java-serialized-object";
+//                queue.add( url( TASK_URL ).payload( objectBytes, contentType ) );
+                queue.add( url( TASK_URL ).method( Method.GET ).param( "payload", objectBytes ) );
+                log.info( key.toString() );
+                return key;
+            } catch ( Exception e ) {
+                log.warning( e.getMessage() );
             }
         }
-        return key;
+        // WRITE_THROUGH, or failed to queue write-behind task
+        try {
+            return datastore.put( entity );
+        } catch ( DatastoreTimeoutException t ) {
+            return datastore.put( entity );
+        }
     }
     
     @SuppressWarnings("unchecked")
     public List<Key> put( Iterable<Entity> entities ) {
-        List<Key> keyList = new ArrayList<Key>();
-        Map<String, Entity> stringEntityMap = new HashMap<String, Entity>();
-        TaskOptions taskOptions = url( TASK_URL );
-        int i = 0;
+        // create Map<Key, Entity> for memcache putAll()
+        Map<Key, Entity> entityMap = new HashMap<Key, Entity>();
         for ( Entity entity : entities ) {
             Key key = entity.getKey();
             if ( !key.isComplete() ) {
-                // TODO: needs to be implemented
+                // TODO: to be implemented
             }
-            keyList.add( key );
-            String keyString = keyToString( key );
-            stringEntityMap.put( keyString, entity );
-            taskOptions.param( KEY_PARAM + i++, keyString );
+            entityMap.put( key, entity );
             log.info( key.toString() );
         }
-        memcache.putAll( (Map)stringEntityMap, expiration, SetPolicy.SET_ALWAYS );
-        try {
-            queue.add( taskOptions );
-            return keyList;
-        } catch ( Exception e ) {
-            log.warning( e.getMessage() );
+        memcache.putAll( (Map)entityMap, expiration, SetPolicy.SET_ALWAYS );
+        if ( cacheOption == CacheOption.WRITE_BEHIND ) {
             try {
-                return datastore.put( entities );
-            } catch ( DatastoreTimeoutException t ) {
-                return datastore.put( entities );
+                // serialize key set for task options payload
+                List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
+                byte[] objectBytes = serialize( keyList );
+                // TODO: fix this when issue #2097 is resolved
+//                String contentType = "application/x-java-serialized-object";
+//                queue.add( url( TASK_URL ).payload( objectBytes, contentType ) );
+                queue.add( url( TASK_URL ).method( Method.GET ).param( "payload", objectBytes ) );
+                return keyList;
+            } catch ( Exception e ) {
+                log.warning( e.getMessage() );
             }
         }
+        // WRITE_THROUGH, or failed to queue write-behind task
+        try {
+            return datastore.put( entities );
+        } catch ( DatastoreTimeoutException t ) {
+            return datastore.put( entities );
+        }
+    }
+    
+    private static byte[] serialize( Object object ) throws IOException {
+        ByteArrayOutputStream bytesOut = new ByteArrayOutputStream();
+        ObjectOutputStream objectOut = new ObjectOutputStream( 
+                                            new BufferedOutputStream( bytesOut ) );
+        objectOut.writeObject( object );
+        objectOut.close();
+        return bytesOut.toByteArray();
     }
     
     /**
@@ -253,13 +256,14 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         delete( txn, Arrays.asList( keys ) ); 
     }
 
+    @SuppressWarnings("unchecked")
     public void delete( Transaction txn, Iterable<Key> keys ) {
         try {
             datastore.delete( txn, keys );
         } catch ( DatastoreTimeoutException e ) {
             datastore.delete( txn, keys );
         }
-        memcache.deleteAll( keysToStrings( keys ) );
+        memcache.deleteAll( (Collection)keys );
     }
 
     public KeyRange allocateIds( String kind, long num ) {
@@ -316,18 +320,32 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     @SuppressWarnings("unchecked")
     private static void doWriteBehindTask( HttpServletRequest req, HttpServletResponse res )
             throws IOException {
-        List<String> keys = new ArrayList<String>();
-        Enumeration<String> paramNames = req.getParameterNames();
-        while ( paramNames.hasMoreElements() ) {
-            // parameters can have only a single value (see issue #2090)
-            keys.add( req.getParameter( paramNames.nextElement() ) );
+        Object payload = null;
+        try {
+            payload = deserialize( req );
+            if ( payload == null ) {
+                return;
+            }
+        } catch ( Exception e ) {
+            log.warning( e.getMessage() );
+            return;
         }
-        Map<String, Entity> stringEntityMap = (Map)memcache.getAll( (List)keys );
-        if ( !stringEntityMap.isEmpty() ) {
+        List<Key> keys;
+        if ( payload instanceof Key ) {
+            keys = new ArrayList<Key>();
+            keys.add( (Key)payload );
+        } else if ( payload instanceof List ) {
+            keys = (List)payload;
+        } else {
+            log.warning( payload.getClass().getName() );
+            return;
+        }
+        Map<String, Entity> entityMap = (Map)memcache.getAll( (List)keys );
+        if ( !entityMap.isEmpty() ) {
             // TODO: using transactions should be optional
             Transaction txn = datastore.beginTransaction();
             try {
-                datastore.put( txn, stringEntityMap.values() );
+                datastore.put( txn, entityMap.values() );
                 txn.commit();
             } catch ( DatastoreTimeoutException e ) { // retry task
                 res.sendError( HttpServletResponse.SC_REQUEST_TIMEOUT );
@@ -339,5 +357,83 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                 }
             }
         }
+    }
+    
+    private static Object deserialize( HttpServletRequest req ) throws IOException {
+       // TODO: fix this when issue #2097 is resolved
+//        byte[] bytesIn = new byte[ req.getContentLength() ];
+//        req.getInputStream().readLine( bytesIn, 0, bytesIn.length );
+        String qs = req.getQueryString();
+        if ( qs == null ) {
+            return null;
+        }
+        byte[] bytesIn = decode( qs.substring( "payload=".length() ) );
+        ObjectInputStream objectIn = new ObjectInputStream( new BufferedInputStream( 
+                                        new ByteArrayInputStream( bytesIn ) ) );
+        try {
+            return objectIn.readObject();
+        } catch ( ClassNotFoundException e ) {
+            log.warning( e.getMessage() );
+            return null;
+        } finally {
+            objectIn.close();
+        }
+    }
+    
+    /*
+     * This method copied from java.net.URLDecoder and modified to return a byte
+     * array instead of a string. Also, it only works for strings with *every* 
+     * character is hex-encoded.
+     * 
+     * Copyright 1998-2006 Sun Microsystems, Inc.  All Rights Reserved.
+     * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+     *
+     * This code is free software; you can redistribute it and/or modify it
+     * under the terms of the GNU General Public License version 2 only, as
+     * published by the Free Software Foundation.  Sun designates this
+     * particular file as subject to the "Classpath" exception as provided
+     * by Sun in the LICENSE file that accompanied this code.
+     *
+     * This code is distributed in the hope that it will be useful, but WITHOUT
+     * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+     * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+     * version 2 for more details (a copy is included in the LICENSE file that
+     * accompanied this code).
+     *
+     * You should have received a copy of the GNU General Public License version
+     * 2 along with this work; if not, write to the Free Software Foundation,
+     * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+     *
+     * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa Clara,
+     * CA 95054 USA or visit www.sun.com if you need additional information or
+     * have any questions.
+     */
+    public static byte[] decode( String s ) {
+        int numChars = s.length();
+        ByteBuffer buff = ByteBuffer.allocate( numChars / 3 );
+        int i = 0;
+        char c = s.charAt( i );
+        /*
+         * Starting with this instance of %, process all consecutive substrings of
+         * the form %xy. Each substring %xy will yield a byte.
+         */
+        try {
+            // (numChars-i)/3 is an upper bound for the number of remaining bytes
+            while ( ( ( i + 2 ) < numChars ) && ( c == '%' ) ) {
+                buff.put( (byte)Integer.parseInt( s.substring( i + 1, i + 3 ), 16 ) );
+                i += 3;
+                if ( i < numChars ) {
+                    c = s.charAt( i );
+                }
+            }
+            // A trailing, incomplete byte encoding such as "%x" will cause an exception to be thrown
+            if ( ( i < numChars ) && ( c == '%' ) ) {
+                throw new IllegalArgumentException( "URLDecoder: Incomplete trailing escape (%) pattern" );
+            }
+        } catch ( NumberFormatException e ) {
+            throw new IllegalArgumentException( "URLDecoder: Illegal hex characters in escape (%) pattern - "
+                    + e.getMessage() );
+        }
+        return buff.array();
     }
 }
