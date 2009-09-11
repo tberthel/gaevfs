@@ -24,7 +24,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -50,10 +49,12 @@ import com.google.appengine.api.datastore.Query;
 import com.google.appengine.api.datastore.Transaction;
 import com.google.appengine.api.labs.taskqueue.Queue;
 import com.google.appengine.api.labs.taskqueue.QueueFactory;
-import com.google.appengine.api.labs.taskqueue.TaskOptions.Method;
+import com.google.appengine.api.memcache.ErrorHandler;
 import com.google.appengine.api.memcache.Expiration;
 import com.google.appengine.api.memcache.MemcacheService;
+import com.google.appengine.api.memcache.MemcacheServiceException;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
+import com.google.appengine.api.memcache.StrictErrorHandler;
 import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 
 /**
@@ -67,10 +68,14 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     private static final String QUEUE_NAME = "write-behind-task";
     private static final String TASK_URL = "/" + QUEUE_NAME;
+    private static final String TASK_CONTENT_TYPE = "application/x-java-serialized-object";
     
     private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
     private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
     private static Queue queue;
+    
+    private static final ErrorHandler STRICT_ERROR_HANDLER = new StrictErrorHandler();
+    private static final ErrorHandler DEFAULT_ERROR_HANDLER = memcache.getErrorHandler();
     
     private static final Logger log = Logger.getLogger( CachingDatastoreService.class.getName() );
     
@@ -122,18 +127,17 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     }
     
     /**
-     * WARNING! Don't rely on the ordering of entities returned by this method.
+     * Don't rely on the ordering of entities returned by this method.
      */
     public Map<Key, Entity> get( Iterable<Key> keys ) {
         return get( null, keys );
     }
     
-    
     @SuppressWarnings("unchecked")
     public Map<Key, Entity> get( Transaction txn, Iterable<Key> keys ) {
         // TODO: this method has not been tested
         Map<Key, Entity> entities = (Map)memcache.getAll( (Collection)keys );
-        if ( entities.isEmpty() ) {
+        if ( ( entities == null ) || entities.isEmpty() ) {
             return getAndCache( txn, keys );
         }
         if ( entities.size() < ((Collection)keys).size() ) {
@@ -167,21 +171,25 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             KeyRange keyRange = datastore.allocateIds( key.getParent(), key.getKind(), 1 );
             key = keyRange.getStart();
         }
-        memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
-        if ( cacheOption == CacheOption.WRITE_BEHIND ) {
-            try {
-                byte[] objectBytes = serialize( key );
-                // TODO: fix this when issue #2097 is resolved
-//                String contentType = "application/x-java-serialized-object";
-//                queue.add( url( TASK_URL ).payload( objectBytes, contentType ) );
-                queue.add( url( TASK_URL ).method( Method.GET ).param( "payload", objectBytes ) );
-                log.info( key.toString() );
-                return key;
-            } catch ( Exception e ) {
-                log.warning( e.getMessage() );
+        try {
+            memcache.setErrorHandler( STRICT_ERROR_HANDLER );
+            memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
+            if ( cacheOption == CacheOption.WRITE_BEHIND ) {
+                try {
+                    queue.add( url( TASK_URL ).payload( serialize( key ), TASK_CONTENT_TYPE ) );
+                    log.info( key.toString() );
+                    return key;
+                } catch ( Exception e ) {
+                    log.warning( e.getMessage() );
+                }
             }
+        } catch ( MemcacheServiceException e ) {
+            log.warning( e.getMessage() );
+        } finally {
+            memcache.setErrorHandler( DEFAULT_ERROR_HANDLER );
         }
-        // WRITE_THROUGH, or failed to queue write-behind task
+        // if WRITE_THROUGH, or failed to write memcache, or failed to queue
+        // write-behind task, then write directly to datastore
         try {
             return datastore.put( entity );
         } catch ( DatastoreTimeoutException t ) {
@@ -201,22 +209,25 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             entityMap.put( key, entity );
             log.info( key.toString() );
         }
-        memcache.putAll( (Map)entityMap, expiration, SetPolicy.SET_ALWAYS );
-        if ( cacheOption == CacheOption.WRITE_BEHIND ) {
-            try {
-                // serialize key set for task options payload
-                List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
-                byte[] objectBytes = serialize( keyList );
-                // TODO: fix this when issue #2097 is resolved
-//                String contentType = "application/x-java-serialized-object";
-//                queue.add( url( TASK_URL ).payload( objectBytes, contentType ) );
-                queue.add( url( TASK_URL ).method( Method.GET ).param( "payload", objectBytes ) );
-                return keyList;
-            } catch ( Exception e ) {
-                log.warning( e.getMessage() );
+        try {
+            memcache.setErrorHandler( STRICT_ERROR_HANDLER );
+            memcache.putAll( (Map)entityMap, expiration, SetPolicy.SET_ALWAYS );
+            if ( cacheOption == CacheOption.WRITE_BEHIND ) {
+                try {
+                    List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
+                    queue.add( url( TASK_URL ).payload( serialize( keyList ), TASK_CONTENT_TYPE ) );
+                    return keyList;
+                } catch ( Exception e ) {
+                    log.warning( e.getMessage() );
+                }
             }
+        } catch ( MemcacheServiceException e ) {
+            log.warning( e.getMessage() );
+        } finally {
+            memcache.setErrorHandler( DEFAULT_ERROR_HANDLER );
         }
-        // WRITE_THROUGH, or failed to queue write-behind task
+        // if WRITE_THROUGH, or failed to write memcache, or failed to queue
+        // write-behind task, then write directly to datastore
         try {
             return datastore.put( entities );
         } catch ( DatastoreTimeoutException t ) {
@@ -258,6 +269,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
 
     @SuppressWarnings("unchecked")
     public void delete( Transaction txn, Iterable<Key> keys ) {
+        // TODO: this method has not been tested
         try {
             datastore.delete( txn, keys );
         } catch ( DatastoreTimeoutException e ) {
@@ -290,7 +302,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         return datastore.getCurrentTransaction( returnedIfNoTxn );
     }
 
-    // TODO: is there a way to cache query results?
+    // TODO: cache query results?
     public PreparedQuery prepare( Query query ) {
         return datastore.prepare( query );
     }
@@ -341,8 +353,8 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             return;
         }
         Map<String, Entity> entityMap = (Map)memcache.getAll( (List)keys );
-        if ( !entityMap.isEmpty() ) {
-            // TODO: using transactions should be optional
+        if ( ( entityMap != null ) && !entityMap.isEmpty() ) {
+            // TODO: transactions should be optional
             Transaction txn = datastore.beginTransaction();
             try {
                 datastore.put( txn, entityMap.values() );
@@ -359,97 +371,15 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
     }
     
-    private static Object deserialize( HttpServletRequest req ) throws IOException {
-       // TODO: fix this when issue #2097 is resolved
-//        byte[] bytesIn = new byte[ req.getContentLength() ];
-//        req.getInputStream().readLine( bytesIn, 0, bytesIn.length );
-        String qs = req.getQueryString();
-        if ( qs == null ) {
-            return null;
-        }
-        byte[] bytesIn = decode( qs.substring( "payload=".length() ) );
+    private static Object deserialize( HttpServletRequest req ) throws Exception {
+        byte[] bytesIn = new byte[ req.getContentLength() ];
+        req.getInputStream().readLine( bytesIn, 0, bytesIn.length );
         ObjectInputStream objectIn = new ObjectInputStream( new BufferedInputStream( 
                                         new ByteArrayInputStream( bytesIn ) ) );
         try {
             return objectIn.readObject();
-        } catch ( ClassNotFoundException e ) {
-            log.warning( e.getMessage() );
-            return null;
         } finally {
             objectIn.close();
         }
-    }
-    
-    /*
-     * This method copied from java.net.URLDecoder and modified to return a byte
-     * array instead of a string. Also, it only works for strings with *every* 
-     * character is hex-encoded.
-     * 
-     * Copyright 1998-2006 Sun Microsystems, Inc.  All Rights Reserved.
-     * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
-     *
-     * This code is free software; you can redistribute it and/or modify it
-     * under the terms of the GNU General Public License version 2 only, as
-     * published by the Free Software Foundation.  Sun designates this
-     * particular file as subject to the "Classpath" exception as provided
-     * by Sun in the LICENSE file that accompanied this code.
-     *
-     * This code is distributed in the hope that it will be useful, but WITHOUT
-     * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-     * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-     * version 2 for more details (a copy is included in the LICENSE file that
-     * accompanied this code).
-     *
-     * You should have received a copy of the GNU General Public License version
-     * 2 along with this work; if not, write to the Free Software Foundation,
-     * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
-     *
-     * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa Clara,
-     * CA 95054 USA or visit www.sun.com if you need additional information or
-     * have any questions.
-     */
-    private static byte[] decode( String s ) {
-        int numChars = s.length();
-        ByteBuffer buff = ByteBuffer.allocate( numChars );
-        int i = 0;
-        while ( i < numChars ) {
-            char c = s.charAt( i );
-            switch ( c ) {
-                case '+' :
-                    buff.put( (byte)' ' );
-                    i++;
-                    break;
-                    
-                case '%' :
-                    /*
-                     * Process all consecutive substrings of the form %xy. Each
-                     * substring %xy will yield a byte.
-                     */
-                    try {
-                        // (numChars-i)/3 is an upper bound for the number of remaining bytes
-                        while ( ( ( i + 2 ) < numChars ) && ( c == '%' ) ) {
-                            buff.put( (byte)Integer.parseInt( s.substring( i + 1, i + 3 ), 16 ) );
-                            i += 3;
-                            if ( i < numChars ) {
-                                c = s.charAt( i );
-                            }
-                        }
-                        // A trailing, incomplete byte encoding such as "%x" will cause an exception to be thrown
-                        if ( ( i < numChars ) && ( c == '%' ) ) {
-                            throw new IllegalArgumentException( "URLDecoder: Incomplete trailing escape (%) pattern" );
-                        }
-                    } catch ( NumberFormatException e ) {
-                        throw new IllegalArgumentException( "URLDecoder: Illegal hex characters in escape (%) pattern - "
-                                + e.getMessage() );
-                    }
-                    break;
-                    
-                default :
-                    buff.put( (byte)c );
-                    i++;
-                    break;
-            }
-        }
-        return Arrays.copyOfRange( buff.array(), 0, i );
     }
 }
