@@ -135,7 +135,6 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     @SuppressWarnings("unchecked")
     public Map<Key, Entity> get( Transaction txn, Iterable<Key> keys ) {
-        // TODO: this method has not been tested
         Map<Key, Entity> entities = (Map)memcache.getAll( (Collection)keys );
         if ( ( entities == null ) || entities.isEmpty() ) {
             return getAndCache( txn, keys );
@@ -176,7 +175,8 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
             if ( cacheOption == CacheOption.WRITE_BEHIND ) {
                 try {
-                    queue.add( url( TASK_URL ).payload( serialize( key ), TASK_CONTENT_TYPE ) );
+                    queue.add( url( TASK_URL ).payload( serialize( key ),
+                                                            TASK_CONTENT_TYPE ) );
                     log.info( key.toString() );
                     return key;
                 } catch ( Exception e ) {
@@ -184,7 +184,8 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                 }
             }
         } catch ( MemcacheServiceException e ) {
-            log.warning( e.getMessage() );
+            log.warning( e.getCause() != null ? e.getCause().getMessage() 
+                                              : e.getMessage() );
         } finally {
             memcache.setErrorHandler( DEFAULT_ERROR_HANDLER );
         }
@@ -215,14 +216,16 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             if ( cacheOption == CacheOption.WRITE_BEHIND ) {
                 try {
                     List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
-                    queue.add( url( TASK_URL ).payload( serialize( keyList ), TASK_CONTENT_TYPE ) );
+                    queue.add( url( TASK_URL ).payload( serialize( keyList ),
+                                                            TASK_CONTENT_TYPE ) );
                     return keyList;
                 } catch ( Exception e ) {
                     log.warning( e.getMessage() );
                 }
             }
         } catch ( MemcacheServiceException e ) {
-            log.warning( e.getMessage() );
+            log.warning( e.getCause() != null ? e.getCause().getMessage() 
+                                              : e.getMessage() );
         } finally {
             memcache.setErrorHandler( DEFAULT_ERROR_HANDLER );
         }
