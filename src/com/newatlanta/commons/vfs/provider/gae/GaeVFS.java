@@ -40,7 +40,9 @@ public class GaeVFS {
     
     static final Logger log = Logger.getLogger( GaeVFS.class.getName() );
 
-    private static final int DEFAULT_BLOCK_SIZE = 1024 * 128; // max 1024 x 1023
+    public static final int MAX_BLOCK_SIZE = 1020; // in units of KB
+    
+    private static final int DEFAULT_BLOCK_SIZE = 1024 * 128;
     
     static {
         // GAE doesn't set these values; Commons VFS will fail to initialize if
@@ -82,30 +84,30 @@ public class GaeVFS {
      * Sets the default block size used when creating new files. GaeVFS stores
      * files as a series of blocks. Each block corresponds to a Google App Engine
      * datastore entity and therefore has a maximum size of 1 megabyte (due to
-     * entity overhead, the actual limit is 1023 * 1024 = 1,047,552 bytes). The
+     * entity overhead, the actual limit is 1020 * 1024 = 1,044,280 bytes). The
      * default block size is 128KB (131,072 bytes).
      * 
      * @param size The default block size in units of K (1024) bytes. The minimum
-     * size is 1 and the maximum size is 1023.
+     * size is 1 and the maximum size is 1020.
      */
     public void setBlockSize( int size ) {
         if ( size <= 0 ) {
             throw new IllegalArgumentException( "invalid block size: " + size );
         }
-        blockSize = Math.min( size, 1023 ) * 1024; // max size is 1023 * 1024
+        blockSize = Math.min( size, MAX_BLOCK_SIZE ) * 1024;
     }
     
     /**
      * Sets the block size for the specified file. GaeVFS stores files as a series
      * of blocks. Each block corresponds to a Google App Engine datastore entity
      * and therefore has a maximum size of 1 megabyte (due to entity overhead, the
-     * actual limit is 1023 * 1024 = 1,047,552 bytes). The default block size is
+     * actual limit is 1020 * 1024 = 1,044,280 bytes). The default block size is
      * 128KB (131,072 bytes).
      * 
      * @param fileObject The file for which the block size is to be set. The file
      * must not exist; if it does, a <code>FileSystemException</code> is thrown.
      * @param size The block size in units of K (1024) bytes. The minimum size is
-     * 1 and the maximum size is 1023.
+     * 1 and the maximum size is 1020.
      * @return The <code>fileObject</code> for which the block size was set, to 
      * support method chaining.
      * @throws FileSystemException
@@ -115,7 +117,7 @@ public class GaeVFS {
             throw new IllegalArgumentException( "invalid block size: " + size );
         }
         if ( fileObject instanceof GaeFileObject ) {
-            ((GaeFileObject)fileObject).setBlockSize( Math.min( size, 1023 ) * 1024 );
+            ((GaeFileObject)fileObject).setBlockSize( Math.min( size, MAX_BLOCK_SIZE ) * 1024 );
         }
         return fileObject;
     }
