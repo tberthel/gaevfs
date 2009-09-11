@@ -189,7 +189,8 @@ public class GaePath extends Path {
                 fileObject.createFolder();
                 return this;
             } else {
-                throw new FileAlreadyExistsException( toString() );
+                throw new FileAlreadyExistsException( toString(), null,
+                                                    "directory already exists" );
             }
         } finally {
             parent.lock.unlock();
@@ -213,7 +214,8 @@ public class GaePath extends Path {
                 fileObject.createFile();
                 return this;
             } else {
-                throw new FileAlreadyExistsException( toString() );
+                throw new FileAlreadyExistsException( toString(), null,
+                                                        "file already exists" );
             }
         } finally {
             parent.lock.unlock();
@@ -226,7 +228,8 @@ public class GaePath extends Path {
     }
 
     @Override
-    public Path createSymbolicLink( Path target, FileAttribute<?> ... attrs ) throws IOException {
+    public Path createSymbolicLink( Path target, FileAttribute<?> ... attrs )
+            throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -530,7 +533,8 @@ public class GaePath extends Path {
     }
 
     @Override
-    public WatchKey register( WatchService watcher, Kind<?>[] events, Modifier ... modifiers ) throws IOException {
+    public WatchKey register( WatchService watcher, Kind<?>[] events, Modifier ... modifiers )
+            throws IOException {
         throw new UnsupportedOperationException();
     }
 
