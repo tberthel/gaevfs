@@ -122,11 +122,6 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     
     @Override
     public synchronized void close() throws IOException {
-        closeBlock();
-        fileObject.putBlocks();
-    }
-    
-    private synchronized void closeBlock() throws IOException {
         flush();
         block = null;
         buffer = null;
@@ -182,7 +177,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         }
         int newIndex = calcBlockIndex( pos );
         if ( newIndex != index ) {
-            closeBlock();
+            close();
             index = newIndex;
         }
         filePointer = pos;

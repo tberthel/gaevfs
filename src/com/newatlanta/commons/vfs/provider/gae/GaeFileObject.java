@@ -71,6 +71,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String BLOCK_SIZE = "block-size";
 
     private Entity metadata; // the wrapped GAE datastore entity
+    private Map<Key, Entity> blockMap = new HashMap<Key, Entity>(); // TODO: get in bulk
 
     private boolean isCombinedLocal;
 
@@ -123,7 +124,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     @SuppressWarnings("unchecked")
     private List<Key> getBlockKeys() throws FileSystemException {
-        return (List<Key>)metadata.getProperty( BLOCK_KEYS );
+        List<Key> blockKeys = (List<Key>)metadata.getProperty( BLOCK_KEYS );
+        if ( blockKeys == null ) {
+            blockKeys = new ArrayList<Key>();
+            metadata.setUnindexedProperty( BLOCK_KEYS, blockKeys );
+        }
+        return blockKeys;
     }
 
     @SuppressWarnings("unchecked")
@@ -189,7 +195,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected void doDetach() throws FileSystemException {
         metadata = null;
-        //blockMap = null; // TODO
+        blockMap.clear();
     }
 
     /**
@@ -298,7 +304,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             if ( newGaeFile.metadata == null ) { // newfile was deleted during rename
                 newGaeFile.doAttach();
             }
-            // TODO: getBlockKeys() can return null?
             int numBlocks = getBlockKeys().size(); // copy contents to the new file
             for ( int i = 0; i < numBlocks; i++ ) {
                 // TODO: use Entity.setPropertiesFrom() added in SDK 1.2.2?
@@ -306,7 +311,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                 // newBlock.setPropertiesFrom( getBlock( i ) );
                 // putBlock( newBlock );
                 copyContent( getBlock( i ), newGaeFile.getBlock( i ) );
-                putBlocks();
+                putBlocks(); // TODO: put here or somewhere else?
             }
             // TODO: test copying a file to one with a different block size
             newGaeFile.metadata.setProperty( CONTENT_SIZE, this.metadata.getProperty( CONTENT_SIZE ) );
@@ -435,7 +440,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     void updateContentSize( long newSize, boolean force ) throws FileSystemException {
         if ( force || ( newSize > doGetContentSize() ) ) {
             metadata.setProperty( CONTENT_SIZE, Long.valueOf( newSize ) );
-            putMetaData();
         }
     }
 
@@ -478,67 +482,102 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE, getBlockSize(),
                                             bAppend && exists() ? doGetContentSize() : 0 );
     }
+    
+    /**
+     * will be called after this file-object closed all its streams.
+     */
+    @Override
+    protected void notifyAllStreamsClosed() {
+        List<Entity> dirtyBlocks = getDirtyBlocks();
+        if ( !dirtyBlocks.isEmpty() ) {
+            int blocksPerPut = 1;
+            try {
+                blocksPerPut = ( GaeVFS.MAX_BLOCK_SIZE * 1024 ) / getBlockSize();
+            } catch ( FileSystemException e ) {
+            }
+            doSetLastModTime( System.currentTimeMillis() );
+            dirtyBlocks.add( 0, metadata );
+            int fromIndex = 0;
+            while ( fromIndex < dirtyBlocks.size() ) {
+                int toIndex = Math.min( fromIndex + blocksPerPut, dirtyBlocks.size() );
+                datastore.put( dirtyBlocks.subList( fromIndex, toIndex ) );
+                fromIndex = toIndex;
+            }
+        }
+    }
 
     /***************************************************************************
      * The following methods related to blocks are for use by                  * 
      * GaeRandomAccessContent.                                                 *
      ***************************************************************************/
     
-    // TODO: retrieve blocks in bulk
-    private Map<Key, Entity> blockMap = new HashMap<Key, Entity>();
+    // TODO: need to test random access operations that cause sparse blocks
     
     Entity getBlock( int i ) throws FileSystemException {
         if ( !exists() ) {
             createFile();
         }
         List<Key> blockKeys = getBlockKeys();
-        if ( blockKeys == null ) {
-            blockKeys = new ArrayList<Key>();
-            metadata.setUnindexedProperty( BLOCK_KEYS, blockKeys );
-        }
         Entity block = null;
-        if ( i < blockKeys.size() ) {
-            Key key = blockKeys.get( i );
-            block = blockMap.get( key );
-            if ( block != null ) {
-                return block;
+        if ( i < blockKeys.size() ) { // existing key
+            block = blockMap.get( blockKeys.get( i ) );
+            if ( block == null ) {
+                block = getBlock( i, blockKeys );
+                if ( block == null ) {
+                    blockKeys.remove( i );
+                    block = createBlock( blockKeys, i );
+                }
             }
-            try {
-                block = datastore.get( key );
-            } catch ( EntityNotFoundException e ) {
-                blockKeys.remove( key );
-                block = createBlock( blockKeys, i );
-            }
-        } else { // i < blockKeys.size()
+        } else { // i >= blockKeys.size()
             for ( int j = blockKeys.size(); j <= i; j++ ) {
                 block = createBlock( blockKeys, j );
             }
         }
-        blockMap.put( block.getKey(), block );
-        putMetaData(); // TODO: here or when writing blocks?
         return block;
+    }
+    
+    /**
+     * Populates the blockMap and returns the specified block.
+     * 
+     * TODO: limit the number of blocks in memory at one time?
+     */
+    private Entity getBlock( int i, List<Key> blockKeys ) {
+        if ( blockKeys.size() <= 10 ) { // get all blocks
+            blockMap.putAll( datastore.get( blockKeys ) );
+        } else { // get 10 blocks starting at i
+            blockMap.putAll( datastore.get( blockKeys.subList( i,
+                                    Math.min( i + 10, blockKeys.size() ) ) ) );
+        }
+        return blockMap.get( blockKeys.get( i ) );
     }
 
     private Entity createBlock( List<Key> blockKeys, int i ) {
         Entity block = new Entity( ENTITY_KIND, "block." + i, metadata.getKey() );
         blockKeys.add( i, block.getKey() );
+        blockMap.put( block.getKey(), block );
         return block;
     }
     
-    void putBlocks() {
+    private void putBlocks() {
+        List<Entity> dirtyBlocks = getDirtyBlocks();
+        if ( !dirtyBlocks.isEmpty() ) {
+            datastore.put( dirtyBlocks );
+        }
+    }
+    
+    private List<Entity> getDirtyBlocks() {
+        List<Entity> dirtyBlocks = new ArrayList<Entity>();
         for ( Entity block : blockMap.values() ) {
-            if ( !isDirty( block, true ) ) {
-                blockMap.remove( block.getKey() );
+            if ( isDirty( block, true ) ) {
+                dirtyBlocks.add( block );
             }
         }
-        if ( !blockMap.isEmpty() ) {
-            datastore.put( blockMap.values() );
-        }
+        return dirtyBlocks;
     }
 
     private void deleteBlocks() throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
-        if ( blockKeys != null ) {
+        if ( !blockKeys.isEmpty() ) {
             datastore.delete( blockKeys );
         }
     }
@@ -548,7 +587,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     void deleteBlocks( int stopIndex ) throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
-        if ( ( blockKeys != null ) && ( blockKeys.size() > ( stopIndex + 1 ) ) ) {
+        if ( blockKeys.size() > ( stopIndex + 1 ) ) {
             List<Key> deleteKeyList = new ArrayList<Key>();
             for ( int i = blockKeys.size() - 1; i > stopIndex; i-- ) {
                 deleteKeyList.add( blockKeys.remove( i ) );
