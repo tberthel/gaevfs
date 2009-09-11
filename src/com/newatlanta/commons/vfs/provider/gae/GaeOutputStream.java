@@ -33,6 +33,9 @@ public class GaeOutputStream extends OutputStream {
     
     @Override
     public void flush() throws IOException {
+        if ( out instanceof GaeRandomAccessContent ) {
+            ((GaeRandomAccessContent)out).flush();
+        }
     }
     
     @Override
