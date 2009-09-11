@@ -27,6 +27,7 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,17 +50,18 @@ import com.google.appengine.api.datastore.Query;
 import com.google.appengine.api.datastore.Transaction;
 import com.google.appengine.api.labs.taskqueue.Queue;
 import com.google.appengine.api.labs.taskqueue.QueueFactory;
+import com.google.appengine.api.labs.taskqueue.TaskOptions.Method;
 import com.google.appengine.api.memcache.ErrorHandler;
 import com.google.appengine.api.memcache.Expiration;
 import com.google.appengine.api.memcache.MemcacheService;
-import com.google.appengine.api.memcache.MemcacheServiceException;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.google.appengine.api.memcache.StrictErrorHandler;
 import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 
 /**
  * Implements a <code>DatastoreService</code> that automatically caches entities
- * in memcache. Uses a write-behind cache when writing entities to the datastore.
+ * in memcache. Can be configured to use either a write-through or write-behind
+ * strategy; write-behind is based on task queues.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
@@ -67,8 +69,9 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 public class CachingDatastoreService extends HttpServlet implements DatastoreService {
     
     private static final String QUEUE_NAME = "write-behind-task";
-    private static final String TASK_URL = "/" + QUEUE_NAME;
+    private static final String TASK_URL = "/_ah/queue/" + QUEUE_NAME;
     private static final String TASK_CONTENT_TYPE = "application/x-java-serialized-object";
+    private static final String WATCHDOG_KEY = "CachingDatastoreService.watchdog";
     
     private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
     private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
@@ -82,10 +85,9 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     static {
         try {
             queue = QueueFactory.getQueue( QUEUE_NAME );
-            queue.add( url( TASK_URL ) ); // verify queue configured
+            queueWatchDogTask( 0 );
         } catch ( Exception e ) {
-            log.info( e.getMessage() );
-            queue = QueueFactory.getDefaultQueue(); // TODO: test default queue
+            log.warning( e.getMessage() + " " + QUEUE_NAME );
         }
     }
     
@@ -173,17 +175,12 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         try {
             memcache.setErrorHandler( STRICT_ERROR_HANDLER );
             memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
-            if ( cacheOption == CacheOption.WRITE_BEHIND ) {
-                try {
-                    queue.add( url( TASK_URL ).payload( serialize( key ),
-                                                            TASK_CONTENT_TYPE ) );
-                    log.info( key.toString() );
-                    return key;
-                } catch ( Exception e ) {
-                    log.warning( e.getMessage() );
-                }
+            if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
+                queue.add( url( TASK_URL ).payload( serialize( key ), TASK_CONTENT_TYPE ) );
+                log.info( key.toString() );
+                return key;
             }
-        } catch ( MemcacheServiceException e ) {
+        } catch ( Exception e ) {
             log.warning( e.getCause() != null ? e.getCause().getMessage() 
                                               : e.getMessage() );
         } finally {
@@ -197,7 +194,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             return datastore.put( entity );
         }
     }
-    
+
     @SuppressWarnings("unchecked")
     public List<Key> put( Iterable<Entity> entities ) {
         // create Map<Key, Entity> for memcache putAll()
@@ -213,17 +210,12 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         try {
             memcache.setErrorHandler( STRICT_ERROR_HANDLER );
             memcache.putAll( (Map)entityMap, expiration, SetPolicy.SET_ALWAYS );
-            if ( cacheOption == CacheOption.WRITE_BEHIND ) {
-                try {
-                    List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
-                    queue.add( url( TASK_URL ).payload( serialize( keyList ),
-                                                            TASK_CONTENT_TYPE ) );
-                    return keyList;
-                } catch ( Exception e ) {
-                    log.warning( e.getMessage() );
-                }
+            if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
+                List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
+                queue.add( url( TASK_URL ).payload( serialize( keyList ), TASK_CONTENT_TYPE ) );
+                return keyList;
             }
-        } catch ( MemcacheServiceException e ) {
+        } catch ( Exception e ) {
             log.warning( e.getCause() != null ? e.getCause().getMessage() 
                                               : e.getMessage() );
         } finally {
@@ -323,7 +315,32 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res )
             throws ServletException, IOException {
-        doWriteBehindTask( req, res );
+        /**
+         * The watchdog task creates a memcache key that expires in two minutes.
+         * The watchdog task itself runs every one minute, so if the key ever
+         * doesn't exist, the watchdog task isn't running.
+         */
+        if ( req.getParameter( "watchdog" ) != null ) {
+            memcache.delete( WATCHDOG_KEY );
+            memcache.put( WATCHDOG_KEY, 0, Expiration.byDeltaSeconds( 2 * 60 ) );
+            queueWatchDogTask( 60 * 1000 ); // one minute
+            log.info( "watchdog is alive" );
+        } else {
+            doWriteBehindTask( req, res );
+        }
+    }
+    
+    private static void queueWatchDogTask( long countdownMillis ) {
+        queue.add( url( TASK_URL ).method( Method.GET ).param( "watchdog",
+                                    "true" ).countdownMillis( countdownMillis ) );
+    }
+    
+    private static boolean watchDogIsAlive() {
+        boolean alive = ( memcache.increment( WATCHDOG_KEY, 1 ) != null );
+        if ( !alive ) {
+            log.warning( "write-behind task not alive" );
+        }
+        return alive;
     }
 
     @Override
@@ -342,7 +359,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                 return;
             }
         } catch ( Exception e ) {
-            log.warning( e.getMessage() );
+            log.warning( e.toString() );
             return;
         }
         List<Key> keys;
@@ -357,17 +374,22 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
         Map<String, Entity> entityMap = (Map)memcache.getAll( (List)keys );
         if ( ( entityMap != null ) && !entityMap.isEmpty() ) {
-            // TODO: transactions should be optional
+            // TODO: transactions should be optional? retry all if any failure?
+            // see GAE issue #2113
             Transaction txn = datastore.beginTransaction();
             try {
                 datastore.put( txn, entityMap.values() );
                 txn.commit();
             } catch ( DatastoreTimeoutException e ) { // retry task
+                log.info( e.getMessage() );
                 res.sendError( HttpServletResponse.SC_REQUEST_TIMEOUT );
-            } catch ( Exception e ) {
-                log.warning( e.getMessage() ); // don't retry
+            } catch ( ConcurrentModificationException e ) { // retry task
+                log.info( e.getMessage() );
+                res.sendError( HttpServletResponse.SC_CONFLICT );
+            } catch ( Exception e ) { // don't retry
+                log.warning( e.toString() );
             } finally {
-                if ( txn.isActive() ) {
+                if ( ( txn != null ) && txn.isActive() ) {
                     txn.rollback();
                 }
             }
@@ -375,6 +397,9 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     }
     
     private static Object deserialize( HttpServletRequest req ) throws Exception {
+        if ( req.getContentLength() == 0 ) {
+            return null;
+        }
         byte[] bytesIn = new byte[ req.getContentLength() ];
         req.getInputStream().readLine( bytesIn, 0, bytesIn.length );
         ObjectInputStream objectIn = new ObjectInputStream( new BufferedInputStream( 
