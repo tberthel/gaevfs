@@ -26,7 +26,6 @@ import java.io.OutputStream;
 import java.text.NumberFormat;
 import java.util.Iterator;
 import java.util.StringTokenizer;
-import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -307,12 +306,8 @@ public class GaeVfsServlet extends HttpServlet {
      */
     private static void copyAndClose( InputStream in, OutputStream out )
             throws IOException {
-        long startTime = System.currentTimeMillis();
         IOUtils.copy( in, out );
-        out.flush();
         out.close();
         in.close();
-        Logger.getLogger( Logger.GLOBAL_LOGGER_NAME ).info( "time: " +
-                            ( System.currentTimeMillis() - startTime ) + "ms" );
     }
 }
