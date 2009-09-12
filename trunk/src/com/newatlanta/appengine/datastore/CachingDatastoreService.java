@@ -85,7 +85,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     static {
         try {
             queue = QueueFactory.getQueue( QUEUE_NAME );
-            queueWatchDogTask( 0 );
+            queueWatchDogTask( 0, java.util.UUID.randomUUID().toString() );
         } catch ( Exception e ) {
             log.warning( e.getMessage() + " " + QUEUE_NAME );
         }
@@ -312,35 +312,43 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
      *                                                                         *
      ***************************************************************************/
     
+    private static int WATCHDOG_SECONDS = 60; // TODO: make configurable
+    
     @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res )
             throws ServletException, IOException {
         /**
-         * The watchdog task creates a memcache key that expires in two minutes.
-         * The watchdog task itself runs every one minute, so if the key ever
-         * doesn't exist, the watchdog task isn't running.
+         * The watchdog task creates a memcache key that expires at twice the
+         * interval at which the task itself runs. If the key doesn't exist,
+         * the task isn't running.
          */
-        if ( req.getParameter( "watchdog" ) != null ) {
-            memcache.delete( WATCHDOG_KEY );
-            memcache.put( WATCHDOG_KEY, 0, Expiration.byDeltaSeconds( 2 * 60 ) );
-            queueWatchDogTask( 60 * 1000 ); // one minute
-            log.info( "watchdog is alive" );
+        String urlToken = req.getParameter( "watchdog" );
+        if ( urlToken != null ) {
+            // make sure this task owns the token; if not, terminate
+            Object memcacheToken = memcache.get( WATCHDOG_KEY );
+            if ( ( memcacheToken == null ) || urlToken.equals( memcacheToken ) ) {
+                memcache.delete( WATCHDOG_KEY ); // reset the timer
+                memcache.put( WATCHDOG_KEY, urlToken, Expiration.byDeltaSeconds(
+                                                        WATCHDOG_SECONDS * 2 ) );
+                queueWatchDogTask( WATCHDOG_SECONDS * 1000, urlToken );
+                log.info( "watchdog is alive" );
+            }
         } else {
             doWriteBehindTask( req, res );
         }
     }
     
-    private static void queueWatchDogTask( long countdownMillis ) {
+    private static void queueWatchDogTask( long countdownMillis, String token ) {
         queue.add( url( TASK_URL ).method( Method.GET ).param( "watchdog",
-                                    "true" ).countdownMillis( countdownMillis ) );
+                                    token ).countdownMillis( countdownMillis ) );
     }
     
     private static boolean watchDogIsAlive() {
-        boolean alive = ( memcache.increment( WATCHDOG_KEY, 1 ) != null );
-        if ( !alive ) {
+        if ( !memcache.contains( WATCHDOG_KEY ) ) {
             log.warning( "write-behind task not alive" );
+            return false;
         }
-        return alive;
+        return true;
     }
 
     @Override
@@ -374,12 +382,11 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
         Map<String, Entity> entityMap = (Map)memcache.getAll( (List)keys );
         if ( ( entityMap != null ) && !entityMap.isEmpty() ) {
-            // TODO: transactions should be optional? retry all if any failure?
-            // see GAE issue #2113
-            Transaction txn = datastore.beginTransaction();
             try {
-                datastore.put( txn, entityMap.values() );
-                txn.commit();
+                if ( datastore.put( entityMap.values() ).size() != entityMap.size() ) {
+                    log.info( "failed to write all entities - retrying" );
+                    res.sendError( HttpServletResponse.SC_PARTIAL_CONTENT );
+                }
             } catch ( DatastoreTimeoutException e ) { // retry task
                 log.info( e.getMessage() );
                 res.sendError( HttpServletResponse.SC_REQUEST_TIMEOUT );
@@ -388,10 +395,6 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                 res.sendError( HttpServletResponse.SC_CONFLICT );
             } catch ( Exception e ) { // don't retry
                 log.warning( e.toString() );
-            } finally {
-                if ( ( txn != null ) && txn.isActive() ) {
-                    txn.rollback();
-                }
             }
         }
     }
