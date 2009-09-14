@@ -31,6 +31,7 @@ import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 import javax.servlet.ServletException;
@@ -50,6 +51,9 @@ import com.google.appengine.api.datastore.Query;
 import com.google.appengine.api.datastore.Transaction;
 import com.google.appengine.api.labs.taskqueue.Queue;
 import com.google.appengine.api.labs.taskqueue.QueueFactory;
+import com.google.appengine.api.labs.taskqueue.TaskAlreadyExistsException;
+import com.google.appengine.api.labs.taskqueue.TaskHandle;
+import com.google.appengine.api.labs.taskqueue.TransientFailureException;
 import com.google.appengine.api.labs.taskqueue.TaskOptions.Method;
 import com.google.appengine.api.memcache.ErrorHandler;
 import com.google.appengine.api.memcache.Expiration;
@@ -85,7 +89,8 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     static {
         try {
             queue = QueueFactory.getQueue( QUEUE_NAME );
-            queueWatchDogTask( 0, java.util.UUID.randomUUID().toString() );
+            queueWatchDogTask( 0, UUID.randomUUID().toString(),
+                                                UUID.randomUUID().toString() );
         } catch ( Exception e ) {
             log.warning( e.getMessage() + " " + QUEUE_NAME );
         }
@@ -327,10 +332,13 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             // make sure this task owns the token; if not, terminate
             Object memcacheToken = memcache.get( WATCHDOG_KEY );
             if ( ( memcacheToken == null ) || urlToken.equals( memcacheToken ) ) {
+                String nextToken = UUID.randomUUID().toString(); // for next task
+                // use the previous token as the next task name to prevent multiple
+                // tasks from being queued; use a new token for the next task
+                queueWatchDogTask( WATCHDOG_SECONDS * 1000, urlToken, nextToken );
                 memcache.delete( WATCHDOG_KEY ); // reset the timer
-                memcache.put( WATCHDOG_KEY, urlToken, Expiration.byDeltaSeconds(
+                memcache.put( WATCHDOG_KEY, nextToken, Expiration.byDeltaSeconds(
                                                         WATCHDOG_SECONDS * 2 ) );
-                queueWatchDogTask( WATCHDOG_SECONDS * 1000, urlToken );
                 log.info( "watchdog is alive" );
             }
         } else {
@@ -338,9 +346,22 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
     }
     
-    private static void queueWatchDogTask( long countdownMillis, String token ) {
-        queue.add( url( TASK_URL ).method( Method.GET ).param( "watchdog",
-                                    token ).countdownMillis( countdownMillis ) );
+    private static TaskHandle queueWatchDogTask( long countdownMillis, String taskName,
+                                                    String nextToken ) {
+        for ( int i = 0; i < 100; i++ ) {
+            try {
+                return queue.add( url( TASK_URL ).method( Method.GET ).taskName(
+                        taskName ).param( "watchdog", nextToken ).countdownMillis(
+                                countdownMillis ) );
+            } catch ( TaskAlreadyExistsException e ) {
+                log.info( e.getMessage() + " " + taskName );
+                return null;
+            } catch ( TransientFailureException e ) {
+                log.warning( e.getMessage() + " " + taskName );
+                // repeat loop
+            }
+        }
+        return null;
     }
     
     private static boolean watchDogIsAlive() {
