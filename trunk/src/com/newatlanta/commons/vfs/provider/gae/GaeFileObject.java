@@ -15,7 +15,6 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
-import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.copyContent;
 import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.isDirty;
 
 import java.io.IOException;
@@ -71,7 +70,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String BLOCK_SIZE = "block-size";
 
     private Entity metadata; // the wrapped GAE datastore entity
-    private Map<Key, Entity> blockMap = new HashMap<Key, Entity>(); // TODO: get in bulk
+    private Map<Key, Entity> blockMap = new HashMap<Key, Entity>();
 
     private boolean isCombinedLocal;
 
@@ -294,28 +293,34 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void doRename( FileObject newfile ) throws FileSystemException {
         if ( this.getType().hasChildren() ) { // rename the children
             for ( FileObject child : this.getChildren() ) {
-                String newChildPath = child.getName().getPath().replace( this.getName().getPath(),
-                                                                         newfile.getName().getPath() );
+                String newChildPath = child.getName().getPath().replace(
+                        this.getName().getPath(), newfile.getName().getPath() );
                 child.moveTo( resolveFile( newChildPath ) );
             }
-            newfile.createFolder();
+            newfile.createFolder(); // TODO: is this redundant?
         } else {
+            // TODO: the following code is a bit messy for several reasons:
+            //   1) the call to getBlock(int) results in a call to createFile(),
+            //      which seems inappropriate at that point
+            //   2) the call to datastore.put()for the entity blocks seems like
+            //      it should happen when the file is created and should be done
+            //      along with the metadata
+            //   3) the final call to createFile() seems redundant
+            // But, it works.
             GaeFileObject newGaeFile = (GaeFileObject)newfile;
-            if ( newGaeFile.metadata == null ) { // newfile was deleted during rename
+            // new file might have been detached during rename of parent folder
+            if ( newGaeFile.metadata == null ) {
                 newGaeFile.doAttach();
             }
             int numBlocks = getBlockKeys().size(); // copy contents to the new file
             for ( int i = 0; i < numBlocks; i++ ) {
-                // TODO: use Entity.setPropertiesFrom() added in SDK 1.2.2?
-                // Entity newBlock = newGaeFile.getBlock( i );
-                // newBlock.setPropertiesFrom( getBlock( i ) );
-                // putBlock( newBlock );
-                copyContent( getBlock( i ), newGaeFile.getBlock( i ) );
-                putBlocks(); // TODO: put here or somewhere else?
+                newGaeFile.getBlock( i ).setPropertiesFrom( this.getBlock( i ) );
             }
-            // TODO: test copying a file to one with a different block size
+            // TODO: is this the best place to write block entities? dirty flag
+            // needs to be set for blocks if written elsewhere
+            datastore.put( newGaeFile.blockMap.values() );
             newGaeFile.metadata.setProperty( CONTENT_SIZE, this.metadata.getProperty( CONTENT_SIZE ) );
-            newGaeFile.createFile();
+            newGaeFile.createFile(); // TODO: is this redundant?
         }
     }
 
@@ -515,7 +520,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     
     Entity getBlock( int i ) throws FileSystemException {
         if ( !exists() ) {
-            createFile();
+            createFile(); // TODO: why is this being done here?
         }
         List<Key> blockKeys = getBlockKeys();
         Entity block = null;
@@ -556,13 +561,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         blockKeys.add( i, block.getKey() );
         blockMap.put( block.getKey(), block );
         return block;
-    }
-    
-    private void putBlocks() {
-        List<Entity> dirtyBlocks = getDirtyBlocks();
-        if ( !dirtyBlocks.isEmpty() ) {
-            datastore.put( dirtyBlocks );
-        }
     }
     
     private List<Entity> getDirtyBlocks() {
