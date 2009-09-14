@@ -79,11 +79,6 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     private DataOutputStream dataOutput;
     private DataInputStream dataInput;
     
-    static Entity copyContent( Entity oldEntity, Entity newEntity ) {
-        newEntity.setProperty( CONTENT_BLOB, oldEntity.getProperty( CONTENT_BLOB ) );
-        return newEntity;
-    }
-    
     static boolean isDirty( Entity block, boolean removeProperty ) {
         Boolean dirty = (Boolean)block.getProperty( DIRTY );
         if ( removeProperty ) {
