@@ -15,8 +15,10 @@
  */
 package com.newatlanta.appengine.nio.channels;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 
@@ -33,6 +35,7 @@ public class GaeFileChannel extends FileChannel {
     public GaeFileChannel( RandomAccessContent randomAccessContent ) {
         this( randomAccessContent, false );
     }
+    
     public GaeFileChannel( RandomAccessContent randomAccessContent, boolean append ) {
         this.rac = randomAccessContent;
         this.append = append;
@@ -51,11 +54,21 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public long position() throws IOException {
+        if ( !isOpen() ) {
+            throw new ClosedChannelException();
+        }
         return rac.getFilePointer();
     }
 
     @Override
     public synchronized GaeFileChannel position( long newPosition ) throws IOException {
+        if ( newPosition < 0 ) {
+            throw new IllegalArgumentException( "newPosition cannot be negative: " +
+                                                    newPosition );
+        }
+        if ( !isOpen() ) {
+            throw new ClosedChannelException();
+        }
         rac.seek( newPosition );
         return this;
     }
@@ -74,15 +87,19 @@ public class GaeFileChannel extends FileChannel {
     
     @Override
     public int read( ByteBuffer dst ) throws IOException {
-        int len = dst.remaining();
-        if ( dst.hasArray() ) {
-            rac.readFully( dst.array(), dst.arrayOffset(), dst.remaining() );
-        } else {
-            byte[] b = new byte[ len ];
-            rac.readFully( b, 0, len );
-            dst.put( b );
+        try {
+            int len = dst.remaining();
+            if ( dst.hasArray() ) {
+                rac.readFully( dst.array(), dst.arrayOffset(), dst.remaining() );
+            } else {
+                byte[] b = new byte[ len ];
+                rac.readFully( b, 0, len );
+                dst.put( b );
+            }
+            return len - dst.remaining();
+        } catch ( EOFException e ) {
+            return -1;
         }
-        return len - dst.remaining();
     }
 
     @Override
