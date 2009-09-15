@@ -399,7 +399,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * Write the metadata to the GAE datastore. Make sure the file type is set
      * correctly and update the last modified time.
      */
-    private synchronized void putMetaData() throws FileSystemException {
+    synchronized void putMetaData() throws FileSystemException {
         metadata.setProperty( FILETYPE, getType().getName() );
         doSetLastModTime( System.currentTimeMillis() );
         datastore.put( metadata );
@@ -581,17 +581,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
 
     /**
-     * Truncate blocks up to but exclusive of the specified index.
+     * Truncate blocks from the specified index (inclusive).
      */
-    void deleteBlocks( int stopIndex ) throws FileSystemException {
+    void deleteBlocks( int fromIndex ) throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
-        if ( blockKeys.size() > ( stopIndex + 1 ) ) {
-            List<Key> deleteKeyList = new ArrayList<Key>();
-            for ( int i = blockKeys.size() - 1; i > stopIndex; i-- ) {
-                deleteKeyList.add( blockKeys.remove( i ) );
-            }
-            datastore.delete( deleteKeyList );
-            putMetaData();
+        List<Key> deleteKeys = blockKeys.subList( fromIndex, blockKeys.size() );
+        if ( !deleteKeys.isEmpty() ) {
+            datastore.delete( deleteKeys );
+            deleteKeys.clear();
         }
     }
 
