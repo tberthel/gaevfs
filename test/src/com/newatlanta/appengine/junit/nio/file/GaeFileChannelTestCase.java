@@ -17,13 +17,16 @@ package com.newatlanta.appengine.junit.nio.file;
 
 import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
 import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
+import static com.newatlanta.nio.file.StandardOpenOption.READ;
 import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.NonWritableChannelException;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Random;
 
 import org.junit.Test;
 
@@ -60,7 +63,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         Arrays.fill( b, (byte)0xff );
         
         FileChannel fc = FileChannel.open( Paths.get( "docs/position.txt" ),
-                            EnumSet.of( WRITE, CREATE_NEW ), withBlockSize( 1 ) );
+                        EnumSet.of( READ, WRITE, CREATE_NEW ), withBlockSize( 1 ) );
         assertEquals( 0, fc.size() );
         assertEquals( 0, fc.position() );
         // Setting the position to a value that is greater than the current size is legal...
@@ -112,8 +115,19 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testSize() {
-        fail( "Not yet implemented" );
+    public void testSize() throws IOException {
+        FileChannel fc = FileChannel.open( Paths.get( "docs/size.txt" ),
+                                                WRITE, CREATE_NEW );
+        assertEquals( 0, fc.size() );
+        assertTrue( fc.isOpen() );
+        fc.close();
+        assertFalse( fc.isOpen() );
+        try {
+            // attempt to read the size for a closed channel
+            fc.size();
+            fail( "expected ClosedChannelException" );
+        } catch ( ClosedChannelException e ) {
+        }
     }
 
     @Test
@@ -152,8 +166,69 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testTruncateLong() {
-        fail( "Not yet implemented" );
+    public void testTruncate() throws IOException {
+        FileChannel fc = FileChannel.open( Paths.get( "docs/truncate.txt" ),
+                            EnumSet.of( WRITE, CREATE_NEW ), withBlockSize( 1 ));
+        assertTrue( fc.isOpen() );
+
+        ByteBuffer b = ByteBuffer.allocate( 1 ).put( (byte)0xff );
+        b.rewind();
+        for ( int i = 0; i < 10; i++ ) { // write out 10 blocks
+            fc.position( i * 1024 );
+            fc.write( b );
+        }
+        assertEquals( ( 1024 * 9 ) + 1, fc.size() );
+        
+        try {
+            // size < 0
+            fc.truncate( -10 );
+            fail( "expected IllegalArgumentException" );
+        } catch ( IllegalArgumentException e ) {
+        }
+        
+        // size < current size, position > size
+        long size = 1024 * 6;
+        assertTrue( ( size < fc.size() ) && ( fc.position() > size ) );
+        assertEquals( size, fc.truncate( size ).size() );
+        assertEquals( size, fc.position() );
+        
+        // size >= current size, position > size
+        Random rand = new Random();
+        size = fc.size() + rand.nextInt( Integer.MAX_VALUE );
+        fc.position( size + 1 + rand.nextInt( Integer.MAX_VALUE ) );
+        assertTrue( ( size >= fc.size() ) && ( fc.position() > size ) );
+        assertEquals( fc.size(), fc.truncate( size ).size() ); // size unmodified
+        assertEquals( size, fc.position() );
+        
+        // size < current size, position <= size
+        size = fc.size() - Math.max( 1, rand.nextInt( (int)fc.size() ) );
+        fc.position( size - rand.nextInt( (int)size ) );
+        assertTrue( ( size < fc.size() ) && ( fc.position() <= size ) );
+        assertEquals( fc.position(), fc.truncate( size ).position() ); // position unmodified
+        assertEquals( size, fc.size() );
+        
+        // size >= current size, position <= size
+        size = fc.size() + rand.nextInt( Integer.MAX_VALUE );
+        long pos = fc.position( size - rand.nextInt( (int)fc.position() ) ).position();
+        assertTrue( ( size >= fc.size() ) && ( fc.position() <= size ) );
+        assertEquals( fc.size(), fc.truncate( size ).size() ); // size unmodified
+        assertEquals( pos, fc.position() ); // position unmodified
+        
+        try {
+            // closed channel
+            fc.close();
+            fc.truncate( 0 );
+            fail( "expected ClosedChannelException" );
+        } catch ( ClosedChannelException e ) {
+        }
+        
+        // non-writable file channel
+        fc = FileChannel.open( Paths.get( "docs/truncate.txt" ) );
+        try {
+            fc.truncate( 0 );
+            fail( "expected NonWritableChannelException" );
+        } catch ( NonWritableChannelException e ) {
+        }
     }
 
     @Test
@@ -163,8 +238,12 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testClose() {
-        fail( "Not yet implemented" );
+    public void testClose() throws IOException {
+        FileChannel fc = FileChannel.open( Paths.get( "docs/close.txt" ), WRITE, CREATE_NEW );
+        assertTrue( fc.isOpen() );
+        fc.close();
+        assertFalse( fc.isOpen() );
+        fc.close(); // attempt to close a closed channel (does nothing)
     }
 
     @Test
@@ -176,7 +255,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertFalse( fc.isOpen() );
         
         // gae file
-        fc = FileChannel.open( Paths.get( "docs/new.txt" ), WRITE, CREATE_NEW );
+        fc = FileChannel.open( Paths.get( "docs/isopen.txt" ), WRITE, CREATE_NEW );
         assertTrue( fc.isOpen() );
         fc.close();
         assertFalse( fc.isOpen() );
