@@ -40,7 +40,7 @@ public class GaeVFS {
     
     static final Logger log = Logger.getLogger( GaeVFS.class.getName() );
 
-    public static final int MAX_BLOCK_SIZE = 1020; // in units of KB
+    public static final int MAX_BLOCK_SIZE = 1000; // in units of KB
     
     private static final int DEFAULT_BLOCK_SIZE = 1024 * 128;
     
