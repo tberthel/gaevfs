@@ -168,6 +168,7 @@ public class GaeVfsServlet extends HttpServlet {
         }
 
         // it's file, return it
+        // TODO: add support for If-Modified-Since header?
 
         // the servlet MIME type is configurable via web.xml
         String contentType = getServletContext().getMimeType( path.getName().toString() );
