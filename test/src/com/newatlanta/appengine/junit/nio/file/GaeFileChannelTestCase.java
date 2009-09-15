@@ -15,11 +15,23 @@
  */
 package com.newatlanta.appengine.junit.nio.file;
 
-import static org.junit.Assert.*;
+import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
+import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
+import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
+import java.util.Arrays;
+import java.util.EnumSet;
 
 import org.junit.Test;
 
-public class GaeFileChannelTestCase {
+import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
+import com.newatlanta.nio.channels.FileChannel;
+import com.newatlanta.nio.file.Paths;
+
+public class GaeFileChannelTestCase extends GaeVfsTestCase {
 
     @Test
     public void testReadByteBuffer() {
@@ -42,8 +54,61 @@ public class GaeFileChannelTestCase {
     }
 
     @Test
-    public void testPosition() {
-        fail( "Not yet implemented" );
+    public void testPosition() throws IOException {
+        byte[] b = new byte[ 100 ];
+        ByteBuffer buf = ByteBuffer.wrap( b );
+        Arrays.fill( b, (byte)0xff );
+        
+        FileChannel fc = FileChannel.open( Paths.get( "docs/position.txt" ),
+                            EnumSet.of( WRITE, CREATE_NEW ), withBlockSize( 1 ) );
+        assertEquals( 0, fc.size() );
+        assertEquals( 0, fc.position() );
+        // Setting the position to a value that is greater than the current size is legal...
+        assertEquals( fc, fc.position( 100 ) );  
+        assertEquals( 0, fc.size() ); // ...but does not change the size of the entity.
+        assertEquals( 100, fc.position() );
+        // A later attempt to read bytes at such a position will immediately return an
+        // end-of-file indication
+        assertEquals( -1, fc.read( buf ) );
+        // A later attempt to write bytes at such a position will cause the entity to grow
+        // to accommodate the new bytes
+        assertEquals( 100, fc.write( buf ) );
+        assertEquals( 200, fc.size() );
+        assertEquals( 200, fc.position() );
+        
+        // set the position to the current position
+        assertEquals( fc.position(), fc.position( fc.position() ).position() );
+        
+        // set the position beyond the current block
+        assertEquals( 2560, fc.position( 2560 ).position() );
+        assertEquals( 200, fc.size() );
+        assertEquals( -1, fc.read( buf ) );
+        assertEquals( 100, fc.write( buf ) );
+        assertEquals( 2560 + 100, fc.size() );
+        assertEquals( 2560 + 100, fc.position() );
+        
+        try {
+            // attempt to set the position to a negative value
+            fc.position( -10 );
+            fail( "expected IllegalArgumentException" );
+        } catch ( IllegalArgumentException e ) {
+        }
+        
+        fc.close();
+        
+        try {
+            // attempt to set the position for a closed channel
+            fc.position( 100 );
+            fail( "expected ClosedChannelException" );
+        } catch ( ClosedChannelException e ) {
+        }
+        
+        try {
+            // attempt to read the position for a closed channel
+            fc.position();
+            fail( "expected ClosedChannelException" );
+        } catch ( ClosedChannelException e ) {
+        }
     }
 
     @Test
@@ -87,23 +152,14 @@ public class GaeFileChannelTestCase {
     }
 
     @Test
-    public void testPositionLong() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
     public void testTruncateLong() {
         fail( "Not yet implemented" );
     }
 
     @Test
-    public void testOpenPathSetOfQextendsOpenOptionFileAttributeOfQArray() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
-    public void testOpenPathOpenOptionArray() {
-        fail( "Not yet implemented" );
+    public void testOpen() throws IOException {
+        // FileChannel.open() ends up invoking GaePath.newByteChannel(), which is
+        // tested by the GaePathTestCase class. 
     }
 
     @Test
@@ -112,8 +168,17 @@ public class GaeFileChannelTestCase {
     }
 
     @Test
-    public void testIsOpen() {
-        fail( "Not yet implemented" );
+    public void testIsOpen() throws IOException {
+        // local file
+        FileChannel fc = FileChannel.open( Paths.get( "docs/large.pdf" ) );
+        assertTrue( fc.isOpen() );
+        fc.close();
+        assertFalse( fc.isOpen() );
+        
+        // gae file
+        fc = FileChannel.open( Paths.get( "docs/new.txt" ), WRITE, CREATE_NEW );
+        assertTrue( fc.isOpen() );
+        fc.close();
+        assertFalse( fc.isOpen() );
     }
-
 }
