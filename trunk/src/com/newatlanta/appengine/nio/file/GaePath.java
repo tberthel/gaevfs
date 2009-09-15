@@ -414,12 +414,8 @@ public class GaePath extends Path {
         } else {
             checkAccess( AccessMode.READ );
         }
-        FileChannel fc = new GaeFileChannel( fileObject.getContent().getRandomAccessContent( mode ),
-                                                options.contains( APPEND ) );
-        if ( options.contains( TRUNCATE_EXISTING ) ) {
-            fc.truncate( 0 );
-        }
-        return fc;
+        return new GaeFileChannel( fileObject.getContent().getRandomAccessContent( mode ),
+                                                options.contains( APPEND ), options );
     }
     
     @SuppressWarnings("unchecked")

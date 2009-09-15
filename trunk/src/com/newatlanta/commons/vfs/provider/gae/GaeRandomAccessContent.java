@@ -207,13 +207,20 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
      * allocate any new storage for the file.
      */
     public synchronized void setLength( long newLength ) throws IOException {
+        if ( newLength < 0 ) {
+            throw new IllegalArgumentException( "invalid length: " + newLength );
+        }
+        if ( !mode.requestWrite() ) {
+            throw new FileSystemException( "vfs.provider/write-read-only.error" );
+        }
         if ( length() > newLength ) { // truncate
-            fileObject.deleteBlocks( calcBlockIndex( newLength ) );
+            fileObject.deleteBlocks( calcBlockIndex( newLength - 1 ) + 1 );
             if ( filePointer > newLength ) {
                 seek( newLength );
             }
         }
         fileObject.updateContentSize( newLength, true );
+        fileObject.putMetaData();
     }
 
     @Override

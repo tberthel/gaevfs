@@ -15,30 +15,41 @@
  */
 package com.newatlanta.appengine.nio.channels;
 
+import static com.newatlanta.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
+
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.NonReadableChannelException;
+import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.util.Set;
 
 import org.apache.commons.vfs.RandomAccessContent;
 
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.channels.FileLock;
+import com.newatlanta.nio.file.OpenOption;
 
 public class GaeFileChannel extends FileChannel {
     
     private RandomAccessContent rac;
     private boolean append;
-
-    public GaeFileChannel( RandomAccessContent randomAccessContent ) {
-        this( randomAccessContent, false );
-    }
+    private Set<? extends OpenOption> options;
     
-    public GaeFileChannel( RandomAccessContent randomAccessContent, boolean append ) {
+    public GaeFileChannel( RandomAccessContent randomAccessContent, boolean append,
+                                Set<? extends OpenOption> options ) throws IOException {
         this.rac = randomAccessContent;
         this.append = append;
+        this.options = options;
+        
+        if ( options.contains( TRUNCATE_EXISTING ) ) {
+            rac.setLength( 0 );
+        }
     }
     
     @Override
@@ -87,6 +98,12 @@ public class GaeFileChannel extends FileChannel {
     
     @Override
     public int read( ByteBuffer dst ) throws IOException {
+        if ( !isOpen() ) {
+            throw new ClosedChannelException();
+        }
+        if ( !options.contains( READ ) ) {
+            throw new NonReadableChannelException();
+        }
         try {
             int len = dst.remaining();
             if ( dst.hasArray() ) {
@@ -104,6 +121,9 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public long size()throws IOException {
+        if ( !isOpen() ) {
+            throw new ClosedChannelException();
+        }
         return rac.length();
     }
 
@@ -121,7 +141,20 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public synchronized GaeFileChannel truncate( long size ) throws IOException {
-        rac.setLength( size );
+        if ( size < 0 ) {
+            throw new IllegalArgumentException( "size cannot be negative: " + size );
+        }
+        if ( !isOpen() ) {
+            throw new ClosedChannelException();
+        }
+        if ( !options.contains( WRITE ) ) {
+            throw new NonWritableChannelException();
+        }
+        if ( size < rac.length() ) { // if ( size < size() )
+            rac.setLength( size );
+        } else if ( rac.getFilePointer() > size ) { // if ( position() > size )
+            rac.seek( size ); // position( size );
+        }
         return this;
     }
 
@@ -145,19 +178,26 @@ public class GaeFileChannel extends FileChannel {
     }
 
     @Override
-    public synchronized int write( ByteBuffer src, long writePos ) throws IOException {
+    public int write( ByteBuffer src, long writePos ) throws IOException {
         // TODO: this is wrong! need to allow other concurrent operations, if
         // not changing file size (not allowed to modify file pointer)
-        long origPosition = position();
-        try {
-            return position( writePos ).write( src );
-        } finally {
-            position( origPosition );
-        }
+//        long origPosition = position();
+//        try {
+//            return position( writePos ).write( src );
+//        } finally {
+//            position( origPosition );
+//        }
+        return 0;
     }
     
     @Override
     public synchronized int write( ByteBuffer src ) throws IOException {
+        if ( !isOpen() ) {
+            throw new ClosedChannelException();
+        }
+        if ( !options.contains( WRITE ) ) {
+            throw new NonWritableChannelException();
+        }
         if ( append ) {
             rac.seek( rac.length() ); // advance file pointer to end of file
         }

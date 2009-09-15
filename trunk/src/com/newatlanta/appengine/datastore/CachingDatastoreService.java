@@ -269,7 +269,6 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
 
     @SuppressWarnings("unchecked")
     public void delete( Transaction txn, Iterable<Key> keys ) {
-        // TODO: this method has not been tested
         try {
             datastore.delete( txn, keys );
         } catch ( DatastoreTimeoutException e ) {
