@@ -499,19 +499,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         if ( dirtyBlocks.isEmpty() && !metaData ) {
             return; // nothing to do
         }
-        int blocksPerPut = 1;
-        try {
-            // can only write 1MB of data per put
-            blocksPerPut = ( GaeVFS.MAX_BLOCK_SIZE * 1024 ) / getBlockSize();
-        } catch ( FileSystemException e ) {
-        }
+        int max = maxBlocksPerBulkOp();
         doSetLastModTime( System.currentTimeMillis() );
         dirtyBlocks.add( 0, metadata );
         // use transaction to force write-through if specified
         Transaction txn = writeThrough ? datastore.beginTransaction() : null;
         try {
-            for ( int from = 0; from < dirtyBlocks.size(); from += blocksPerPut ) {
-                int to = Math.min( from + blocksPerPut, dirtyBlocks.size() );
+            for ( int from = 0; from < dirtyBlocks.size(); from += max ) {
+                int to = Math.min( from + max, dirtyBlocks.size() );
                 datastore.put( txn, dirtyBlocks.subList( from, to ) );
             }
             if ( txn != null ) {
@@ -522,6 +517,20 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                 txn.rollback();
             }
         }
+    }
+
+    /**
+     * Both memcache and the datastore support a maximum of 1MB of data per
+     * bulk operation.
+     */
+    private int maxBlocksPerBulkOp() {
+        int blocksPerBulk = 1;
+        try {
+            // can only write 1MB of data per put
+            blocksPerBulk = ( GaeVFS.MAX_BLOCK_SIZE * 1024 ) / getBlockSize();
+        } catch ( FileSystemException e ) {
+        }
+        return blocksPerBulk;
     }
 
     /***************************************************************************
@@ -558,11 +567,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * TODO: limit the number of blocks in memory at one time? large files?
      */
     private synchronized Entity getBlock( int i, List<Key> blockKeys ) {
-        if ( blockKeys.size() <= 10 ) { // get all blocks
+        int max = maxBlocksPerBulkOp();
+        if ( blockKeys.size() <= max ) { // get all blocks
             blockMap.putAll( datastore.get( blockKeys ) );
-        } else { // get 10 blocks starting at i
+        } else { // get maximum number of blocks starting at i
             blockMap.putAll( datastore.get( blockKeys.subList( i,
-                                    Math.min( i + 10, blockKeys.size() ) ) ) );
+                                    Math.min( i + max, blockKeys.size() ) ) ) );
         }
         return blockMap.get( blockKeys.get( i ) );
     }
