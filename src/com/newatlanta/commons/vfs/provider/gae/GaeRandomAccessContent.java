@@ -91,8 +91,12 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         return isDirty( block, false );
     }
     
+    static void setDirty( Entity entity, boolean dirty ) {
+        entity.setProperty( DIRTY, Boolean.valueOf( dirty ) );
+    }
+    
     private void setDirty( boolean dirty ) {
-        block.setProperty( DIRTY, Boolean.valueOf( dirty ) );
+        setDirty( block, dirty );
     }
     
     GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, int _blockSize )
@@ -521,6 +525,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
         
         @Override
         public void close() throws IOException {
+            outer.close();
         }
     }
 }

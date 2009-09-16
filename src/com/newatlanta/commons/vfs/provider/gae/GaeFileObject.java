@@ -16,12 +16,14 @@
 package com.newatlanta.commons.vfs.provider.gae;
 
 import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.isDirty;
+import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.setDirty;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +61,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private static DatastoreService datastore = new CachingDatastoreService();
+    private static Map<Key, Entity> blockMap = Collections.synchronizedMap(
+                                                    new HashMap<Key, Entity>() );
 
     private static final String ENTITY_KIND = "GaeFileObject";
 
@@ -71,7 +75,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String BLOCK_SIZE = "block-size";
 
     private Entity metadata; // the wrapped GAE datastore entity
-    private Map<Key, Entity> blockMap = new HashMap<Key, Entity>();
 
     private boolean isCombinedLocal;
 
@@ -195,7 +198,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected void doDetach() throws FileSystemException {
         metadata = null;
-        blockMap.clear();
     }
 
     /**
@@ -298,16 +300,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                         this.getName().getPath(), newfile.getName().getPath() );
                 child.moveTo( resolveFile( newChildPath ) );
             }
-            newfile.createFolder(); // TODO: is this redundant?
+            newfile.createFolder();
         } else {
-            // TODO: the following code is a bit messy for several reasons:
-            //   1) the call to getBlock(int) results in a call to createFile(),
-            //      which seems inappropriate at that point
-            //   2) the call to datastore.put()for the entity blocks seems like
-            //      it should happen when the file is created and should be done
-            //      along with the metadata
-            //   3) the final call to createFile() seems redundant
-            // But, it works.
             GaeFileObject newGaeFile = (GaeFileObject)newfile;
             // new file might have been detached during rename of parent folder
             if ( newGaeFile.metadata == null ) {
@@ -315,13 +309,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             int numBlocks = getBlockKeys().size(); // copy contents to the new file
             for ( int i = 0; i < numBlocks; i++ ) {
-                newGaeFile.getBlock( i ).setPropertiesFrom( this.getBlock( i ) );
+                Entity newBlock = newGaeFile.getBlock( i );
+                newBlock.setPropertiesFrom( this.getBlock( i ) );
+                setDirty( newBlock, true );
             }
-            // TODO: is this the best place to write block entities? dirty flag
-            // needs to be set for blocks if written elsewhere
-            datastore.put( newGaeFile.blockMap.values() );
-            newGaeFile.metadata.setProperty( CONTENT_SIZE, this.metadata.getProperty( CONTENT_SIZE ) );
-            newGaeFile.createFile(); // TODO: is this redundant?
+            newGaeFile.metadata.setProperty( CONTENT_SIZE,
+                                      this.metadata.getProperty( CONTENT_SIZE ) );
+            newGaeFile.persist( false, false );
+            blockMap.keySet().removeAll( newGaeFile.getBlockKeys() );
         }
     }
 
@@ -429,7 +424,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected long doGetContentSize() throws FileSystemException {
-        if ( !getType().hasContent() ) {
+        if ( exists() && !getType().hasContent() ) {
             throw new FileSystemException( "vfs.provider/get-size-not-file.error", getName() );
         }
         Long contentSize = (Long)metadata.getProperty( CONTENT_SIZE );
@@ -491,10 +486,16 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     
     @Override
     protected void notifyAllStreamsClosed() {
-        persist( false, false );
+        try {
+            persist( false, false );
+            blockMap.keySet().removeAll( getBlockKeys() );
+        } catch ( IOException e ) {
+            GaeVFS.log.warning( e.getMessage() );
+        }
     }
     
-    public synchronized void persist( boolean metaData, boolean writeThrough ) {
+    public synchronized void persist( boolean metaData, boolean writeThrough )
+            throws FileSystemException {
         List<Entity> dirtyBlocks = getDirtyBlocks();
         if ( dirtyBlocks.isEmpty() && !metaData ) {
             return; // nothing to do
@@ -532,16 +533,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         }
         return blocksPerBulk;
     }
-
-    /***************************************************************************
-     * The following methods related to blocks are for use by                  * 
-     * GaeRandomAccessContent.                                                 *
-     ***************************************************************************/
     
-    synchronized Entity getBlock( int i ) throws FileSystemException {
-        if ( !exists() ) {
-            createFile(); // TODO: why is this being done here?
-        }
+    Entity getBlock( int i ) throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
         Entity block = null;
         if ( i < blockKeys.size() ) { // existing key
@@ -566,28 +559,29 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * 
      * TODO: limit the number of blocks in memory at one time? large files?
      */
-    private synchronized Entity getBlock( int i, List<Key> blockKeys ) {
-        int max = maxBlocksPerBulkOp();
-        if ( blockKeys.size() <= max ) { // get all blocks
-            blockMap.putAll( datastore.get( blockKeys ) );
-        } else { // get maximum number of blocks starting at i
-            blockMap.putAll( datastore.get( blockKeys.subList( i,
-                                    Math.min( i + max, blockKeys.size() ) ) ) );
+    private Entity getBlock( int from, List<Key> blockKeys ) {
+        int to = Math.min( from + maxBlocksPerBulkOp(), blockKeys.size() );
+        Map<Key, Entity> entityMap = datastore.get( blockKeys.subList( from, to ) );
+        for ( Map.Entry<Key, Entity> entry : entityMap.entrySet() ) {
+            if ( !blockMap.containsKey( entry.getKey() ) ) {
+                blockMap.put( entry.getKey(), entry.getValue() );
+            }
         }
-        return blockMap.get( blockKeys.get( i ) );
+        return blockMap.get( blockKeys.get( from ) );
     }
 
-    private synchronized Entity createBlock( List<Key> blockKeys, int i ) {
+    private Entity createBlock( List<Key> blockKeys, int i ) {
         Entity block = new Entity( ENTITY_KIND, "block." + i, metadata.getKey() );
         blockKeys.add( i, block.getKey() );
         blockMap.put( block.getKey(), block );
         return block;
     }
     
-    private synchronized List<Entity> getDirtyBlocks() {
+    private List<Entity> getDirtyBlocks() throws FileSystemException {
         List<Entity> dirtyBlocks = new ArrayList<Entity>();
-        for ( Entity block : blockMap.values() ) {
-            if ( isDirty( block, true ) ) {
+        for ( Key key : getBlockKeys() ) {
+            Entity block = blockMap.get( key );
+            if ( ( block != null ) && isDirty( block, true ) ) {
                 dirtyBlocks.add( block );
             }
         }
@@ -597,9 +591,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     /**
      * Truncate blocks from the specified index (inclusive).
      */
-    synchronized void deleteBlocks( int fromIndex ) throws FileSystemException {
+    void deleteBlocks( int from ) throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
-        List<Key> deleteKeys = blockKeys.subList( fromIndex, blockKeys.size() );
+        List<Key> deleteKeys = blockKeys.subList( from, blockKeys.size() );
         if ( !deleteKeys.isEmpty() ) {
             datastore.delete( deleteKeys );
             blockMap.keySet().removeAll( deleteKeys );
