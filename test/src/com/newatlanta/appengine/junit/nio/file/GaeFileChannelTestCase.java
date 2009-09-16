@@ -131,8 +131,22 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testForce() {
-        fail( "Not yet implemented" );
+    public void testForce() throws IOException {
+        FileChannel fc = FileChannel.open( Paths.get( "docs/force.txt" ),
+                                                WRITE, CREATE_NEW );
+        assertTrue( fc.isOpen() );
+        
+        fc.force( true );
+        fc.force( false );
+        
+        fc.close();
+        assertFalse( fc.isOpen() );
+        try {
+            // attempt to force a closed channel
+            fc.force( true );
+            fail( "expected ClosedChannelException" );
+        } catch ( ClosedChannelException e ) {
+        }
     }
 
     @Test
@@ -192,8 +206,11 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertEquals( size, fc.truncate( size ).size() );
         assertEquals( size, fc.position() );
         
+        long seed = new Random().nextLong();
+        System.out.println( "testTruncate() random seed: " + seed );
+        Random rand = new Random( seed );
+        
         // size >= current size, position > size
-        Random rand = new Random();
         size = fc.size() + rand.nextInt( Integer.MAX_VALUE );
         fc.position( size + 1 + rand.nextInt( Integer.MAX_VALUE ) );
         assertTrue( ( size >= fc.size() ) && ( fc.position() > size ) );
