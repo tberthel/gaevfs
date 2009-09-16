@@ -220,7 +220,7 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
             }
         }
         fileObject.updateContentSize( newLength, true );
-        fileObject.putMetaData();
+        fileObject.persist( true, false );
     }
 
     @Override

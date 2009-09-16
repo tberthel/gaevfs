@@ -41,6 +41,7 @@ import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
+import com.google.appengine.api.datastore.Transaction;
 import com.newatlanta.appengine.datastore.CachingDatastoreService;
 
 /**
@@ -377,15 +378,15 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     protected void onChange() throws FileSystemException {
         if ( getType() == FileType.IMAGINARY ) { // file/folder is being deleted
             if ( getName().getType().hasContent() ) {
-                deleteBlocks();
+                deleteBlocks( 0 );
             }
             deleteMetaData();
         } else { // file/folder is being created or modified
-            putMetaData(); // TODO: put blocks and metadata as single operation?
+            putMetaData();
         }
     }
 
-    private void deleteMetaData() throws FileSystemException {
+    private synchronized void deleteMetaData() throws FileSystemException {
         datastore.delete( metadata.getKey() );
         // metadata.getProperties().clear(); // see issue #1395
         Object[] properties = metadata.getProperties().keySet().toArray();
@@ -399,7 +400,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * Write the metadata to the GAE datastore. Make sure the file type is set
      * correctly and update the last modified time.
      */
-    synchronized void putMetaData() throws FileSystemException {
+    private synchronized void putMetaData() throws FileSystemException {
         metadata.setProperty( FILETYPE, getType().getName() );
         doSetLastModTime( System.currentTimeMillis() );
         datastore.put( metadata );
@@ -488,25 +489,37 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                                             bAppend && exists() ? doGetContentSize() : 0 );
     }
     
-    /**
-     * will be called after this file-object closed all its streams.
-     */
     @Override
     protected void notifyAllStreamsClosed() {
+        persist( false, false );
+    }
+    
+    public synchronized void persist( boolean metaData, boolean writeThrough ) {
         List<Entity> dirtyBlocks = getDirtyBlocks();
-        if ( !dirtyBlocks.isEmpty() ) {
-            int blocksPerPut = 1;
-            try {
-                blocksPerPut = ( GaeVFS.MAX_BLOCK_SIZE * 1024 ) / getBlockSize();
-            } catch ( FileSystemException e ) {
+        if ( dirtyBlocks.isEmpty() && !metaData ) {
+            return; // nothing to do
+        }
+        int blocksPerPut = 1;
+        try {
+            // can only write 1MB of data per put
+            blocksPerPut = ( GaeVFS.MAX_BLOCK_SIZE * 1024 ) / getBlockSize();
+        } catch ( FileSystemException e ) {
+        }
+        doSetLastModTime( System.currentTimeMillis() );
+        dirtyBlocks.add( 0, metadata );
+        // use transaction to force write-through if specified
+        Transaction txn = writeThrough ? datastore.beginTransaction() : null;
+        try {
+            for ( int from = 0; from < dirtyBlocks.size(); from += blocksPerPut ) {
+                int to = Math.min( from + blocksPerPut, dirtyBlocks.size() );
+                datastore.put( txn, dirtyBlocks.subList( from, to ) );
             }
-            doSetLastModTime( System.currentTimeMillis() );
-            dirtyBlocks.add( 0, metadata );
-            int fromIndex = 0;
-            while ( fromIndex < dirtyBlocks.size() ) {
-                int toIndex = Math.min( fromIndex + blocksPerPut, dirtyBlocks.size() );
-                datastore.put( dirtyBlocks.subList( fromIndex, toIndex ) );
-                fromIndex = toIndex;
+            if ( txn != null ) {
+                txn.commit();
+            }
+        } finally {
+            if ( ( txn != null ) && txn.isActive() ) {
+                txn.rollback();
             }
         }
     }
@@ -516,9 +529,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * GaeRandomAccessContent.                                                 *
      ***************************************************************************/
     
-    // TODO: need to test random access operations that cause sparse blocks
-    
-    Entity getBlock( int i ) throws FileSystemException {
+    synchronized Entity getBlock( int i ) throws FileSystemException {
         if ( !exists() ) {
             createFile(); // TODO: why is this being done here?
         }
@@ -544,9 +555,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     /**
      * Populates the blockMap and returns the specified block.
      * 
-     * TODO: limit the number of blocks in memory at one time?
+     * TODO: limit the number of blocks in memory at one time? large files?
      */
-    private Entity getBlock( int i, List<Key> blockKeys ) {
+    private synchronized Entity getBlock( int i, List<Key> blockKeys ) {
         if ( blockKeys.size() <= 10 ) { // get all blocks
             blockMap.putAll( datastore.get( blockKeys ) );
         } else { // get 10 blocks starting at i
@@ -556,14 +567,14 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return blockMap.get( blockKeys.get( i ) );
     }
 
-    private Entity createBlock( List<Key> blockKeys, int i ) {
+    private synchronized Entity createBlock( List<Key> blockKeys, int i ) {
         Entity block = new Entity( ENTITY_KIND, "block." + i, metadata.getKey() );
         blockKeys.add( i, block.getKey() );
         blockMap.put( block.getKey(), block );
         return block;
     }
     
-    private List<Entity> getDirtyBlocks() {
+    private synchronized List<Entity> getDirtyBlocks() {
         List<Entity> dirtyBlocks = new ArrayList<Entity>();
         for ( Entity block : blockMap.values() ) {
             if ( isDirty( block, true ) ) {
@@ -573,21 +584,15 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return dirtyBlocks;
     }
 
-    private void deleteBlocks() throws FileSystemException {
-        List<Key> blockKeys = getBlockKeys();
-        if ( !blockKeys.isEmpty() ) {
-            datastore.delete( blockKeys );
-        }
-    }
-
     /**
      * Truncate blocks from the specified index (inclusive).
      */
-    void deleteBlocks( int fromIndex ) throws FileSystemException {
+    synchronized void deleteBlocks( int fromIndex ) throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
         List<Key> deleteKeys = blockKeys.subList( fromIndex, blockKeys.size() );
         if ( !deleteKeys.isEmpty() ) {
             datastore.delete( deleteKeys );
+            blockMap.keySet().removeAll( deleteKeys );
             deleteKeys.clear();
         }
     }

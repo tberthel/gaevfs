@@ -171,18 +171,12 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     }
     
     public Key put( Entity entity ) {
-        Key key = entity.getKey();
-        if ( !key.isComplete() ) {
-            // TODO: this path has not been tested
-            KeyRange keyRange = datastore.allocateIds( key.getParent(), key.getKind(), 1 );
-            key = keyRange.getStart();
-        }
+        Key key = getKey( entity );
+        memcache.setErrorHandler( STRICT_ERROR_HANDLER );
         try {
-            memcache.setErrorHandler( STRICT_ERROR_HANDLER );
             memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
             if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
                 queue.add( url( TASK_URL ).payload( serialize( key ), TASK_CONTENT_TYPE ) );
-                log.info( key.toString() );
                 return key;
             }
         } catch ( Exception e ) {
@@ -193,27 +187,43 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
         // if WRITE_THROUGH, or failed to write memcache, or failed to queue
         // write-behind task, then write directly to datastore
+        return putEntity( null, entity );
+    }
+    
+    /**
+     * Don't use write-behind cache with transactions.
+     */
+    public Key put( Transaction txn, Entity entity ) {
+        if ( txn == null ) {
+            return put( entity );
+        }
+        memcache.put( getKey( entity ), entity );
+        return putEntity( txn, entity );
+    }
+
+    private Key getKey( Entity entity ) {
+        Key key = entity.getKey();
+        if ( !key.isComplete() ) {
+            // TODO: this path has not been tested
+            KeyRange keyRange = datastore.allocateIds( key.getParent(), key.getKind(), 1 );
+            key = keyRange.getStart();
+        }
+        return key;
+    }
+    
+    private Key putEntity( Transaction txn, Entity entity ) {
         try {
-            return datastore.put( entity );
-        } catch ( DatastoreTimeoutException t ) {
-            return datastore.put( entity );
+            return datastore.put( txn, entity );
+        } catch ( DatastoreTimeoutException e ) {
+            return datastore.put( txn, entity );
         }
     }
 
     @SuppressWarnings("unchecked")
     public List<Key> put( Iterable<Entity> entities ) {
-        // create Map<Key, Entity> for memcache putAll()
-        Map<Key, Entity> entityMap = new HashMap<Key, Entity>();
-        for ( Entity entity : entities ) {
-            Key key = entity.getKey();
-            if ( !key.isComplete() ) {
-                // TODO: to be implemented
-            }
-            entityMap.put( key, entity );
-            log.info( key.toString() );
-        }
+        Map<Key, Entity> entityMap = getEntityMap( entities );
+        memcache.setErrorHandler( STRICT_ERROR_HANDLER );
         try {
-            memcache.setErrorHandler( STRICT_ERROR_HANDLER );
             memcache.putAll( (Map)entityMap, expiration, SetPolicy.SET_ALWAYS );
             if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
                 List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
@@ -228,11 +238,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
         // if WRITE_THROUGH, or failed to write memcache, or failed to queue
         // write-behind task, then write directly to datastore
-        try {
-            return datastore.put( entities );
-        } catch ( DatastoreTimeoutException t ) {
-            return datastore.put( entities );
-        }
+        return putEntities( null, entities );
     }
     
     private static byte[] serialize( Object object ) throws IOException {
@@ -243,16 +249,37 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         objectOut.close();
         return bytesOut.toByteArray();
     }
-    
+
     /**
      * Don't use write-behind cache with transactions.
      */
-    public Key put( Transaction txn, Entity entity ) {
-        return datastore.put( txn, entity );
-    }
-
+    @SuppressWarnings("unchecked")
     public List<Key> put( Transaction txn, Iterable<Entity> entities ) {
-        return datastore.put( txn, entities );
+        if ( txn == null ) {
+            return put( entities );
+        }
+        memcache.putAll( (Map)getEntityMap( entities ) );
+        return putEntities( txn, entities );
+    }
+    
+    private Map<Key, Entity> getEntityMap( Iterable<Entity> entities ) {
+        Map<Key, Entity> entityMap = new HashMap<Key, Entity>();
+        for ( Entity entity : entities ) {
+            Key key = entity.getKey();
+            if ( !key.isComplete() ) {
+                // TODO: to be implemented
+            }
+            entityMap.put( key, entity );
+        }
+        return entityMap;
+    }
+    
+    private List<Key> putEntities( Transaction txn, Iterable<Entity> entities ) {
+        try {
+            return datastore.put( txn, entities );
+        } catch ( DatastoreTimeoutException e ) {
+            return datastore.put( txn, entities );
+        }
     }
     
     public void delete( Key ... keys ) {

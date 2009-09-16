@@ -407,15 +407,12 @@ public class GaePath extends Path {
             } catch ( FileAlreadyExistsException ignore ) {
             }
         }
-        RandomAccessMode mode = RandomAccessMode.READ;
         if ( options.contains( WRITE ) ) {
             checkAccess( AccessMode.READ, AccessMode.WRITE );
-            mode = RandomAccessMode.READWRITE;
         } else {
             checkAccess( AccessMode.READ );
         }
-        return new GaeFileChannel( fileObject.getContent().getRandomAccessContent( mode ),
-                                                options.contains( APPEND ), options );
+        return new GaeFileChannel( fileObject, options );
     }
     
     @SuppressWarnings("unchecked")

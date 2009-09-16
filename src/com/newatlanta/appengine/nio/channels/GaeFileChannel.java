@@ -15,6 +15,7 @@
  */
 package com.newatlanta.appengine.nio.channels;
 
+import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
 import static com.newatlanta.nio.file.StandardOpenOption.READ;
 import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
@@ -29,36 +30,51 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Set;
 
+import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.RandomAccessContent;
+import org.apache.commons.vfs.util.RandomAccessMode;
 
+import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.channels.FileLock;
 import com.newatlanta.nio.file.OpenOption;
 
 public class GaeFileChannel extends FileChannel {
     
-    private RandomAccessContent rac;
-    private boolean append;
+    private FileObject fileObject;
+    private RandomAccessContent content;
     private Set<? extends OpenOption> options;
     
-    public GaeFileChannel( RandomAccessContent randomAccessContent, boolean append,
-                                Set<? extends OpenOption> options ) throws IOException {
-        this.rac = randomAccessContent;
-        this.append = append;
+    public GaeFileChannel( FileObject fileObject, Set<? extends OpenOption> options )
+            throws IOException {
+        this.fileObject = fileObject;
+        RandomAccessMode mode = options.contains( WRITE ) ? RandomAccessMode.READWRITE
+                                                          : RandomAccessMode.READ;
+        this.content = fileObject.getContent().getRandomAccessContent( mode );
         this.options = options;
-        
         if ( options.contains( TRUNCATE_EXISTING ) ) {
-            rac.setLength( 0 );
+            content.setLength( 0 );
         }
     }
     
     @Override
     public void force( boolean metaData ) throws IOException {
-        // TODO Auto-generated method stub
+        if ( !isOpen() ) {
+            throw new ClosedChannelException();
+        }
+        if ( fileObject instanceof GaeFileObject ) {
+            ((GaeFileObject)fileObject).persist( metaData, true );
+        }
     }
 
     @Override
     public FileLock lock( long position, long size, boolean shared ) throws IOException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+    
+    @Override
+    public FileLock tryLock( long position, long size, boolean shared ) throws IOException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -68,7 +84,7 @@ public class GaeFileChannel extends FileChannel {
         if ( !isOpen() ) {
             throw new ClosedChannelException();
         }
-        return rac.getFilePointer();
+        return content.getFilePointer();
     }
 
     @Override
@@ -80,7 +96,7 @@ public class GaeFileChannel extends FileChannel {
         if ( !isOpen() ) {
             throw new ClosedChannelException();
         }
-        rac.seek( newPosition );
+        content.seek( newPosition );
         return this;
     }
 
@@ -107,10 +123,10 @@ public class GaeFileChannel extends FileChannel {
         try {
             int len = dst.remaining();
             if ( dst.hasArray() ) {
-                rac.readFully( dst.array(), dst.arrayOffset(), dst.remaining() );
+                content.readFully( dst.array(), dst.arrayOffset(), dst.remaining() );
             } else {
                 byte[] b = new byte[ len ];
-                rac.readFully( b, 0, len );
+                content.readFully( b, 0, len );
                 dst.put( b );
             }
             return len - dst.remaining();
@@ -124,7 +140,7 @@ public class GaeFileChannel extends FileChannel {
         if ( !isOpen() ) {
             throw new ClosedChannelException();
         }
-        return rac.length();
+        return content.length();
     }
 
     @Override
@@ -150,18 +166,12 @@ public class GaeFileChannel extends FileChannel {
         if ( !options.contains( WRITE ) ) {
             throw new NonWritableChannelException();
         }
-        if ( size < rac.length() ) { // if ( size < size() )
-            rac.setLength( size );
-        } else if ( rac.getFilePointer() > size ) { // if ( position() > size )
-            rac.seek( size ); // position( size );
+        if ( size < content.length() ) { // if ( size < size() )
+            content.setLength( size );
+        } else if ( content.getFilePointer() > size ) { // if ( position() > size )
+            content.seek( size ); // position( size );
         }
         return this;
-    }
-
-    @Override
-    public FileLock tryLock( long position, long size, boolean shared ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
     }
 
     @Override
@@ -198,22 +208,22 @@ public class GaeFileChannel extends FileChannel {
         if ( !options.contains( WRITE ) ) {
             throw new NonWritableChannelException();
         }
-        if ( append ) {
-            rac.seek( rac.length() ); // advance file pointer to end of file
+        if ( options.contains( APPEND ) ) {
+            content.seek( content.length() ); // advance file pointer to end of file
         }
         int len = src.remaining();
         if ( src.hasArray() ) { 
-            rac.write( src.array(), src.arrayOffset(), len );
+            content.write( src.array(), src.arrayOffset(), len );
         } else {
             byte[] b = new byte[ len ];
             src.get( b );
-            rac.write( b );
+            content.write( b );
         }
         return len;
     }
 
     @Override
     protected synchronized void implCloseChannel() throws IOException {
-        rac.close();
+        content.close();
     }
 }
