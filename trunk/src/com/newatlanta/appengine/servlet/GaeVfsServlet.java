@@ -19,7 +19,6 @@ import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlock
 import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
 import static com.newatlanta.nio.file.attribute.Attributes.readBasicFileAttributes;
 
-import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -288,7 +287,6 @@ public class GaeVfsServlet extends HttpServlet {
                     } else {
                         out = filePath.newOutputStream( CREATE_NEW );
                     }
-                    out = new BufferedOutputStream( out, 64 * 1024 );
                     copyAndClose( item.openStream(), out );
                 }
             }

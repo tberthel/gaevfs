@@ -46,13 +46,11 @@ import java.util.concurrent.locks.Lock;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
-import org.apache.commons.vfs.util.RandomAccessMode;
 
 import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
-import com.newatlanta.commons.vfs.provider.gae.GaeOutputStream;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
@@ -459,6 +457,9 @@ public class GaePath extends Path {
         return optionSet;
     }
 
+    /**
+     * Returns a buffered input stream.
+     */
     public InputStream newInputStream( OpenOption ... options ) throws IOException {
         for ( OpenOption option : options ) {
             if ( option != READ ) {
@@ -466,12 +467,13 @@ public class GaePath extends Path {
             }
         }
         checkAccess( AccessMode.READ );
-        // don't use fileObject.getContent().getInputStream(); this avoids
-        // automatic buffering by Commons VFS
-        return fileObject.getContent().getRandomAccessContent(
-                                            RandomAccessMode.READ ).getInputStream();
+        return fileObject.getContent().getInputStream();
     }
     
+    /**
+     * Returns a buffered output stream. Allows only one open output stream at
+     * a time per file.
+     */
     @Override
     public OutputStream newOutputStream( OpenOption ... options ) throws IOException {
         Set<OpenOption> optionSet = checkOutputStreamOpenOptions( options );
@@ -484,11 +486,7 @@ public class GaePath extends Path {
             }
         }
         checkAccess( AccessMode.WRITE );
-        // don't use fileObject.getContent().getOutputStream(); this avoids
-        // automatic buffering by Commons VFS, and Commons VFS restriction that
-        // allows only one open OutputStream
-        return new GaeOutputStream( fileObject.getContent().getRandomAccessContent(
-                    RandomAccessMode.READWRITE ), optionSet.contains( APPEND ) );
+        return fileObject.getContent().getOutputStream( optionSet.contains( APPEND ) );
     }
     
     private static Set<OpenOption> checkOutputStreamOpenOptions( OpenOption ... options ) {
