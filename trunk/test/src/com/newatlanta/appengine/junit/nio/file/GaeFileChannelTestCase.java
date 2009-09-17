@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NonWritableChannelException;
+import java.nio.channels.OverlappingFileLockException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Random;
@@ -32,6 +33,7 @@ import org.junit.Test;
 
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
 import com.newatlanta.nio.channels.FileChannel;
+import com.newatlanta.nio.channels.FileLock;
 import com.newatlanta.nio.file.Paths;
 
 public class GaeFileChannelTestCase extends GaeVfsTestCase {
@@ -98,6 +100,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         }
         
         fc.close();
+        assertFalse( fc.isOpen() );
         
         try {
             // attempt to set the position for a closed channel
@@ -141,6 +144,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         
         fc.close();
         assertFalse( fc.isOpen() );
+        
         try {
             // attempt to force a closed channel
             fc.force( true );
@@ -170,19 +174,130 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testLockLongLongBoolean() {
+    public void testLock() {
         fail( "Not yet implemented" );
     }
 
     @Test
-    public void testTryLockLongLongBoolean() {
-        fail( "Not yet implemented" );
+    public void testTryLock() throws IOException {
+        FileChannel fc = FileChannel.open( Paths.get( "docs/truncate.txt" ),
+                                                EnumSet.of( WRITE, CREATE_NEW ) );
+        assertTrue( fc.isOpen() );
+        
+        try {
+            // negative position
+            fc.tryLock( -1, 100, false );
+            fail( "expected IllegalArgumentException" );
+        } catch ( IllegalArgumentException e ) {
+        }
+        
+        try {
+            // negative size
+            fc.tryLock( 0, -100, false );
+            fail( "expected IllegalArgumentException" );
+        } catch ( IllegalArgumentException e ) {
+        }
+        
+        try {
+            // negative position + size
+            fc.tryLock( Long.MAX_VALUE, 100, false );
+            fail( "expected IllegalArgumentException" );
+        } catch ( IllegalArgumentException e ) {
+        }
+        
+        try {
+            // attempt to lock a region (currently unsupported)
+            fc.tryLock( 1, 100, false );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {   
+        }
+        
+        // get an exclusive lock
+        FileLock fileLock = fc.tryLock();
+        assertNotNull( fileLock );
+        assertTrue( fileLock.isValid() );
+        assertFalse( fileLock.isShared() );
+        assertEquals( 0, fileLock.position() );
+        assertEquals( Long.MAX_VALUE, fileLock.size() );
+        assertEquals( fc, fileLock.acquiredBy() );
+        
+        try {
+            // try second get on exclusive lock
+            fc.tryLock();
+            fail( "expected OverlappingFileLockException" );
+        } catch ( OverlappingFileLockException e ) {
+        }
+        
+        try {
+            // try get on shared lock
+            fc.tryLock( 0, Long.MAX_VALUE, true );
+            fail( "expected OverlappingFileLockException" );
+        } catch ( OverlappingFileLockException e ) {
+        }
+        
+        fileLock.release();
+        assertFalse( fileLock.isValid() );
+        fileLock.release(); // release on an invalid lock does nothing
+        
+        // get exclusive lock on separate thread
+        FileLockingThread lockThread = FileLockingThread.createThread( fc, Long.MAX_VALUE );
+        assertTrue( lockThread.isAlive() );
+        assertTrue( lockThread.getFileLock().isValid() );
+        assertFalse( lockThread.getFileLock().isShared() );
+        
+        try {
+            // try second get on exclusive lock
+            fc.tryLock();
+            fail( "expected OverlappingFileLockException" );
+        } catch ( OverlappingFileLockException e ) {
+        }
+        
+        try {
+            // try get on shared lock
+            fc.tryLock( 0, Long.MAX_VALUE, true );
+            fail( "expected OverlappingFileLockException" );
+        } catch ( OverlappingFileLockException e ) {
+        }
+        
+        lockThread.interrupt();
+        try {
+            do {
+                Thread.sleep( 100 ); // give lockThread a chance to run
+            } while ( lockThread.isAlive() );
+        } catch ( InterruptedException e ) {
+        }
+        assertFalse( lockThread.isAlive() );
+        assertFalse( lockThread.getFileLock().isValid() );
+        
+        // get and release a shared lock
+        fileLock = fc.tryLock( 0, Long.MAX_VALUE, true );
+        assertNotNull( fileLock );
+        assertTrue( fileLock.isValid() );
+        assertTrue( fileLock.isShared() );
+        assertEquals( 0, fileLock.position() );
+        assertEquals( Long.MAX_VALUE, fileLock.size() );
+        assertEquals( fc, fileLock.acquiredBy() );
+        fileLock.release();
+        assertFalse( fileLock.isValid() );
+        
+        fc.close();
+        assertFalse( fc.isOpen() );
+        
+        try {
+            // attempt to lock a closed channel
+            fc.tryLock();
+            fail( "expected ClosedChannelException" );
+        } catch ( ClosedChannelException e ) {
+        }
+        
+        // attempt FileLock.release() on a closed channel
+        fileLock.release();
     }
 
     @Test
     public void testTruncate() throws IOException {
         FileChannel fc = FileChannel.open( Paths.get( "docs/truncate.txt" ),
-                            EnumSet.of( WRITE, CREATE_NEW ), withBlockSize( 1 ));
+                            EnumSet.of( WRITE, CREATE_NEW ), withBlockSize( 1 ) );
         assertTrue( fc.isOpen() );
 
         ByteBuffer b = ByteBuffer.allocate( 1 ).put( (byte)0xff );
@@ -231,9 +346,11 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertEquals( fc.size(), fc.truncate( size ).size() ); // size unmodified
         assertEquals( pos, fc.position() ); // position unmodified
         
+        fc.close();
+        assertFalse( fc.isOpen() );
+        
         try {
             // closed channel
-            fc.close();
             fc.truncate( 0 );
             fail( "expected ClosedChannelException" );
         } catch ( ClosedChannelException e ) {
@@ -258,8 +375,14 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     public void testClose() throws IOException {
         FileChannel fc = FileChannel.open( Paths.get( "docs/close.txt" ), WRITE, CREATE_NEW );
         assertTrue( fc.isOpen() );
+        
+        FileLock fileLock = fc.lock();
+        assertTrue( fileLock.isValid() );
+        
         fc.close();
         assertFalse( fc.isOpen() );
+        assertFalse( fileLock.isValid() );
+        
         fc.close(); // attempt to close a closed channel (does nothing)
     }
 
