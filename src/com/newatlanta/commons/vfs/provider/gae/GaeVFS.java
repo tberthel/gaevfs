@@ -15,10 +15,13 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import java.io.IOException;
 import java.util.logging.Logger;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
+
+import com.newatlanta.appengine.nio.channels.GaeFileLock;
 
 /**
  * This class is the entry point for interacting with the Google App Engine Virtual
@@ -160,20 +163,24 @@ public class GaeVFS {
     }
 
     /**
-     * Releases all resources used by GaeVFS. It's good practice, but not strictly
-     * necessary, to close GaeVFS when your servlet is destroyed to aid in clean-up
-     * of GaeVFS resources. This will be done automatically if the
+     * Releases all resources used by GaeVFS. Required to release all file locks
+     * when an application terminates.
+     * This will be done automatically if the
      * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
      * Otherwise, it should be done within the servlet <tt>destroy()</tt> method:
      * <blockquote><code>
      * public void destroy() {<br>
-     * &nbsp;&nbsp;&nbsp;&nbsp;GaeVFS.close(); // this is not strictly required, but good practice<br>
+     * &nbsp;&nbsp;&nbsp;&nbsp;GaeVFS.close();
      * }
      */
     public static void close() {
         if ( fsManager != null ) {
             fsManager.close();
             fsManager = null;
+        }
+        try {
+            GaeFileLock.releaseAll();
+        } catch ( IOException ignore ) {
         }
     }
 }

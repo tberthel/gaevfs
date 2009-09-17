@@ -29,11 +29,13 @@ import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
+import com.newatlanta.appengine.locks.ReadWriteLock;
 import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.channels.FileLock;
@@ -44,6 +46,8 @@ public class GaeFileChannel extends FileChannel {
     private FileObject fileObject;
     private RandomAccessContent content;
     private Set<? extends OpenOption> options;
+    
+    private ReadWriteLock readWriteLock; // lock for the entire file channel
     
     public GaeFileChannel( FileObject fileObject, Set<? extends OpenOption> options )
             throws IOException {
@@ -59,9 +63,7 @@ public class GaeFileChannel extends FileChannel {
     
     @Override
     public void force( boolean metaData ) throws IOException {
-        if ( !isOpen() ) {
-            throw new ClosedChannelException();
-        }
+        checkOpen();
         if ( fileObject instanceof GaeFileObject ) {
             ((GaeFileObject)fileObject).persist( metaData, true );
         }
@@ -69,33 +71,67 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public FileLock lock( long position, long size, boolean shared ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        // validates position and size arguments, makes sure channel is open, and checks
+        // to see if any other threads within this JVM already own the lock
+        GaeFileLock fileLock = new GaeFileLock( this, position, size, shared );
+        try {
+            if ( fileLock.isEntireFile() ) {
+                Lock lock = getLock( shared );
+                lock.lock(); // blocks until lock is acquired
+                return fileLock.acquired( lock );
+            }
+            throw new UnsupportedOperationException( "regions not supported" );
+        } finally {
+            if ( !fileLock.isValid() ) {
+                fileLock.release();
+            }
+        }
     }
     
     @Override
     public FileLock tryLock( long position, long size, boolean shared ) throws IOException {
-        // TODO Auto-generated method stub
-        return null;
+        // validates position and size arguments, makes sure channel is open, and checks
+        // to see if any other threads within this JVM already own the lock
+        GaeFileLock fileLock = new GaeFileLock( this, position, size, shared );
+        try {
+            if ( fileLock.isEntireFile() ) {
+                Lock lock = getLock( shared );
+                if ( !lock.tryLock() ) {
+                    return null;
+                }
+                return fileLock.acquired( lock );
+            }
+            throw new UnsupportedOperationException( "regions not supported" );
+        } finally {
+            if ( !fileLock.isValid() ) {
+                fileLock.release();
+            }
+        }
+    }
+    
+    private synchronized Lock getLock( boolean shared ) {
+        if ( readWriteLock == null ) {
+            readWriteLock = new ReadWriteLock( getLockName() );
+        }
+        return ( shared ? readWriteLock.readLock() : readWriteLock.writeLock() );
+    }
+    
+    String getLockName() {
+        return fileObject.getName().getPath(); // path is unique
     }
 
     @Override
     public long position() throws IOException {
-        if ( !isOpen() ) {
-            throw new ClosedChannelException();
-        }
+        checkOpen();
         return content.getFilePointer();
     }
 
     @Override
     public synchronized GaeFileChannel position( long newPosition ) throws IOException {
         if ( newPosition < 0 ) {
-            throw new IllegalArgumentException( "newPosition cannot be negative: " +
-                                                    newPosition );
+            throw new IllegalArgumentException( "Negative newPosition" );
         }
-        if ( !isOpen() ) {
-            throw new ClosedChannelException();
-        }
+        checkOpen();
         content.seek( newPosition );
         return this;
     }
@@ -114,9 +150,7 @@ public class GaeFileChannel extends FileChannel {
     
     @Override
     public int read( ByteBuffer dst ) throws IOException {
-        if ( !isOpen() ) {
-            throw new ClosedChannelException();
-        }
+        checkOpen();
         if ( !options.contains( READ ) ) {
             throw new NonReadableChannelException();
         }
@@ -137,20 +171,20 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public long size()throws IOException {
-        if ( !isOpen() ) {
-            throw new ClosedChannelException();
-        }
+        checkOpen();
         return content.length();
     }
 
     @Override
-    public long transferFrom( ReadableByteChannel src, long position, long count ) throws IOException {
+    public long transferFrom( ReadableByteChannel src, long position, long count )
+            throws IOException {
         // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
-    public long transferTo( long position, long count, WritableByteChannel target ) throws IOException {
+    public long transferTo( long position, long count, WritableByteChannel target )
+            throws IOException {
         // TODO Auto-generated method stub
         return 0;
     }
@@ -158,11 +192,9 @@ public class GaeFileChannel extends FileChannel {
     @Override
     public synchronized GaeFileChannel truncate( long size ) throws IOException {
         if ( size < 0 ) {
-            throw new IllegalArgumentException( "size cannot be negative: " + size );
+            throw new IllegalArgumentException( "Negative size" );
         }
-        if ( !isOpen() ) {
-            throw new ClosedChannelException();
-        }
+        checkOpen();
         if ( !options.contains( WRITE ) ) {
             throw new NonWritableChannelException();
         }
@@ -176,6 +208,7 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public synchronized long write( ByteBuffer[] srcs, int offset, int length ) throws IOException {
+        // TODO this method has not been tested
         if ( ( offset < 0 ) || ( offset > srcs.length ) ||
                 ( length < 0 ) || ( length > ( srcs.length - offset ) ) ) {
             throw new IllegalArgumentException();
@@ -202,9 +235,7 @@ public class GaeFileChannel extends FileChannel {
     
     @Override
     public synchronized int write( ByteBuffer src ) throws IOException {
-        if ( !isOpen() ) {
-            throw new ClosedChannelException();
-        }
+        checkOpen();
         if ( !options.contains( WRITE ) ) {
             throw new NonWritableChannelException();
         }
@@ -222,8 +253,16 @@ public class GaeFileChannel extends FileChannel {
         return len;
     }
 
+    void checkOpen() throws ClosedChannelException {
+        if ( !isOpen() ) {
+            throw new ClosedChannelException();
+        }
+    }
+
     @Override
-    protected synchronized void implCloseChannel() throws IOException {
+    protected void implCloseChannel() throws IOException {
         content.close();
+        // release all locks acquired by this channel
+        GaeFileLock.releaseAll( this );
     }
 }
