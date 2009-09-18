@@ -55,6 +55,10 @@ public class ExclusiveLock extends AbstractLock {
         key = lockName;
     }
     
+    public String getName() {
+        return key;
+    }
+    
     /**
      * Returns the thread that currently owns this lock; or, <code>null</code>
      * if not owned by a thread running within this JVM instance.

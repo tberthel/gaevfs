@@ -23,12 +23,14 @@ import java.util.concurrent.locks.Lock;
  * only if there are no readers and no writer already owning the lock. The read
  * lock can be acquired only if there is no writer that already owns the lock.
  * 
- * It takes a minimum of two memcache calls to acquire the write lock: one to 
- * acquire the write lock and one to make sure the read lock isn't being held.
+ * It takes a minimum of two memcache operations to acquire the write lock: one
+ * to acquire the write lock and one to make sure the read lock isn't being held.
  * 
- * It takes a minimum of three memcache calls to acquire the read lock: one to
- * acquire the write lock, one to acquire the read lock, and one to release the
+ * It takes a minimum of three memcache operations to acquire the read lock: one
+ * to acquire the write lock, one to acquire the read lock, and one to release the
  * write lock.
+ * 
+ * Each memcache operation takes approximately 15ms.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
