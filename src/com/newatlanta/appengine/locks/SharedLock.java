@@ -21,31 +21,33 @@ import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 
 /**
- * Implements a shared lock based on the GAE <code>MemcacheService</code> API,
+ * <p>Implements a shared lock based on the Google App Engine <code>MemcacheService</code>,
  * specifically, the atomic <code>increment()</code> method. The lock is
- * "acquired" by incrementing the counter and "released" by decrementing it;
+ * acquired by incrementing the counter and released by decrementing it;
  * acquiring the lock never fails. The <code>isLock()</code> method can be
  * used to determine whether the lock has been acquired by any thread.
  * 
- * There are three potential issues with the current implementation of this class:
+ * <p>There are three potential issues with the current implementation of this
+ * class:
+ * <ol>
+ * <li>memcache is not reliable and the counter being used as a lock may be
+ * evicted at any time, releasing the lock prematurely;</li>
  * 
- *   1) memcache is not reliable and the counter being used as a lock may be
- * evicted at any time;
- * 
- *   2) any thread can invoke <code>unlock()</code> any number of times,
+ * <li>any thread can invoke <code>unlock()</code> any number of times,
  * regardless of whether that thread has ever acquired the lock, or how many
  * times it has acquired the lock--a "rogue" thread could therefore cause the
- * lock to be released prematurely; and,
+ * lock to be released prematurely; and,</li>
  *      
- *   3) there is no mechanism to insure that a lock is not held indefinitely
- * due to programming errors (failures to invoke <code>unlock()</code>).
- * 
- * The reliability issue is probably best addressed by implemented persistent
+ * <li>there is no mechanism to insure that a lock is not held indefinitely
+ * due to programming errors (failures to invoke <code>unlock()</code>) or
+ * abnormal JVM termination.</li>
+ * </ol>
+ * <p>The reliability issue is probably best addressed by implemented persistent
  * counters backed by the GAE datastore; see the following for an example:
  * 
  *  http://blog.appenginefan.com/2009/04/efficient-global-counters-revisited.html
  *   
- * It might be best to wait until Task Queues are available for GAE/J so that
+ * <p>It might be best to wait until Task Queues are available for GAE/J so that
  * they can be used to implement a write-behind cache for persistent counters,
  * which should be more efficient that the implementation described in the
  * above reference.
