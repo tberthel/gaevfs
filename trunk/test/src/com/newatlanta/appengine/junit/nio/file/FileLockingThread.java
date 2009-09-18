@@ -16,30 +16,51 @@
 package com.newatlanta.appengine.junit.nio.file;
 
 import java.io.IOException;
+import java.util.concurrent.locks.Lock;
 
 import com.google.apphosting.api.ApiProxy;
 import com.google.apphosting.api.ApiProxy.Delegate;
 import com.newatlanta.appengine.junit.TestEnvironment;
-import com.newatlanta.nio.channels.FileChannel;
-import com.newatlanta.nio.channels.FileLock;
+import com.newatlanta.appengine.locks.ExclusiveLock;
+import com.newatlanta.appengine.nio.channels.GaeFileChannel;
 
 /**
+ * Simulates lock acquisition by a thread in a different JVM.
+ * 
  * Acquires the specified lock, then sleeps for the specified time or until
- * interrupted.
+ * interrupted. Upon resuming, either closes the channel or releases the lock.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class FileLockingThread extends Thread {
     
-    private FileChannel fileChannel;
-    private FileLock fileLock;
+    private GaeFileChannel fileChannel;
     private long sleepTime;
+    private boolean closeChannel;
+    private Thread interruptThread;
     
     @SuppressWarnings("unchecked")
     private Delegate delegate;
     
-    public static FileLockingThread createThread( FileChannel fileChannel, long sleepTime ) {
-        FileLockingThread lockThread = new FileLockingThread( fileChannel, sleepTime );
+    public static FileLockingThread createThread( GaeFileChannel fileChannel ) {
+        return createThread( fileChannel, Long.MAX_VALUE, false, null );
+    }
+    
+    public static FileLockingThread createThread( GaeFileChannel fileChannel,
+            long sleepTime, Thread interruptThread ) {
+        return createThread( fileChannel, sleepTime, false, interruptThread );
+    }
+    
+    public static FileLockingThread createThread( GaeFileChannel fileChannel,
+            long sleepTime, boolean closeChannel ) {
+        return createThread( fileChannel, sleepTime, closeChannel, null );
+    }
+    
+    public static FileLockingThread createThread( GaeFileChannel fileChannel,
+            long sleepTime, boolean closeChannel, Thread interruptThread )
+    {
+        FileLockingThread lockThread = new FileLockingThread( fileChannel,
+                                        sleepTime, closeChannel, interruptThread );
         lockThread.start();
         try {
             do {
@@ -50,15 +71,14 @@ public class FileLockingThread extends Thread {
         return lockThread;
     }
     
-    private FileLockingThread( FileChannel fileChannel, long sleepTime ) {
+    private FileLockingThread( GaeFileChannel fileChannel, long sleepTime,
+                                    boolean closeChannel, Thread interruptThread ) {
         super( "FileLockThread" );
         this.delegate = ApiProxy.getDelegate();
-        this.sleepTime = sleepTime;
         this.fileChannel = fileChannel;
-    }
-    
-    public FileLock getFileLock() {
-        return fileLock;
+        this.sleepTime = sleepTime;
+        this.closeChannel = closeChannel;
+        this.interruptThread = interruptThread;
     }
 
     @Override
@@ -67,12 +87,19 @@ public class FileLockingThread extends Thread {
         ApiProxy.setDelegate( delegate );
 
         try {
-            fileLock = fileChannel.lock();
+            Lock lock = new ExclusiveLock( fileChannel.getLockName() );
+            lock.lock();
             try {
                 sleep( sleepTime );
             } catch ( InterruptedException e ) {
             } finally {
-                fileLock.release();
+                if ( interruptThread != null ) {
+                    interruptThread.interrupt();
+                }
+                if ( closeChannel ) {
+                    fileChannel.close();
+                }
+                lock.unlock();
             }
         } catch ( IOException e ) {
             e.printStackTrace();
