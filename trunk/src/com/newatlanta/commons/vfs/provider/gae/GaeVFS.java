@@ -15,7 +15,6 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
-import java.io.IOException;
 import java.util.logging.Logger;
 
 import org.apache.commons.vfs.FileObject;
@@ -178,9 +177,6 @@ public class GaeVFS {
             fsManager.close();
             fsManager = null;
         }
-        try {
-            GaeFileLock.releaseAll();
-        } catch ( IOException ignore ) {
-        }
+        GaeFileLock.releaseAll();
     }
 }

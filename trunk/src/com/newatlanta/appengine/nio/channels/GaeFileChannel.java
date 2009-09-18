@@ -23,19 +23,20 @@ import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.FileLockInterruptionException;
 import java.nio.channels.NonReadableChannelException;
 import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Set;
-import java.util.concurrent.locks.Lock;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
-import com.newatlanta.appengine.locks.ReadWriteLock;
+import com.newatlanta.appengine.locks.SleepTimer;
 import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.channels.FileLock;
@@ -46,8 +47,6 @@ public class GaeFileChannel extends FileChannel {
     private FileObject fileObject;
     private RandomAccessContent content;
     private Set<? extends OpenOption> options;
-    
-    private ReadWriteLock readWriteLock; // lock for the entire file channel
     
     public GaeFileChannel( FileObject fileObject, Set<? extends OpenOption> options )
             throws IOException {
@@ -71,16 +70,23 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public FileLock lock( long position, long size, boolean shared ) throws IOException {
-        // validates position and size arguments, makes sure channel is open, and checks
-        // to see if any other threads within this JVM already own the lock
-        GaeFileLock fileLock = new GaeFileLock( this, position, size, shared );
+        checkLockOptions( shared );
+        // GaeFileLock constructor validates arguments
+        GaeFileLock fileLock = new GaeFileLock( this, position, size );
         try {
-            if ( fileLock.isEntireFile() ) {
-                Lock lock = getLock( shared );
-                lock.lock(); // blocks until lock is acquired
-                return fileLock.acquired( lock );
+            try {
+                SleepTimer timer = new SleepTimer();
+                while ( !fileLock.tryLock() ) {
+                    Thread.sleep( timer.nextSleepTime() );
+                    if ( !isOpen() ) { // another thread closed the channel
+                        throw new AsynchronousCloseException();
+                    }
+                }
+            } catch ( InterruptedException e ) {
+                Thread.currentThread().interrupt(); // set interrupted flag
+                throw new FileLockInterruptionException();
             }
-            throw new UnsupportedOperationException( "regions not supported" );
+            return fileLock;
         } finally {
             if ( !fileLock.isValid() ) {
                 fileLock.release();
@@ -90,18 +96,14 @@ public class GaeFileChannel extends FileChannel {
     
     @Override
     public FileLock tryLock( long position, long size, boolean shared ) throws IOException {
-        // validates position and size arguments, makes sure channel is open, and checks
-        // to see if any other threads within this JVM already own the lock
-        GaeFileLock fileLock = new GaeFileLock( this, position, size, shared );
+        checkLockOptions( shared );
+        // GaeFileLock constructor validates arguments
+        GaeFileLock fileLock = new GaeFileLock( this, position, size );
         try {
-            if ( fileLock.isEntireFile() ) {
-                Lock lock = getLock( shared );
-                if ( !lock.tryLock() ) {
-                    return null;
-                }
-                return fileLock.acquired( lock );
+            if ( !fileLock.tryLock() ) {
+                return null;
             }
-            throw new UnsupportedOperationException( "regions not supported" );
+            return fileLock;
         } finally {
             if ( !fileLock.isValid() ) {
                 fileLock.release();
@@ -109,15 +111,18 @@ public class GaeFileChannel extends FileChannel {
         }
     }
     
-    private synchronized Lock getLock( boolean shared ) {
-        if ( readWriteLock == null ) {
-            readWriteLock = new ReadWriteLock( getLockName() );
+    private void checkLockOptions( boolean shared ) {
+        if ( shared ) {
+            if ( !options.contains( READ ) ) {
+                throw new NonReadableChannelException();
+            }
+        } else if ( !options.contains( WRITE ) ) {
+            throw new NonWritableChannelException();
         }
-        return ( shared ? readWriteLock.readLock() : readWriteLock.writeLock() );
     }
     
-    String getLockName() {
-        return fileObject.getName().getPath(); // path is unique
+    public String getLockName() {
+        return fileObject.getName().getPath()+ ".GaeFileChannel.lock";
     }
 
     @Override

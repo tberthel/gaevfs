@@ -92,36 +92,4 @@ public abstract class AbstractLock implements Lock {
     public Condition newCondition() {
         throw new UnsupportedOperationException();
     }
-    
-    protected class SleepTimer {
-        
-        private static final long MAX_SLEEP_TIME = 128; // milliseconds
-        
-        private long sleepTime;
-        private long maxTime;
-        
-        public SleepTimer() {
-            this( 1, MAX_SLEEP_TIME );
-        }
-        
-        public SleepTimer( long start, long max ) {
-            if ( ( start < 0 ) || ( max < 0 ) || ( start > max ) ) {
-                throw new IllegalArgumentException();
-            }
-            sleepTime = start;
-            maxTime = max;
-        }
-        
-        /**
-         * Doubles each invocation until the maximum is reached (or exceeded).
-         */
-        public long nextSleepTime() {
-            if ( sleepTime < maxTime ) {
-                long returnValue = sleepTime;
-                sleepTime <<= 1;
-                return returnValue;
-            }
-            return maxTime;
-        }
-    }
 }
