@@ -102,7 +102,7 @@ public class GaePath extends Path {
     
     private synchronized Lock getLock() {
         if ( lock == null ) {
-            lock = new ExclusiveLock( fileObject.getName().getPath() );
+            lock = new ExclusiveLock( fileObject.getName().getPath() + ".GaePath.lock" );
         }
         return lock;
     }

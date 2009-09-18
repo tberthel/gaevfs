@@ -17,95 +17,106 @@ package com.newatlanta.appengine.nio.channels;
 
 import java.io.IOException;
 import java.nio.channels.OverlappingFileLockException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.Lock;
 
-import com.newatlanta.nio.channels.FileChannel;
+import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.nio.channels.FileLock;
 
+/**
+ * GaeVFS {@linkplain com.newatlanta.nio.channels.FileLock} implementation.
+ * 
+ * <p>Platform dependencies:
+ * <ul>
+ * <li>Shared locks are not supported; a request for a shared lock is automatically
+ * converted into a request for an exclusive lock.</li>
+ * 
+ * <p><li>Locking of regions is not supported; locks must be requested for the entire
+ * file.</li>
+ * 
+ * <p><li>Locks are advisory; programs must cooperatively observe the locking
+ * protocol, and are not automatically prevented from violating the locks.</li>
+ * </ul>
+ * 
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
+ */
 public class GaeFileLock extends FileLock {
     
-    private static Map<String, List<GaeFileLock>> fileLocks =
-        Collections.synchronizedMap( new HashMap<String, List<GaeFileLock>>() );
+    private static Map<String, GaeFileLock> fileLocks =
+            Collections.synchronizedMap( new HashMap<String, GaeFileLock>() );
 
-    private Lock lock;
     private String name;
+    private Lock lock;
+    private boolean isValid;
     
-    GaeFileLock( GaeFileChannel fileChannel, long position, long size,
-                    boolean shared ) throws IOException
-    {
-        super( fileChannel, position, size, shared ); // validates position and size
+    /**
+     * Validates position and size arguments, makes sure file channel is open,
+     * and makes sure no other thread within this JVM already owns the lock or
+     * is attempting to acquire it.
+     */
+    GaeFileLock( GaeFileChannel fileChannel, long position, long size ) throws IOException {
+        super( fileChannel, position, size, false ); // validates position and size
+        if ( !isEntireFile( position, size ) ) {
+            throw new UnsupportedOperationException( "Region locking is not supported." );
+        } 
         fileChannel.checkOpen();
         name = fileChannel.getLockName();
         
-        // multiple locks--whether exclusive or shared--must not overlap
-        synchronized ( fileLocks ) {
-            List<GaeFileLock> lockList = fileLocks.get( name );
-            if ( lockList != null ) {
-                for ( GaeFileLock lock : lockList ) {
-                    if ( lock.overlaps( position, size ) ) {
-                        throw new OverlappingFileLockException();
-                    }
-                }
-            } else {
-                lockList = new ArrayList<GaeFileLock>();
-                fileLocks.put( name, lockList );
+        // make sure no other thread own the lock or is attempting to acquire it
+        synchronized( fileLocks ) {
+            if ( fileLocks.containsKey( name ) ) {
+                throw new OverlappingFileLockException();
             }
-            lockList.add( this );
+            fileLocks.put( name, this );
         }
+        
+        lock = new ExclusiveLock( name );
     }
     
-    boolean isEntireFile() {
-        return ( ( position() == 0L ) && ( size() == Long.MAX_VALUE ) );
+    public boolean isEntireFile() {
+        return isEntireFile( position(), size() );
     }
     
-    FileLock acquired( Lock lock ) {
-        this.lock = lock;
-        return this;
+    private static boolean isEntireFile( long position, long size ) {
+        return ( ( position == 0L ) && ( size == Long.MAX_VALUE ) );
+    }
+    
+    synchronized boolean tryLock() {
+        if ( !isValid && ( lock != null ) ) {
+            isValid = lock.tryLock();
+        }
+        return isValid();
     }
 
     @Override
-    public boolean isValid() {
-        return ( lock != null );
+    public synchronized boolean isValid() {
+        return ( isValid && ( lock != null ) );
     }
 
     @Override
-    public void release() throws IOException {
-        synchronized ( fileLocks ) {
-            List<GaeFileLock> lockList = fileLocks.get( name );
-            if ( lockList != null ) {
-                lockList.remove( this );
-                if ( lockList.isEmpty() ) {
-                    fileLocks.remove( name );
-                }
-            }
-        }
-        if ( lock != null ) {
+    public synchronized void release() {
+        if ( isValid() ) {
             lock.unlock();
+            isValid = false;
             lock = null;
         }
+        fileLocks.remove( name );
     }
     
-    static void releaseAll( FileChannel fileChannel ) throws IOException {
+    static void releaseAll( GaeFileChannel fileChannel ) {
         synchronized( fileLocks ) {
-            for ( List<GaeFileLock> lockList : fileLocks.values() ) {
-                // use array to avoid ConcurrentModificationException
-                GaeFileLock[] locks = lockList.toArray( new GaeFileLock[ lockList.size() ] );
-                for ( GaeFileLock fileLock : locks ) {
-                    if ( ( fileChannel == null ) ||
-                            ( fileLock.acquiredBy() == fileChannel ) ) {
-                        fileLock.release();
-                    }
+            for ( GaeFileLock lock : fileLocks.values() ) {
+                if ( ( fileChannel == null ) ||
+                        ( lock.acquiredBy() == fileChannel ) ) {
+                    lock.release();
                 }
             }
         }
     }
     
-    public static void releaseAll() throws IOException {
+    public static void releaseAll() {
         releaseAll( null );
         fileLocks.clear();
     }
