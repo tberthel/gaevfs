@@ -16,6 +16,7 @@
 package com.newatlanta.appengine.junit.nio.file;
 
 import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
+import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
 import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
 import static com.newatlanta.nio.file.StandardOpenOption.READ;
 import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
@@ -38,38 +39,269 @@ import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.channels.FileLock;
+import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.Paths;
+import com.newatlanta.nio.file.ProviderMismatchException;
 
 public class GaeFileChannelTestCase extends GaeVfsTestCase {
 
     @Test
-    public void testReadByteBuffer() {
-        fail( "Not yet implemented" );
+    public void testReadOptions() throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate( 10 );
+        FileChannel fc = FileChannel.open( Paths.get( "docs/readOptions.txt" ),
+                                                WRITE, CREATE_NEW );
+        assertTrue( fc.isOpen() );
+        
+        try {
+            // non-readable channel
+            fc.read( buf );
+            fail( "expected NonReadableChannelException" );
+        } catch ( NonReadableChannelException e ) {
+        }
+        
+        fc.close();
+        assertFalse( fc.isOpen() );
+        
+        try {
+            // closed channel
+            fc.read( buf );
+            fail( "expected ClosedChannelException" );
+        } catch ( ClosedChannelException e ) {
+        }
+    }
+    
+    @Test
+    public void testReadInt() throws IOException {
+        ByteBuffer buf = getByteBuffer( 1024 * 32, (byte)'R' ); // 32KB
+        
+        Path filePath = Paths.get( "docs/readInt.txt" );
+        FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
+                                                withBlockSize( 32 ) );
+        assertTrue( fc.isOpen() );
+        
+        // read an empty file
+        assertEquals( -1, ((GaeFileChannel)fc).read() );
+        
+        assertEquals( buf.capacity(), fc.write( buf ) );
+        assertEquals( buf.capacity(), fc.write( (ByteBuffer)buf.rewind() ) );
+        assertEquals( buf.capacity() * 2, fc.size() );
+        fc.position( 0 );
+       
+        for ( int i = 0; i < ( fc.size() ); i++ ) {
+            assertEquals( 'R', ((GaeFileChannel)fc).read() );
+            assertEquals( i + 1, fc.position() );
+        }
+        
+        // read one past EOF
+        assertEquals( -1, ((GaeFileChannel)fc).read() );
+    }
+    
+    @Test
+    public void testReadByteBuffer() throws IOException {
+        ByteBuffer buf = getByteBuffer( 1024 * 32, (byte)'R' ); // 32KB
+        
+        Path filePath = Paths.get( "docs/read.txt" );
+        FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
+                                                withBlockSize( 8 ) );
+        assertTrue( fc.isOpen() );
+        
+        // read an empty file
+        assertEquals( -1, fc.read( buf ) );
+        
+        assertEquals( buf.capacity(), fc.write( buf ) );
+        assertEquals( buf.capacity(), fc.write( (ByteBuffer)buf.rewind() ) );
+        assertEquals( buf.capacity() * 2, fc.size() );
+        fc.position( 0 );
+        
+        // within current block, buffer.remaining() > dst.remaining
+        assertEquals( 1024 * 2, fc.read( (ByteBuffer)buf.rewind().limit( 1024 * 2 ) ) );
+        
+        // more than current block
+        buf.limit( buf.capacity() );
+        assertEquals( buf.remaining(), fc.read( buf ) );
+        
+        // read with empty buf
+        assertEquals( 0, fc.read( buf ) );
+        
+        // read to EOF
+        buf.rewind();
+        assertEquals( buf.remaining(), fc.read( buf ) );
+        
+        // read past EOF
+        assertEquals( -1, fc.read( (ByteBuffer)buf.position( 0 ) ) );
+        
+        // within current block, buffer.remaining() <= dst.remaining
+        buf.position( 0 ).limit( 1024 );
+        assertEquals( 1024, fc.write( buf ) );
+        fc.position( fc.size() - 1024 );
+        buf.limit( 2048 );
+        assertEquals( 1024, fc.read( buf ) );
+        
+        fc.close();
     }
 
     @Test
     public void testReadByteBufferArrayIntInt() {
         fail( "Not yet implemented" );
     }
+    
+    @Test
+    public void testReadByteBufferLong() {
+        fail( "Not yet implemented" );
+    }
+    
+    
+    private ByteBuffer getByteBuffer( int size, byte b ) {
+        byte[] barray = new byte[ size ];
+        Arrays.fill( barray, b );
+        return ByteBuffer.wrap( barray );
+    }
 
     @Test
-    public void testWriteByteBuffer() {
-        fail( "Not yet implemented" );
+    public void testWriteOptions() throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate( 10 );
+        Path filePath = Paths.get( "docs/writeOptions.txt" ).createFile();
+        assertTrue( filePath.exists() );
+        FileChannel fc = FileChannel.open( filePath, READ, CREATE_NEW );
+        assertTrue( fc.isOpen() );
+        
+        try {
+            // non-writable channel
+            fc.write( buf );
+            fail( "expected NonWritableChannelException" );
+        } catch ( NonWritableChannelException e ) {
+        }
+        
+        fc.close();
+        assertFalse( fc.isOpen() );
+        
+        try {
+            // closed channel
+            fc.write( buf );
+            fail( "expected ClosedChannelException" );
+        } catch ( ClosedChannelException e ) {
+        }
+    }
+    
+    @Test
+    public void testWriteInt() throws IOException {
+        FileChannel fc = FileChannel.open( Paths.get( "docs/writeInt.txt" ),
+                    EnumSet.of( READ, WRITE, CREATE_NEW ), withBlockSize( 32 ) );
+        assertTrue( fc.isOpen() );
+        
+        // write one byte at the first position
+        ((GaeFileChannel)fc).write( 'X' );
+        assertEquals( 1, fc.size() );
+        assertEquals( 1, fc.position() );
+        
+        // write 32KB bytes, one at a time (one past first block)
+        for ( int i = 0; i < ( 32 * 1024 ); i++ ) {
+            ((GaeFileChannel)fc).write( 'Y' );
+            assertEquals( i + 2, fc.size() );
+            assertEquals( i + 2, fc.position() );
+        }
+        
+        fc.close();
+    }
+    
+    @Test
+    public void testWriteByteBuffer() throws IOException {
+        ByteBuffer buf = getByteBuffer( 1024 * 32, (byte)'W' ); // 32KB
+        
+        Path filePath = Paths.get( "docs/write.txt" );
+        FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
+                                                withBlockSize( 32 ) );
+        assertTrue( fc.isOpen() );
+        
+        // write 1KB
+        int pbuf = buf.position( 1024 ).position();
+        int l = buf.limit( 2048 ).limit();
+        int r = buf.remaining();
+        assertEquals( 1024, r );
+        long pfc = fc.position();
+        int n = fc.write( buf );
+        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        
+        // write 8KB (causes buffer to be extended, but within same block)
+        pbuf = buf.position();
+        l = buf.limit( pbuf + ( 1024 * 8 ) ).limit();
+        r = buf.remaining();
+        assertEquals( 1024 * 8, r );
+        pfc = fc.position();
+        n = fc.write( buf );
+        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        
+        // write 32KB (into next block)
+        pbuf = buf.position( 0 ).position();
+        l = buf.limit( buf.capacity() ).limit();
+        r = buf.remaining();
+        assertEquals( buf.capacity(), r );
+        pfc = fc.position();
+        n = fc.write( buf );
+        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        
+        // write 23KB (exactly on block boundary)
+        pbuf = buf.position( 0 ).position();
+        l = buf.limit( 1024 * 23 ).limit();
+        r = buf.remaining();
+        assertEquals( 1024 * 23, r );
+        pfc = fc.position();
+        n = fc.write( buf );
+        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        
+        // write 1KB (into next block)
+        pbuf = buf.position();
+        l = buf.limit( pbuf + 1024 ).limit();
+        r = buf.remaining();
+        assertEquals( 1024, r );
+        pfc = fc.position();
+        n = fc.write( buf );
+        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        
+        // append option
+        fc.close();
+        assertFalse( fc.isOpen() );
+        fc = FileChannel.open( filePath, APPEND );
+        assertTrue( fc.isOpen() );
+        
+        pbuf = buf.position();
+        l = buf.limit( pbuf + 1024 ).limit();
+        r = buf.remaining();
+        assertEquals( 1024, r );
+        assertEquals( 0, fc.position() );
+        pfc = fc.size();
+        n = fc.write( buf );
+        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+    }
+
+    private void assertPostWrite( ByteBuffer buf, FileChannel fc, int pbuf, int l,
+                                    int r, long pfc, int n ) throws IOException {
+        assertEquals( n, r ); // all bytes were written
+        assertEquals( 0, buf.remaining() );
+        assertEquals( pbuf + n, buf.position() );
+        assertEquals( l, buf.limit() ); // limit did not change
+        assertEquals( pfc + n, fc.position() );
     }
 
     @Test
     public void testWriteByteBufferArrayIntInt() {
         fail( "Not yet implemented" );
     }
+    
+    @Test
+    public void testWriteByteBufferLong() {
+        fail( "Not yet implemented" );
+    }
 
     @Test
     public void testPosition() throws IOException {
-        byte[] b = new byte[ 100 ];
-        ByteBuffer buf = ByteBuffer.wrap( b );
-        Arrays.fill( b, (byte)0xff );
+        ByteBuffer buf = getByteBuffer( 100, (byte)'P' );
         
-        FileChannel fc = FileChannel.open( Paths.get( "docs/position.txt" ),
-                        EnumSet.of( READ, WRITE, CREATE_NEW ), withBlockSize( 1 ) );
+        Path filePath = Paths.get( "docs/position.txt" );
+        FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
+                                                withBlockSize( 1 ) );
+        assertTrue( filePath.exists() );
+        assertTrue( fc.isOpen() );
         assertEquals( 0, fc.size() );
         assertEquals( 0, fc.position() );
         // Setting the position to a value that is greater than the current size is legal...
@@ -91,8 +323,8 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         // set the position beyond the current block
         assertEquals( 2560, fc.position( 2560 ).position() );
         assertEquals( 200, fc.size() );
-        assertEquals( -1, fc.read( buf ) );
-        assertEquals( 100, fc.write( buf ) );
+        assertEquals( -1, fc.read( (ByteBuffer)buf.rewind() ) );
+        assertEquals( 100, fc.write( (ByteBuffer)buf.rewind() ) );
         assertEquals( 2560 + 100, fc.size() );
         assertEquals( 2560 + 100, fc.position() );
         
@@ -119,6 +351,18 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
             fail( "expected ClosedChannelException" );
         } catch ( ClosedChannelException e ) {
         }
+        
+        // set the position beyond the buffer capacity within a single block
+        filePath.delete();
+        assertTrue( filePath.notExists() );
+        fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
+                                    withBlockSize( 32 ) );
+        assertTrue( filePath.exists() );
+        assertTrue( fc.isOpen() );
+        // with 32KB block size, minimum buffer size is 8KB
+        fc.write( buf );
+        fc.position( 9 * 1024 );
+        assertEquals( -1, fc.read( buf ) );
     }
 
     @Test
@@ -168,16 +412,6 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testReadByteBufferLong() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
-    public void testWriteByteBufferLong() {
-        fail( "Not yet implemented" );
-    }
-
-    @Test
     public void testLock() throws IOException {
         FileChannel fc = FileChannel.open( Paths.get( "docs/lock.txt" ),
                                         EnumSet.of( READ, WRITE, CREATE_NEW ) );
@@ -207,7 +441,6 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         } catch ( FileLockInterruptionException e ) {
             assertTrue( Thread.interrupted() );
         }
-        assertFalse( lockThread.isAlive() );
         
         // get and release an exclusive lock
         FileLock fileLock = fc.lock();
@@ -370,10 +603,9 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertTrue( fc.isOpen() );
 
         ByteBuffer b = ByteBuffer.allocate( 1 ).put( (byte)0xff );
-        b.rewind();
         for ( int i = 0; i < 10; i++ ) { // write out 10 blocks
             fc.position( i * 1024 );
-            fc.write( b );
+            fc.write( (ByteBuffer)b.rewind() );
         }
         assertEquals( ( 1024 * 9 ) + 1, fc.size() );
         
@@ -458,13 +690,14 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     @Test
     public void testIsOpen() throws IOException {
         // local file
-        FileChannel fc = FileChannel.open( Paths.get( "docs/large.pdf" ) );
-        assertTrue( fc.isOpen() );
-        fc.close();
-        assertFalse( fc.isOpen() );
+        try {
+            FileChannel.open( Paths.get( "docs/large.pdf" ) );
+            fail( "expected ProviderMismatchException" );
+        } catch ( ProviderMismatchException e ) {
+        }
         
         // gae file
-        fc = FileChannel.open( Paths.get( "docs/isopen.txt" ), WRITE, CREATE_NEW );
+        FileChannel fc = FileChannel.open( Paths.get( "docs/isopen.txt" ), WRITE, CREATE_NEW );
         assertTrue( fc.isOpen() );
         fc.close();
         assertFalse( fc.isOpen() );
