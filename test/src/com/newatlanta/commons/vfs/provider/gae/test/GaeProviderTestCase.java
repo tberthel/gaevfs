@@ -122,6 +122,5 @@ public class GaeProviderTestCase extends AbstractProviderTestCase implements Pro
 			String baseName = fileInfo.getFile().getName().getBaseName();
 			return !baseName.equals( ".svn" ); // skip .svn directories
 		}
-		
 	}
 }
