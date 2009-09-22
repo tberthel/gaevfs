@@ -98,7 +98,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     
     @Test
     public void testReadByteBuffer() throws IOException {
-        ByteBuffer buf = getByteBuffer( 1024 * 32, (byte)'R' ); // 32KB
+        ByteBuffer dst = getByteBuffer( 1024 * 32, (byte)'R' ); // 32KB
         
         Path filePath = Paths.get( "docs/read.txt" );
         FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
@@ -106,38 +106,54 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertTrue( fc.isOpen() );
         
         // read an empty file
-        assertEquals( -1, fc.read( buf ) );
+        assertEquals( -1, fc.read( dst ) );
         
-        assertEquals( buf.capacity(), fc.write( buf ) );
-        assertEquals( buf.capacity(), fc.write( (ByteBuffer)buf.rewind() ) );
-        assertEquals( buf.capacity() * 2, fc.size() );
+        assertEquals( dst.capacity(), fc.write( dst ) );
+        assertEquals( dst.capacity(), fc.write( (ByteBuffer)dst.rewind() ) );
+        assertEquals( dst.capacity() * 2, fc.size() );
         fc.position( 0 );
         
         // within current block, buffer.remaining() > dst.remaining
-        assertEquals( 1024 * 2, fc.read( (ByteBuffer)buf.rewind().limit( 1024 * 2 ) ) );
+        assertReadByteBuffer( fc, (ByteBuffer)dst.rewind().limit( 1024 * 2 ) );
         
         // more than current block
-        buf.limit( buf.capacity() );
-        assertEquals( buf.remaining(), fc.read( buf ) );
+        assertReadByteBuffer( fc, (ByteBuffer)dst.limit( dst.capacity() ) );
         
         // read with empty buf
-        assertEquals( 0, fc.read( buf ) );
+        assertEquals( 0, fc.read( dst ) );
         
         // read to EOF
-        buf.rewind();
-        assertEquals( buf.remaining(), fc.read( buf ) );
+        assertReadByteBuffer( fc, (ByteBuffer)dst.rewind() );
         
         // read past EOF
-        assertEquals( -1, fc.read( (ByteBuffer)buf.position( 0 ) ) );
+        assertEquals( -1, fc.read( (ByteBuffer)dst.position( 0 ) ) );
         
         // within current block, buffer.remaining() <= dst.remaining
-        buf.position( 0 ).limit( 1024 );
-        assertEquals( 1024, fc.write( buf ) );
+        dst.position( 0 ).limit( 1024 );
+        assertEquals( 1024, fc.write( dst ) );
         fc.position( fc.size() - 1024 );
-        buf.limit( 2048 );
-        assertEquals( 1024, fc.read( buf ) );
+        dst.limit( 2048 );
+        assertReadByteBuffer( fc, dst );
+        
+        // dst.remaining larger than EOF
+        fc.position( fc.size() - 100 );
+        assertReadByteBuffer( fc, (ByteBuffer)dst.rewind() );
         
         fc.close();
+    }
+
+    private static void assertReadByteBuffer( FileChannel fc, ByteBuffer dst )
+            throws IOException {
+        int l = dst.limit();
+        int rdst = dst.remaining();
+        int pdst = dst.position();
+        long rpfc = fc.size() - fc.position();
+        long pfc = fc.position();
+        int n = fc.read( dst);
+        assertEquals( n, Math.min( rdst, rpfc ) );
+        assertEquals( pdst + n, dst.position() );
+        assertEquals( l, dst.limit() ); // dst limit unchanged
+        assertEquals( pfc + n, fc.position() );
     }
 
     @Test
@@ -206,7 +222,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     
     @Test
     public void testWriteByteBuffer() throws IOException {
-        ByteBuffer buf = getByteBuffer( 1024 * 32, (byte)'W' ); // 32KB
+        ByteBuffer src = getByteBuffer( 1024 * 32, (byte)'W' ); // 32KB
         
         Path filePath = Paths.get( "docs/write.txt" );
         FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
@@ -214,49 +230,49 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertTrue( fc.isOpen() );
         
         // write 1KB
-        int pbuf = buf.position( 1024 ).position();
-        int l = buf.limit( 2048 ).limit();
-        int r = buf.remaining();
+        int pbuf = src.position( 1024 ).position();
+        int l = src.limit( 2048 ).limit();
+        int r = src.remaining();
         assertEquals( 1024, r );
         long pfc = fc.position();
-        int n = fc.write( buf );
-        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        int n = fc.write( src );
+        assertPostWrite( src, fc, pbuf, l, r, pfc, n );
         
         // write 8KB (causes buffer to be extended, but within same block)
-        pbuf = buf.position();
-        l = buf.limit( pbuf + ( 1024 * 8 ) ).limit();
-        r = buf.remaining();
+        pbuf = src.position();
+        l = src.limit( pbuf + ( 1024 * 8 ) ).limit();
+        r = src.remaining();
         assertEquals( 1024 * 8, r );
         pfc = fc.position();
-        n = fc.write( buf );
-        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        n = fc.write( src );
+        assertPostWrite( src, fc, pbuf, l, r, pfc, n );
         
         // write 32KB (into next block)
-        pbuf = buf.position( 0 ).position();
-        l = buf.limit( buf.capacity() ).limit();
-        r = buf.remaining();
-        assertEquals( buf.capacity(), r );
+        pbuf = src.position( 0 ).position();
+        l = src.limit( src.capacity() ).limit();
+        r = src.remaining();
+        assertEquals( src.capacity(), r );
         pfc = fc.position();
-        n = fc.write( buf );
-        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        n = fc.write( src );
+        assertPostWrite( src, fc, pbuf, l, r, pfc, n );
         
         // write 23KB (exactly on block boundary)
-        pbuf = buf.position( 0 ).position();
-        l = buf.limit( 1024 * 23 ).limit();
-        r = buf.remaining();
+        pbuf = src.position( 0 ).position();
+        l = src.limit( 1024 * 23 ).limit();
+        r = src.remaining();
         assertEquals( 1024 * 23, r );
         pfc = fc.position();
-        n = fc.write( buf );
-        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        n = fc.write( src );
+        assertPostWrite( src, fc, pbuf, l, r, pfc, n );
         
         // write 1KB (into next block)
-        pbuf = buf.position();
-        l = buf.limit( pbuf + 1024 ).limit();
-        r = buf.remaining();
+        pbuf = src.position();
+        l = src.limit( pbuf + 1024 ).limit();
+        r = src.remaining();
         assertEquals( 1024, r );
         pfc = fc.position();
-        n = fc.write( buf );
-        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        n = fc.write( src );
+        assertPostWrite( src, fc, pbuf, l, r, pfc, n );
         
         // append option
         fc.close();
@@ -264,14 +280,14 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         fc = FileChannel.open( filePath, APPEND );
         assertTrue( fc.isOpen() );
         
-        pbuf = buf.position();
-        l = buf.limit( pbuf + 1024 ).limit();
-        r = buf.remaining();
+        pbuf = src.position();
+        l = src.limit( pbuf + 1024 ).limit();
+        r = src.remaining();
         assertEquals( 1024, r );
         assertEquals( 0, fc.position() );
         pfc = fc.size();
-        n = fc.write( buf );
-        assertPostWrite( buf, fc, pbuf, l, r, pfc, n );
+        n = fc.write( src );
+        assertPostWrite( src, fc, pbuf, l, r, pfc, n );
     }
 
     private void assertPostWrite( ByteBuffer buf, FileChannel fc, int pbuf, int l,
