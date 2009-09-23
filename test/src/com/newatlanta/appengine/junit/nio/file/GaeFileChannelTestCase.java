@@ -314,7 +314,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         
         Path filePath = Paths.get( "docs/position.txt" );
         FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
-                                                withBlockSize( 1 ) );
+                                                withBlockSize( 8 ) );
         assertTrue( filePath.exists() );
         assertTrue( fc.isOpen() );
         assertEquals( 0, fc.size() );
@@ -336,12 +336,13 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertEquals( fc.position(), fc.position( fc.position() ).position() );
         
         // set the position beyond the current block
-        assertEquals( 2560, fc.position( 2560 ).position() );
+        int p = ( 8 * 1024 ) + 256;
+        assertEquals( p, fc.position( p ).position() );
         assertEquals( 200, fc.size() );
         assertEquals( -1, fc.read( (ByteBuffer)buf.rewind() ) );
         assertEquals( 100, fc.write( (ByteBuffer)buf.rewind() ) );
-        assertEquals( 2560 + 100, fc.size() );
-        assertEquals( 2560 + 100, fc.position() );
+        assertEquals( p + 100, fc.size() );
+        assertEquals( p + 100, fc.position() );
         
         try {
             // attempt to set the position to a negative value
@@ -371,12 +372,12 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         filePath.delete();
         assertTrue( filePath.notExists() );
         fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
-                                    withBlockSize( 32 ) );
+                                    withBlockSize( 64 ) );
         assertTrue( filePath.exists() );
         assertTrue( fc.isOpen() );
-        // with 32KB block size, minimum buffer size is 8KB
+        // with 32KB block size, minimum buffer size is 16KB
         fc.write( buf );
-        fc.position( 9 * 1024 );
+        fc.position( 16 * 1024 );
         assertEquals( -1, fc.read( buf ) );
     }
 
@@ -614,12 +615,12 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
     @Test
     public void testTruncate() throws IOException {
         FileChannel fc = FileChannel.open( Paths.get( "docs/truncate.txt" ),
-                            EnumSet.of( WRITE, CREATE_NEW ), withBlockSize( 1 ) );
+                            EnumSet.of( WRITE, CREATE_NEW ), withBlockSize( 8 ) );
         assertTrue( fc.isOpen() );
 
         ByteBuffer b = ByteBuffer.allocate( 1 ).put( (byte)0xff );
         for ( int i = 0; i < 10; i++ ) { // write out 10 blocks
-            fc.position( i * 1024 );
+            fc.position( i * 8 * 1024 );
             fc.write( (ByteBuffer)b.rewind() );
         }
         fc.position( fc.position() + 512 ).write( (ByteBuffer )b.rewind() );
@@ -638,7 +639,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertEquals( size, fc.position() );
         
         // size < current size, position > size, truncate blocks
-        size = ( 1024 * 6 ) - 256;
+        size = ( 1024 * 8 * 6 ) - 256;
         assertTrue( ( size < fc.size() ) && ( fc.position() > size ) );
         assertEquals( size, fc.truncate( size ).size() );
         assertEquals( size, fc.position() );

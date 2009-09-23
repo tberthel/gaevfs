@@ -460,8 +460,8 @@ public class GaePathTestCase extends GaeVfsTestCase {
         // specify blockSize attribute when creating a file
         Path filePath = Paths.get( "/images/test.png" );
         assertTrue( filePath.notExists() );
-        assertTrue( filePath.createFile( withBlockSize( 4 ) ).exists() );
-        assertIntegerAttr( filePath.getAttribute( "gae:blockSize" ), 4 * 1024 );
+        assertTrue( filePath.createFile( withBlockSize( 8 ) ).exists() );
+        assertIntegerAttr( filePath.getAttribute( "gae:blockSize" ), 8 * 1024 );
         assertBooleanAttr( filePath.getAttribute( "isRegularFile" ), true );
     }
     
