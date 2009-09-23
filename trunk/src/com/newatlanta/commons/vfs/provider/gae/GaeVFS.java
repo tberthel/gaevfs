@@ -45,6 +45,7 @@ public class GaeVFS {
     static final Logger log = Logger.getLogger( GaeVFS.class.getName() );
 
     public static final int MAX_BLOCK_SIZE = 1000; // in units of KB
+    public static final int MIN_BLOCK_SIZE = 8; // in units of KB
     
     private static final int DEFAULT_BLOCK_SIZE = 1024 * 128;
     
@@ -88,17 +89,17 @@ public class GaeVFS {
      * Sets the default block size used when creating new files. GaeVFS stores
      * files as a series of blocks. Each block corresponds to a Google App Engine
      * datastore entity and therefore has a maximum size of 1 megabyte (due to
-     * entity overhead, the actual limit is 1020 * 1024 = 1,044,280 bytes). The
+     * entity overhead, the actual limit is 1000 * 1024 = 1,024,000 bytes). The
      * default block size is 128KB (131,072 bytes).
      * 
      * @param size The default block size in units of K (1024) bytes. The minimum
-     * size is 1 and the maximum size is 1020.
+     * size is 8 and the maximum size is 1000.
      */
     public void setBlockSize( int size ) {
         if ( size <= 0 ) {
             throw new IllegalArgumentException( "invalid block size: " + size );
         }
-        blockSize = Math.min( size, MAX_BLOCK_SIZE ) * 1024;
+        blockSize = checkBlockSize( size * 1024 );
     }
     
     /**
@@ -116,14 +117,21 @@ public class GaeVFS {
      * support method chaining.
      * @throws FileSystemException
      */
-    public static FileObject setBlockSize( FileObject fileObject, int size ) throws FileSystemException {
+    public static FileObject setBlockSize( FileObject fileObject, int size )
+            throws FileSystemException {
         if ( size <= 0 ) {
             throw new IllegalArgumentException( "invalid block size: " + size );
         }
         if ( fileObject instanceof GaeFileObject ) {
-            ((GaeFileObject)fileObject).setBlockSize( Math.min( size, MAX_BLOCK_SIZE ) * 1024 );
+            ((GaeFileObject)fileObject).setBlockSize( size * 1024 );
         }
         return fileObject;
+    }
+    
+    public static int checkBlockSize( int size ) {
+        size = Math.min( size, MAX_BLOCK_SIZE * 1024 ); // no larger than MAX
+        size = Math.max( size, MIN_BLOCK_SIZE * 1024 ); // no smaller than MIN
+        return size;
     }
 
     /**

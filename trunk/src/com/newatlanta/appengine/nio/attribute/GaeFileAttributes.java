@@ -192,7 +192,7 @@ public class GaeFileAttributes implements BasicFileAttributes {
      * Convenience method for use with Path.createFile():
      * 
      *     Path filePath = Paths.get( "myFile.txt" );
-     *     filePath.createFile( withBlockSize( 4 ) );
+     *     filePath.createFile( withBlockSize( 8 ) );
      */
     public static GaeBlockSizeAttribute withBlockSize( int size ) {
         return new GaeBlockSizeAttribute( size );
