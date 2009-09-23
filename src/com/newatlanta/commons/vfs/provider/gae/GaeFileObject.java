@@ -18,6 +18,8 @@ package com.newatlanta.commons.vfs.provider.gae;
 import static com.newatlanta.appengine.nio.channels.GaeFileChannel.isDirty;
 import static com.newatlanta.appengine.nio.channels.GaeFileChannel.setDirty;
 
+import static com.newatlanta.commons.vfs.provider.gae.GaeVFS.checkBlockSize;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -114,7 +116,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                                     getName() + "\" because it already exists." );
         }
         // exists() guarantees that metadata != null
-        metadata.setUnindexedProperty( BLOCK_SIZE, Long.valueOf( size ) );
+        metadata.setUnindexedProperty( BLOCK_SIZE, Long.valueOf( checkBlockSize( size ) ) );
     }
     
     public int getBlockSize() throws FileSystemException {
@@ -539,13 +541,16 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     /**
      * Both memcache and the datastore support a maximum of 1MB of data per
-     * bulk operation.
+     * bulk operation; the datastore allows a maximum of 500 entities per
+     * bulk put (up to 1000 for a bulk get).
+     * 
+     * In practice, with a minimum block size of 8KB, the maximum number of
+     * entities in a bulk put is about 100.
      */
     private int maxBlocksPerBulkOperation() {
         int blocksPerBulk = 1;
         try {
-            // can only write 1MB of data per put
-            blocksPerBulk = ( GaeVFS.MAX_BLOCK_SIZE * 1024 ) / getBlockSize();
+            blocksPerBulk = Math.min( 100, ( 1024 * 1024  ) / getBlockSize() );
         } catch ( FileSystemException e ) {
         }
         return blocksPerBulk;
