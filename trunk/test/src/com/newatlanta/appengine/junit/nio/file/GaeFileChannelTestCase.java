@@ -31,7 +31,6 @@ import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.OverlappingFileLockException;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.Random;
 
 import org.junit.Test;
 
@@ -623,7 +622,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
             fc.position( i * 1024 );
             fc.write( (ByteBuffer)b.rewind() );
         }
-        assertEquals( ( 1024 * 9 ) + 1, fc.size() );
+        fc.position( fc.position() + 512 ).write( (ByteBuffer )b.rewind() );
         
         try {
             // size < 0
@@ -632,33 +631,35 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         } catch ( IllegalArgumentException e ) {
         }
         
-        // size < current size, position > size
-        long size = 1024 * 6;
+        // size < current size, position > size, within current block
+        long size = fc.size() - 256;
         assertTrue( ( size < fc.size() ) && ( fc.position() > size ) );
         assertEquals( size, fc.truncate( size ).size() );
         assertEquals( size, fc.position() );
         
-        long seed = new Random().nextLong();
-        System.out.println( "testTruncate() random seed: " + seed );
-        Random rand = new Random( seed );
+        // size < current size, position > size, truncate blocks
+        size = ( 1024 * 6 ) - 256;
+        assertTrue( ( size < fc.size() ) && ( fc.position() > size ) );
+        assertEquals( size, fc.truncate( size ).size() );
+        assertEquals( size, fc.position() );
         
         // size >= current size, position > size
-        size = fc.size() + rand.nextInt( Integer.MAX_VALUE );
-        fc.position( size + 1 + rand.nextInt( Integer.MAX_VALUE ) );
+        size = fc.size() + 1024;
+        fc.position( size + 512 );
         assertTrue( ( size >= fc.size() ) && ( fc.position() > size ) );
         assertEquals( fc.size(), fc.truncate( size ).size() ); // size unmodified
         assertEquals( size, fc.position() );
         
         // size < current size, position <= size
-        size = fc.size() - Math.max( 1, rand.nextInt( (int)fc.size() ) );
-        fc.position( size - rand.nextInt( (int)size ) );
+        size = fc.size() - 2012;
+        fc.position( size - 300 );
         assertTrue( ( size < fc.size() ) && ( fc.position() <= size ) );
         assertEquals( fc.position(), fc.truncate( size ).position() ); // position unmodified
         assertEquals( size, fc.size() );
         
         // size >= current size, position <= size
-        size = fc.size() + rand.nextInt( Integer.MAX_VALUE );
-        long pos = fc.position( size - rand.nextInt( (int)fc.position() ) ).position();
+        size = fc.size() + 979;
+        long pos = fc.position( size - 355 ).position();
         assertTrue( ( size >= fc.size() ) && ( fc.position() <= size ) );
         assertEquals( fc.size(), fc.truncate( size ).size() ); // size unmodified
         assertEquals( pos, fc.position() ); // position unmodified
