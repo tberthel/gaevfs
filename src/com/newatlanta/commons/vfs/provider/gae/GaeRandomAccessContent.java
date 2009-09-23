@@ -20,13 +20,15 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.ClosedChannelException;
+import java.util.EnumSet;
 
-import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
-import com.google.appengine.api.datastore.Blob;
-import com.google.appengine.api.datastore.Entity;
+import com.newatlanta.appengine.nio.channels.GaeFileChannel;
+import com.newatlanta.nio.file.StandardOpenOption;
 
 /**
  * The class mimics <code>java.io.RandomAccessFile</code>, which has this description:
@@ -57,273 +59,60 @@ import com.google.appengine.api.datastore.Entity;
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
-public class GaeRandomAccessContent extends OutputStream implements RandomAccessContent {
- 
-    // property keys
-    private static final String CONTENT_BLOB = "content-blob";
-    private static final String DIRTY = "dirty";
-    
-    private GaeFileObject fileObject; // parent file
-    
-    private Entity block;   // the current block
-    private int index;      // index of the current block
-    
-    private long filePointer; // absolute position within the file
-    
-    private byte[] buffer;  // current block buffer
-    private int offset;     // relative position of filePointer within buffer
-    private int blockSize;
-    
-    private RandomAccessMode mode;
-    
+public class GaeRandomAccessContent implements RandomAccessContent {
+
+    private GaeFileChannel fileChannel;
     private DataOutputStream dataOutput;
     private DataInputStream dataInput;
     
-    static boolean isDirty( Entity block, boolean removeProperty ) {
-        Boolean dirty = (Boolean)block.getProperty( DIRTY );
-        if ( removeProperty ) {
-            block.removeProperty( DIRTY );
-        }
-        return ( ( dirty != null ) && dirty.booleanValue() );
-    }
-    
-    private boolean isDirty() {
-        return isDirty( block, false );
-    }
-    
-    static void setDirty( Entity entity, boolean dirty ) {
-        entity.setProperty( DIRTY, Boolean.valueOf( dirty ) );
-    }
-    
-    private void setDirty( boolean dirty ) {
-        setDirty( block, dirty );
-    }
-    
-    GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, int _blockSize )
+    GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, boolean append )
             throws IOException {
-        this( gfo, m, _blockSize, 0 );
-    }
-    
-    GaeRandomAccessContent( GaeFileObject gfo, RandomAccessMode m, int _blockSize, long pos )
-            throws IOException {
-        fileObject = gfo;
-        mode = m;
-        blockSize = _blockSize;
-        seek( pos );
-        
-        dataOutput = new DataOutputStream( this );
-        dataInput = new DataInputStream( new GaeInputStream( this ) );
-    }
-    
-    public long getFilePointer() {
-        return filePointer;
-    }
-    
-    @Override
-    public synchronized void close() throws IOException {
-        flush();
-        block = null;
-        buffer = null;
-        index = 0;
-        filePointer = 0;
-        offset = 0;
-    }
-    
-    @Override
-    public synchronized void flush() throws FileSystemException {
-        if ( ( block != null ) && isDirty() && ( buffer != null ) ) {
-            long fileLen = length();
-            // if this is the last block for the file, and the buffer is less than
-            // half full, only write out the actual number of bytes
-            if ( calcBlockIndex( fileLen ) == index ) {
-                // the EOF offset could be larger than buffer.length if setLength()
-                // is used to set the file length larger than buffer.length, but no
-                // bytes get written past buffer.length
-                int eofoffset = calcBufferOffset( fileLen );
-                if ( eofoffset < ( buffer.length >> 1 ) ) { // less than half full
-                    byte[] outbuf = new byte[ eofoffset ];
-                    System.arraycopy( buffer, 0, outbuf, 0, outbuf.length );
-                    block.setProperty( CONTENT_BLOB, new Blob( outbuf ) );
-                    return;
-                }
-            }
-            block.setProperty( CONTENT_BLOB, new Blob( buffer ) );
+        EnumSet<StandardOpenOption> options = EnumSet.of( StandardOpenOption.READ );
+        if ( m == RandomAccessMode.READWRITE ) {
+            options.add( StandardOpenOption.WRITE );
         }
+        if ( append ) {
+            options.add( StandardOpenOption.APPEND );
+        }
+        fileChannel = new GaeFileChannel( gfo, options );
+        dataOutput = new DataOutputStream( Channels.newOutputStream( fileChannel ) );
+        dataInput = new GaeDataInputStream( Channels.newInputStream( fileChannel ) );
+    }
+    
+    public long getFilePointer() throws IOException {
+        return fileChannel.position();
+    }
+    
+    public void close() throws IOException {
+        fileChannel.close();
     }
 
-    public InputStream getInputStream() throws IOException {
+    public InputStream getInputStream() {
         return dataInput;
     }
-
-    public long length() throws FileSystemException {
-        return fileObject.doGetContentSize();
-    }
-
-    /**
-     *  "Sets the file-pointer offset, measured from the beginning of this
-     * file, at which the next read or write occurs. The offset may be
-     * set beyond the end of the file. Setting the offset beyond the end
-     * of the file does not change the file length. The file length will
-     * change only by writing after the offset has been set beyond the end
-     * of the file."
-     */
-    public synchronized void seek( long pos ) throws IOException {
-        if ( filePointer == pos ) {
-            return;
-        }
-        if ( pos < 0 ) {
-            throw new IllegalArgumentException( "invalid offset: " + pos );
-        }
-        int newIndex = calcBlockIndex( pos );
-        if ( newIndex != index ) {
-            close();
-            index = newIndex;
-        }
-        filePointer = pos;
-        offset = calcBufferOffset( filePointer );
-    }
     
-    /**
-     * Given an absolute index within the file, calculate the block index.
-     */
-    private int calcBlockIndex( long i ) throws FileSystemException {
-        return (int)( i / blockSize );
-    }
-    
-    private int calcBufferOffset( long i ) throws FileSystemException {
-        return (int)( i - ( index * blockSize ) );
-    }
-    
-    /**
-     * From the java.io.RandomAccessFile.setLength() javadocs:
-     * 
-     *   "If the present length of the file as returned by the length method is
-     * greater than the newLength argument then the file will be truncated. In this
-     * case, if the file offset as returned by the getFilePointer method is greater
-     * than newLength then after this method returns the offset will be equal to
-     * newLength.
-     * 
-     *   "If the present length of the file as returned by the length method is
-     * smaller than the newLength argument then the file will be extended. In this
-     * case, the contents of the extended portion of the file are not defined."
-     * 
-     * Setting the length larger than the current file length does not actually
-     * allocate any new storage for the file.
-     */
-    public synchronized void setLength( long newLength ) throws IOException {
-        if ( newLength < 0 ) {
-            throw new IllegalArgumentException( "invalid length: " + newLength );
-        }
-        if ( !mode.requestWrite() ) {
-            throw new FileSystemException( "vfs.provider/write-read-only.error" );
-        }
-        if ( length() > newLength ) { // truncate
-            fileObject.deleteBlocks( calcBlockIndex( newLength - 1 ) + 1 );
-            if ( filePointer > newLength ) {
-                seek( newLength );
-            }
-        }
-        fileObject.updateContentSize( newLength, true );
-        fileObject.persist( true, false );
+    public OutputStream getOutputStream() {
+        return dataOutput;
     }
 
-    @Override
-    public synchronized void write( int b ) throws IOException {
-        if ( !mode.requestWrite() ) {
-            throw new FileSystemException( "vfs.provider/write-read-only.error" );
-        }
-        initBuffer();
-        if ( offset >= buffer.length ) {
-            extendBuffer( 1 );
-        }
-        buffer[ offset ] = (byte)b;
-        moveFilePointer( filePointer + 1 );
+    public long length() throws IOException {
+        return fileChannel.size();
     }
     
-    @Override
+    public void seek( long pos ) throws IOException {
+        fileChannel.position( pos );
+    }
+
+    public void write( int b ) throws IOException {
+        dataOutput.write( b );
+    }
+    
+    public void write( byte[] b ) throws IOException {
+        dataOutput.write( b );
+    }
+    
     public synchronized void write( byte[] b, int off, int len ) throws IOException {
-        if ( !mode.requestWrite() ) {
-            throw new FileSystemException( "vfs.provider/write-read-only.error" );
-        }
-        if ( ( off < 0 ) || ( off > b.length ) || ( len < 0 ) ||
-                    ( ( off + len ) > b.length ) || ( ( off + len ) < 0 ) ) {
-            throw new IndexOutOfBoundsException();
-        } else if ( ( b.length == 0 ) || ( len == 0 ) ) {
-            return;
-        }
-        internalWrite( b, off, len );
-    }
-        
-    private synchronized void internalWrite( byte[] b, int off, int len )
-            throws IOException
-    {
-        initBuffer();
-        if ( calcBlockIndex( filePointer + len ) == index ) { // within current block
-            writeBuffer( b, off, len );
-            moveFilePointer( filePointer + len );
-        } else {
-            // fill the current buffer
-            int bytesAvailable = blockSize - offset;
-            writeBuffer( b, off, bytesAvailable );
-            moveFilePointer( filePointer + bytesAvailable );
-            
-            // recursively write the rest of the output
-            internalWrite( b, off + bytesAvailable, len - bytesAvailable );
-        }
-    }
-    
-    private synchronized void writeBuffer( byte[] b, int off, int len ) throws FileSystemException {
-        if ( ( offset + len ) > buffer.length ) {
-            extendBuffer( offset + len );
-        }
-        System.arraycopy( b, off, buffer, offset, len );
-        setDirty( true );
-    }
-
-    /**
-     * The preferred extended buffer size is twice the current size, but it must be:
-     *      - at least as large as len
-     *      - at least as large as the minimum buffer size
-     *      - no larger than the file block size
-     */
-    private synchronized void extendBuffer( int len ) throws FileSystemException {
-        byte[] tempBuf = buffer;
-        // twice the current size, but at least as large as len
-        int newSize = Math.max( buffer.length << 1, len );
-        // at least as large as the minimum size
-        newSize = Math.max( newSize, getMinBufferSize() );
-        // no larger than the block size
-        buffer = new byte[ Math.min( newSize, blockSize ) ];
-        System.arraycopy( tempBuf, 0, buffer, 0, tempBuf.length );
-    }
-
-    private synchronized void moveFilePointer( long newPos ) throws IOException {
-        fileObject.updateContentSize( newPos );
-        seek( newPos );
-    }
-    
-    private synchronized void initBuffer() throws FileSystemException {
-        if ( buffer != null ) {
-            return;
-        }
-        if ( block == null ) {
-            block = fileObject.getBlock( index );
-        }
-        Blob contentBlob = (Blob)block.getProperty( CONTENT_BLOB );
-        buffer = ( contentBlob != null ? contentBlob.getBytes()
-                                       : new byte[ getMinBufferSize() ] );
-    }
-    
-    private int getMinBufferSize() throws FileSystemException {
-        if ( blockSize <= ( 1024 * 8 ) ) {
-            return blockSize;
-        } else if ( blockSize <= ( 1024 * 32 ) ) {
-            return 1024 * 8;
-        } else if ( blockSize >= ( 1024 * 256 ) ) {
-            return 1024 * 64;
-        } else {
-            return blockSize >> 2; // one-fourth block size
-        }
+        dataOutput.write( b, off, len );
     }
     
     public void writeBoolean( boolean v ) throws IOException {
@@ -368,60 +157,6 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
 
     public void writeUTF( String str ) throws IOException {
         dataOutput.writeUTF( str );
-    }
-    
-    public synchronized int read() throws IOException {
-        if ( filePointer >= length() ) {
-            return -1;
-        }
-        initBuffer();
-        int c = buffer[ offset ] & 0xff;
-        seek( filePointer + 1 );
-        return c;
-    }
-    
-    public synchronized int read( byte[] b, int off, int len ) throws IOException {
-        if ( ( off < 0 ) || ( off > b.length ) || ( len < 0 ) ||
-                ( ( off + len ) > b.length ) || ( ( off + len ) < 0 ) ) {
-            throw new IndexOutOfBoundsException();
-        } else if ( ( b.length == 0 ) || ( len == 0 ) ) {
-            return 0;
-        }
-        long fileLen = length();
-        if ( filePointer >= fileLen ) {
-            return -1;
-        }
-        if ( filePointer + len > fileLen ) {
-            len = (int)( fileLen - filePointer );
-        }
-        if ( len <= 0 ) {
-            return 0;
-        }
-        return internalRead( b, off, len );
-    }
-    
-    private synchronized int internalRead( byte[] b, int off, int len )
-            throws IOException
-    {
-        // len is always less than or equal to the file length, so we're
-        // always going to read exactly len number of bytes
-        initBuffer();
-        if ( calcBlockIndex( filePointer + len ) == index ) { // within current block
-            System.arraycopy( buffer, offset, b, off, len );
-            seek( filePointer + len );
-            return len; // recursive reads always end here
-        } else {
-            // read to the end of the current buffer
-            int bytesAvailable = buffer.length - offset;
-            System.arraycopy( buffer, offset, b, off, bytesAvailable );
-            
-            // move file pointer to beginning of next buffer
-            seek( filePointer + bytesAvailable );
-            
-            // recursively read the rest of the input
-            internalRead( b, off + bytesAvailable, len - bytesAvailable );
-            return len;
-        }
     }
     
     public void readFully( byte[] b ) throws IOException {
@@ -482,50 +217,26 @@ public class GaeRandomAccessContent extends OutputStream implements RandomAccess
     }
 
     public synchronized int skipBytes( int n ) throws IOException {
-        long fileLen = length();
-        if ( filePointer >= fileLen ) {
-            return 0;
-        }
-        if ( filePointer + n > fileLen) {
-            n = (int)( fileLen - filePointer );
-        }
-        if ( n <= 0 ) {
-            return 0;
-        }
-        seek( filePointer + n );
-        return n;
+        return dataInput.skipBytes( n );
     }
     
-    /**
-     * This inner class exists because the outer class can't extend both OutputStream
-     * and InputStream. This class just makes callbacks to the outer class.
-     */
-    private class GaeInputStream extends InputStream {
+    private class GaeDataInputStream extends DataInputStream {
 
-        private GaeRandomAccessContent outer;
-        
-        private GaeInputStream( GaeRandomAccessContent content ) {
-            outer = content;
+        private GaeDataInputStream( InputStream in ) {
+            super( in );
         }
         
+        /**
+         * Returns -1 rather than throwing IOException if channel is closed, in
+         * order to satisfy Commons VFS testcase.
+         */
         @Override
         public int read() throws IOException {
-            return outer.read();
-        }
-        
-        @Override
-        public int read( byte[] b, int off, int len ) throws IOException {
-            return outer.read( b, off, len );
-        }
-        
-        @Override
-        public long skip( long n ) throws IOException {
-            return outer.skipBytes( (int)n );
-        }
-        
-        @Override
-        public void close() throws IOException {
-            outer.close();
+            try {
+                return in.read();
+            } catch ( ClosedChannelException e ) {
+                return -1;
+            }
         }
     }
 }

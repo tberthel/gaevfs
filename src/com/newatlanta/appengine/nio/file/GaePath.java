@@ -51,6 +51,7 @@ import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
+import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
@@ -77,6 +78,11 @@ import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
 import com.newatlanta.nio.file.attribute.FileAttribute;
 import com.newatlanta.nio.file.attribute.FileAttributeView;
 
+/**
+ * Implements {@linkplain com.newatlanta.nio.file.Path} for GaeVFS.
+ * 
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
+ */
 public class GaePath extends Path {
     
     private FileSystem fileSystem;
@@ -395,7 +401,10 @@ public class GaePath extends Path {
 
     @Override
     public FileChannel newByteChannel( Set<? extends OpenOption> options,
-                                          FileAttribute<?> ... attrs ) throws IOException {
+                              FileAttribute<?> ... attrs ) throws IOException {
+        if ( !( fileObject instanceof GaeFileObject ) ) {
+            throw new ProviderMismatchException();
+        }
         checkByteChannelOpenOptions( options );
         if ( options.contains( CREATE_NEW ) ) {
             createFile( attrs ); // throws FileAlreadyExistsException
@@ -410,7 +419,7 @@ public class GaePath extends Path {
         } else {
             checkAccess( AccessMode.READ );
         }
-        return new GaeFileChannel( fileObject, options );
+        return new GaeFileChannel( (GaeFileObject)fileObject, options );
     }
     
     @SuppressWarnings("unchecked")

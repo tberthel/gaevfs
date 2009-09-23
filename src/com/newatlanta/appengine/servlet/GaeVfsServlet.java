@@ -19,6 +19,8 @@ import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlock
 import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
 import static com.newatlanta.nio.file.attribute.Attributes.readBasicFileAttributes;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -167,7 +169,7 @@ public class GaeVfsServlet extends HttpServlet {
         }
 
         // it's file, return it
-        // TODO: add support for If-Modified-Since header?
+        // TODO: add support for If-Modified-Since header? caching headers?
 
         // the servlet MIME type is configurable via web.xml
         String contentType = getServletContext().getMimeType( path.getName().toString() );
@@ -305,6 +307,8 @@ public class GaeVfsServlet extends HttpServlet {
      */
     private static void copyAndClose( InputStream in, OutputStream out )
             throws IOException {
+        in = new BufferedInputStream( in, 64 * 1024 );
+        out = new BufferedOutputStream( out, 64 * 1024 );
         IOUtils.copy( in, out );
         out.close();
         in.close();
