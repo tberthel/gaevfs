@@ -544,13 +544,13 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * bulk operation; the datastore allows a maximum of 500 entities per
      * bulk put (up to 1000 for a bulk get).
      * 
-     * In practice, with a minimum block size of 8KB, the maximum number of
-     * entities in a bulk put is about 100.
+     * In practice, with a minimum block size of 8KB, plus 2KB for entity
+     * overhead, the maximum number of entities in a bulk put is about 100.
      */
     private int maxBlocksPerBulkOperation() {
         int blocksPerBulk = 1;
         try {
-            blocksPerBulk = Math.min( 100, ( 1024 * 1024  ) / getBlockSize() );
+            blocksPerBulk = ( 1000 * 1024  ) / ( getBlockSize() + 2048 );
         } catch ( FileSystemException e ) {
         }
         return blocksPerBulk;
