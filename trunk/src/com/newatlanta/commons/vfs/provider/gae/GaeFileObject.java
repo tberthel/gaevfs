@@ -15,8 +15,8 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
-import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.isDirty;
-import static com.newatlanta.commons.vfs.provider.gae.GaeRandomAccessContent.setDirty;
+import static com.newatlanta.appengine.nio.channels.GaeFileChannel.isDirty;
+import static com.newatlanta.appengine.nio.channels.GaeFileChannel.setDirty;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.vfs.FileContent;
 import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
@@ -315,7 +316,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             newGaeFile.metadata.setProperty( CONTENT_SIZE,
                                       this.metadata.getProperty( CONTENT_SIZE ) );
-            newGaeFile.persist( false, false );
+            newGaeFile.putContent( false, false );
             blockMap.keySet().removeAll( newGaeFile.getBlockKeys() );
         }
     }
@@ -377,7 +378,11 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             deleteMetaData();
         } else { // file/folder is being created or modified
-            putMetaData();
+            if ( getType().hasContent() ) {
+                putContent( true, false );
+            } else {
+                putMetaData();
+            }
         }
     }
 
@@ -423,7 +428,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * Returns the size of the file content (in bytes).
      */
     @Override
-    protected long doGetContentSize() throws FileSystemException {
+    public long doGetContentSize() throws FileSystemException {
         if ( exists() && !getType().hasContent() ) {
             throw new FileSystemException( "vfs.provider/get-size-not-file.error", getName() );
         }
@@ -434,28 +439,30 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     /**
      * Intended for use by GaeRandomAccessContent.
      */
-    void updateContentSize( long newSize ) throws FileSystemException {
+    public void updateContentSize( long newSize ) throws FileSystemException {
         updateContentSize( newSize, false );
     }
 
-    void updateContentSize( long newSize, boolean force ) throws FileSystemException {
+    public void updateContentSize( long newSize, boolean force )
+            throws FileSystemException {
         if ( force || ( newSize > doGetContentSize() ) ) {
             metadata.setProperty( CONTENT_SIZE, Long.valueOf( newSize ) );
         }
     }
 
-    /**
-     * Creates an input stream to read the file content from.
-     * 
-     * The returned stream does not have to be buffered.
-     */
+    @Override
+    protected FileContent doCreateFileContent() throws FileSystemException {
+        return new GaeFileContent( this, getFileContentInfoFactory() );
+    }
+    
     @Override
     protected InputStream doGetInputStream() throws IOException {
         if ( !getType().hasContent() ) {
-            throw new FileSystemException( "vfs.provider/read-not-file.error", getName() );
+            throw new FileSystemException( "vfs.provider/read-not-file.error",
+                                                getName() );
         }
         return new GaeRandomAccessContent( this, RandomAccessMode.READ,
-                                                getBlockSize() ).getInputStream();
+                                                        false ).getInputStream();
     }
 
     /**
@@ -467,7 +474,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     protected RandomAccessContent doGetRandomAccessContent( RandomAccessMode mode )
             throws IOException {
-        return new GaeRandomAccessContent( this, mode, getBlockSize() );
+        return new GaeRandomAccessContent( this, mode, false );
     }
 
     /**
@@ -480,32 +487,34 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     @Override
     protected OutputStream doGetOutputStream( boolean bAppend ) throws IOException {
-        return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE, getBlockSize(),
-                                            bAppend && exists() ? doGetContentSize() : 0 );
+        return new GaeRandomAccessContent( this, RandomAccessMode.READWRITE,
+                                                        bAppend ).getOutputStream();
     }
     
     @Override
     protected void notifyAllStreamsClosed() {
         try {
-            persist( false, false );
             blockMap.keySet().removeAll( getBlockKeys() );
-        } catch ( IOException e ) {
+        } catch ( FileSystemException e ) {
             GaeVFS.log.warning( e.getMessage() );
         }
     }
     
-    public synchronized void persist( boolean metaData, boolean writeThrough )
+    public synchronized void putContent( boolean metaData, boolean writeThrough )
             throws FileSystemException {
         List<Entity> dirtyBlocks = getDirtyBlocks();
         if ( dirtyBlocks.isEmpty() && !metaData ) {
             return; // nothing to do
         }
-        int max = maxBlocksPerBulkOp();
+        // update metadata and add it to the list of entities to write
+        metadata.setProperty( FILETYPE, getType().getName() );
         doSetLastModTime( System.currentTimeMillis() );
         dirtyBlocks.add( 0, metadata );
+        
         // use transaction to force write-through if specified
         Transaction txn = writeThrough ? datastore.beginTransaction() : null;
         try {
+            int max = maxBlocksPerBulkOperation();
             for ( int from = 0; from < dirtyBlocks.size(); from += max ) {
                 int to = Math.min( from + max, dirtyBlocks.size() );
                 datastore.put( txn, dirtyBlocks.subList( from, to ) );
@@ -519,12 +528,20 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
         }
     }
+    
+    public void endOutput() throws FileSystemException {
+        try {
+            super.endOutput();
+        } catch ( Exception e ) {
+            throw new FileSystemException( "vfs.provider/close-outstr.error", this, e );
+        }
+    }
 
     /**
      * Both memcache and the datastore support a maximum of 1MB of data per
      * bulk operation.
      */
-    private int maxBlocksPerBulkOp() {
+    private int maxBlocksPerBulkOperation() {
         int blocksPerBulk = 1;
         try {
             // can only write 1MB of data per put
@@ -534,7 +551,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return blocksPerBulk;
     }
     
-    Entity getBlock( int i ) throws FileSystemException {
+    public Entity getBlock( int i ) throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
         Entity block = null;
         if ( i < blockKeys.size() ) { // existing key
@@ -560,7 +577,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * TODO: limit the number of blocks in memory at one time? large files?
      */
     private Entity getBlock( int from, List<Key> blockKeys ) {
-        int to = Math.min( from + maxBlocksPerBulkOp(), blockKeys.size() );
+        int to = Math.min( from + maxBlocksPerBulkOperation(), blockKeys.size() );
         Map<Key, Entity> entityMap = datastore.get( blockKeys.subList( from, to ) );
         for ( Map.Entry<Key, Entity> entry : entityMap.entrySet() ) {
             if ( !blockMap.containsKey( entry.getKey() ) ) {
@@ -591,7 +608,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     /**
      * Truncate blocks from the specified index (inclusive).
      */
-    void deleteBlocks( int from ) throws FileSystemException {
+    public void deleteBlocks( int from ) throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
         List<Key> deleteKeys = blockKeys.subList( from, blockKeys.size() );
         if ( !deleteKeys.isEmpty() ) {

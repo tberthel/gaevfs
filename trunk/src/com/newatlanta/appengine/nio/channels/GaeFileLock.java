@@ -26,7 +26,7 @@ import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.nio.channels.FileLock;
 
 /**
- * GaeVFS {@linkplain com.newatlanta.nio.channels.FileLock} implementation.
+ * Implements {@linkplain com.newatlanta.nio.channels.FileLock} for GaeVFS.
  * 
  * <p>Platform dependencies:
  * <ul>
@@ -105,7 +105,7 @@ public class GaeFileLock extends FileLock {
         fileLocks.remove( name );
     }
     
-    static void releaseAll( GaeFileChannel fileChannel ) {
+    static void releaseAllLocks( GaeFileChannel fileChannel ) {
         synchronized( fileLocks ) {
             for ( GaeFileLock lock : fileLocks.values() ) {
                 if ( ( fileChannel == null ) ||
@@ -116,8 +116,8 @@ public class GaeFileLock extends FileLock {
         }
     }
     
-    public static void releaseAll() {
-        releaseAll( null );
+    public static void releaseAllLocks() {
+        releaseAllLocks( null );
         fileLocks.clear();
     }
 }

@@ -24,6 +24,7 @@ import org.h2.store.fs.FileObject;
 
 public class FileObjectGae implements FileObject {
     
+    // TODO re-implement based on java.nio (com.newatlanta.nio)
     private org.apache.commons.vfs.FileObject fileObject;
     private RandomAccessContent content;
 
@@ -65,7 +66,7 @@ public class FileObjectGae implements FileObject {
     }
 
     public void setFileLength(long newLength) throws IOException {
-        content.setLength(newLength);
+//        content.setLength(newLength);
     }
 
     /**

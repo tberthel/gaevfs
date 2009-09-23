@@ -29,6 +29,7 @@ import org.apache.commons.vfs.provider.UriParser;
 import org.h2.store.fs.FileObject;
 import org.h2.store.fs.FileSystem;
 
+// TODO re-implement based on java.nio (com.newatlanta.nio)
 public class FileSystemGae extends FileSystem {
 
     private static final FileSystemGae INSTANCE = new FileSystemGae();

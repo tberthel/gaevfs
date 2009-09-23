@@ -15,12 +15,14 @@
  */
 package com.newatlanta.commons.vfs.provider.gae;
 
+import static com.newatlanta.appengine.nio.channels.GaeFileLock.releaseAllLocks;
+
 import java.util.logging.Logger;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 
-import com.newatlanta.appengine.nio.channels.GaeFileLock;
+import com.newatlanta.appengine.servlet.GaeVfsServletEventListener;
 
 /**
  * This class is the entry point for interacting with the Google App Engine Virtual
@@ -163,8 +165,7 @@ public class GaeVFS {
 
     /**
      * Releases all resources used by GaeVFS. Required to release all file locks
-     * when an application terminates.
-     * This will be done automatically if the
+     * when an application terminates. This will be done automatically if the
      * {@link GaeVfsServletEventListener} is configured within <tt>web.xml</tt>.
      * Otherwise, it should be done within the servlet <tt>destroy()</tt> method:
      * <blockquote><code>
@@ -177,6 +178,6 @@ public class GaeVFS {
             fsManager.close();
             fsManager = null;
         }
-        GaeFileLock.releaseAll();
+        releaseAllLocks();
     }
 }
