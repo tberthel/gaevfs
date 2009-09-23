@@ -60,7 +60,6 @@ import com.google.appengine.api.memcache.Expiration;
 import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.google.appengine.api.memcache.StrictErrorHandler;
-import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 
 /**
  * Implements a <code>DatastoreService</code> that automatically caches entities
@@ -128,7 +127,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             } catch ( DatastoreTimeoutException e ) {
                 entity = datastore.get( txn, key );
             }
-            memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
+            memcache.put( key, entity, expiration );
         }
         return entity;
     }
@@ -166,7 +165,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         } catch ( DatastoreTimeoutException e ) {
             entities = datastore.get( txn, keys );
         }
-        memcache.putAll( (Map)entities, expiration, SetPolicy.SET_ALWAYS );
+        memcache.putAll( (Map)entities, expiration );
         return entities;
     }
     
@@ -174,7 +173,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         Key key = getKey( entity );
         memcache.setErrorHandler( STRICT_ERROR_HANDLER );
         try {
-            memcache.put( key, entity, expiration, SetPolicy.SET_ALWAYS );
+            memcache.put( key, entity, expiration );
             if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
                 queue.add( url( TASK_URL ).payload( serialize( key ), TASK_CONTENT_TYPE ) );
                 return key;
@@ -182,6 +181,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         } catch ( Exception e ) {
             log.warning( e.getCause() != null ? e.getCause().getMessage() 
                                               : e.getMessage() );
+            memcache.delete( key );
         } finally {
             memcache.setErrorHandler( DEFAULT_ERROR_HANDLER );
         }
@@ -197,7 +197,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         if ( txn == null ) {
             return put( entity );
         }
-        memcache.put( getKey( entity ), entity );
+        memcache.put( getKey( entity ), entity, expiration );
         return putEntity( txn, entity );
     }
 
@@ -224,7 +224,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         Map<Key, Entity> entityMap = getEntityMap( entities );
         memcache.setErrorHandler( STRICT_ERROR_HANDLER );
         try {
-            memcache.putAll( (Map)entityMap, expiration, SetPolicy.SET_ALWAYS );
+            memcache.putAll( (Map)entityMap, expiration );
             if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
                 List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
                 queue.add( url( TASK_URL ).payload( serialize( keyList ), TASK_CONTENT_TYPE ) );
@@ -233,6 +233,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         } catch ( Exception e ) {
             log.warning( e.getCause() != null ? e.getCause().getMessage() 
                                               : e.getMessage() );
+            memcache.deleteAll( (Collection)entityMap.keySet() );
         } finally {
             memcache.setErrorHandler( DEFAULT_ERROR_HANDLER );
         }
@@ -258,7 +259,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         if ( txn == null ) {
             return put( entities );
         }
-        memcache.putAll( (Map)getEntityMap( entities ) );
+        memcache.putAll( (Map)getEntityMap( entities ), expiration );
         return putEntities( txn, entities );
     }
     
