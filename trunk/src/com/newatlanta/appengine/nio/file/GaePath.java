@@ -186,18 +186,26 @@ public class GaePath extends Path {
             throw new UnsupportedOperationException( attrs[ 0 ].name() );
         }
         GaePath parent = getParent();
-        parent.getLock().lock(); // prevent delete or rename of parent
-        try {
-            parent.checkAccess( AccessMode.WRITE );
-            if ( notExists() ) {
-                fileObject.createFolder();
-                return this;
-            } else {
-                throw new FileAlreadyExistsException( toString(), null,
-                                                    "directory already exists" );
+        if ( parent != null ) {
+            parent.getLock().lock(); // prevent delete or rename of parent
+            try {
+                parent.checkAccess( AccessMode.WRITE );
+                return createDir( attrs );
+            } finally {
+                parent.lock.unlock();
             }
-        } finally {
-            parent.lock.unlock();
+        } else {
+            // root directory should always exist
+            return createDir( attrs );
+        }
+    }
+
+    private Path createDir( FileAttribute<?> ... attrs ) throws IOException {
+        if ( notExists() ) {
+            fileObject.createFolder();
+            return this;
+        } else {
+            throw new FileAlreadyExistsException( toString(), null, null );
         }
     }
 
@@ -218,8 +226,7 @@ public class GaePath extends Path {
                 fileObject.createFile();
                 return this;
             } else {
-                throw new FileAlreadyExistsException( toString(), null,
-                                                        "file already exists" );
+                throw new FileAlreadyExistsException( toString(), null, null );
             }
         } finally {
             parent.lock.unlock();
