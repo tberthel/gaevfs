@@ -467,6 +467,13 @@ public class GaePathTestCase extends GaeVfsTestCase {
     
     @Test
     public void testCreateDirectoriesAndFiles() throws IOException {
+        try {
+            // root directory should already exist
+            Paths.get( "/" ).createDirectory();
+            fail( "expected FileAlreadyExistsException" );
+        } catch ( FileAlreadyExistsException e ) {
+        }
+        
         Path imagesPath = getLocalDirectory();
         
         // create a directory within a local directory
