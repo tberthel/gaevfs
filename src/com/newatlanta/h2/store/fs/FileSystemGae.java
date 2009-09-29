@@ -15,21 +15,32 @@
  */
 package com.newatlanta.h2.store.fs;
 
-import static com.newatlanta.commons.vfs.provider.gae.GaeVFS.resolveFile;
+import static com.newatlanta.nio.file.AccessMode.WRITE;
+import static com.newatlanta.nio.file.Files.createDirectories;
+import static com.newatlanta.nio.file.Files.walkFileTree;
+import static com.newatlanta.nio.file.Paths.get;
+import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
+import static com.newatlanta.nio.file.StandardOpenOption.CREATE;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.vfs.Selectors;
-import org.apache.commons.vfs.provider.UriParser;
 import org.h2.store.fs.FileObject;
 import org.h2.store.fs.FileSystem;
 
-// TODO re-implement based on java.nio (com.newatlanta.nio)
+import com.newatlanta.nio.file.FileAlreadyExistsException;
+import com.newatlanta.nio.file.FileVisitResult;
+import com.newatlanta.nio.file.NoSuchFileException;
+import com.newatlanta.nio.file.Path;
+import com.newatlanta.nio.file.SimpleFileVisitor;
+import com.newatlanta.nio.file.attribute.Attributes;
+import com.newatlanta.nio.file.attribute.BasicFileAttributes;
+
 public class FileSystemGae extends FileSystem {
 
     private static final FileSystemGae INSTANCE = new FileSystemGae();
@@ -45,27 +56,27 @@ public class FileSystemGae extends FileSystem {
      * @return true if it is
      */
     @Override
-    protected boolean accepts(String fileName) {
-    	String scheme = UriParser.extractScheme( fileName );
+    protected boolean accepts( String fileName ) {
+        String scheme = get( fileName ).toUri().getScheme();
         return ( ( scheme != null ) && scheme.equals( "gae" ) );
     }
 
     @Override
-    public boolean canWrite(String fileName) {
+    public boolean canWrite( String fileName ) {
         try {
-            return resolveFile(fileName).isWriteable();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
+            get( fileName ).checkAccess( WRITE );
+            return true;
+        } catch ( IOException e ) {
             return false;
         }
     }
 
     @Override
-    public void copy(String original, String copy) throws SQLException {
+    public void copy( String original, String copy ) throws SQLException {
         try {
-            resolveFile(copy).copyFrom(resolveFile(original),Selectors.SELECT_SELF);
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
+            get( original ).copyTo( get( copy ) );
+        } catch ( IOException e ) {
+            throw new SQLException( e );
         }
     }
 
@@ -75,21 +86,27 @@ public class FileSystemGae extends FileSystem {
      * @param fileName the file name (not directory name)
      */
     @Override
-    public void createDirs(String fileName) throws SQLException {
+    public void createDirs( String fileName ) throws SQLException {
         try {
-            resolveFile(fileName).getParent().createFolder();
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
+            createDirs( get( fileName ) );
+        } catch ( IOException e ) {
+            throw new SQLException( e );
+        }
+    }
+    
+    private void createDirs( Path filePath ) throws IOException {
+        Path parent = filePath.getParent();
+        if ( parent.notExists() ) {
+            createDirectories( parent );
         }
     }
 
     @Override
-    public boolean createNewFile(String fileName) throws SQLException {
+    public boolean createNewFile( String fileName ) throws SQLException {
         try {
-            resolveFile(fileName).createFile();
-            return true;
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
+            return get( fileName ).createFile().exists();
+        } catch ( IOException e ) {
+            throw new SQLException( e );
         }
     }
 
@@ -104,64 +121,83 @@ public class FileSystemGae extends FileSystem {
      * @param inTempDir if the file should be stored in the temporary directory
      * @return the name of the created file
      */
-    private static AtomicInteger counter = new AtomicInteger(new Random().nextInt() & 0xffff);
+    private static Random random = new Random();
 
     @Override
-    public String createTempFile(String prefix, String suffix, boolean deleteOnExit, boolean inTempDir)
-            throws IOException {
-        org.apache.commons.vfs.FileObject tempDir;
-        if (inTempDir) {
-            tempDir = resolveFile("WEB-INF/temp");
-        } else {
-            tempDir = resolveFile(prefix).getParent();
+    public String createTempFile( String prefix, String suffix, boolean deleteOnExit,
+                                    boolean inTempDir ) throws IOException {
+        // TODO this method needs to be tested
+        Path tempDir = inTempDir ? get( "WEB-INF/temp" ) : get( prefix ).getParent();
+        if ( tempDir.notExists() ) {
+            createDirectories( tempDir );
         }
-        tempDir.createFolder();
-
-        return tempDir.resolveFile(prefix + Integer.toString(counter.getAndIncrement())
-                + (suffix == null ? ".tmp" : suffix)).getName().getURI();
+        while ( true ) {
+            String fileName = prefix + Integer.toString( random.nextInt() & 0xffffff )
+                                        + ( suffix == null ? ".tmp" : suffix );
+            try {
+                return tempDir.resolve( fileName ).createFile().toUri().toString();
+            } catch ( FileAlreadyExistsException e ) { // repeat loop
+            }
+        }
     }
 
     @Override
-    public void delete(String fileName) throws SQLException {
+    public void delete( String fileName ) throws SQLException {
         try {
-            resolveFile(fileName).delete();
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
+            get( fileName ).deleteIfExists();
+        } catch ( IOException e ) {
+            throw new SQLException( e );
         }
     }
 
     @Override
-    public void deleteRecursive(String directory) throws SQLException {
-        try {
-            resolveFile(directory).delete(Selectors.SELECT_ALL);
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
-        }
+    public void deleteRecursive( String directory, final boolean tryOnly )
+            throws SQLException {
+        // http://download.java.net/jdk7/docs/api/java/nio/file/FileVisitor.html
+        // TODO this implementation needs to be examined carefully
+        walkFileTree( get( directory ), new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile( Path file, BasicFileAttributes attrs ) {
+                try {
+                    file.delete();
+                } catch ( IOException e ) {
+                    if ( !tryOnly ) {
+                        // TODO is this correct?
+                        return FileVisitResult.TERMINATE;
+                    }
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory( Path dir, IOException e ) {
+                if ( e == null ) {
+                    try {
+                        dir.delete();
+                    } catch ( IOException exc ) {
+                        // TODO failed to delete, do error handling here
+                    }
+                } else {
+                    // TODO directory iteration failed
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        } );
     }
 
     @Override
-    public boolean exists(String fileName) {
-        try {
-            return resolveFile(fileName).exists();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
-            return false;
-        }
+    public boolean exists( String fileName ) {
+        return get( fileName ).exists();
     }
 
     @Override
-    public boolean fileStartsWith(String fileName, String prefix) {
-        return fileName.startsWith(prefix);
+    public boolean fileStartsWith( String fileName, String prefix ) {
+        return fileName.startsWith( prefix );
     }
 
     @Override
-    public String getAbsolutePath(String fileName) {
-        try {
-            return resolveFile(fileName).getName().getURI();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
-            return fileName;
-        }
+    public String getAbsolutePath( String fileName ) {
+        return get( fileName ).toAbsolutePath().toString();
     }
 
     /**
@@ -171,100 +207,80 @@ public class FileSystemGae extends FileSystem {
      * @return just the file name
      */
     @Override
-    public String getFileName(String name) throws SQLException {
-        try {
-            return resolveFile(name).getName().getBaseName();
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
-        }
+    public String getFileName( String name ) throws SQLException {
+        return get( name ).getName().toString();
     }
 
     @Override
-    public long getLastModified(String fileName) {
+    public long getLastModified( String fileName ) {
         try {
-            return resolveFile(fileName).getContent().getLastModifiedTime();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
+            return readBasicFileAttributes( fileName ).lastModifiedTime().toMillis();
+        } catch ( IOException e ) {
             return 0;
         }
     }
-
-    @Override
-    public String getParent(String fileName) {
-        try {
-            return resolveFile(fileName).getParent().getName().getURI();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
-            int i = fileName.lastIndexOf('/');
-            return (i > 0 ? fileName.substring(0, i) : "");
-        }
+    
+    private static BasicFileAttributes readBasicFileAttributes( String fileName )
+            throws IOException {
+        return Attributes.readBasicFileAttributes( get( fileName ) );
     }
 
     @Override
-    public boolean isAbsolute(String fileName) {
-        return fileName.equals(getAbsolutePath(fileName));
+    public String getParent( String fileName ) {
+        return get( fileName ).getParent().toUri().toString();
     }
 
     @Override
-    public boolean isDirectory(String fileName) {
+    public boolean isAbsolute( String fileName ) {
+        return get( fileName ).isAbsolute();
+    }
+
+    @Override
+    public boolean isDirectory( String fileName ) {
         try {
-            return resolveFile(fileName).getType().hasChildren();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
+            return readBasicFileAttributes( fileName ).isDirectory();
+        } catch ( IOException e ) {
             return false;
         }
     }
 
     @Override
-    public boolean isReadOnly(String fileName) {
-        try {
-            return !resolveFile(fileName).isWriteable();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
-            return false;
-        }
+    public boolean isReadOnly( String fileName ) {
+        return !canWrite( fileName );
     }
 
     @Override
-    public long length(String fileName) {
+    public long length( String fileName ) {
         try {
-            return resolveFile(fileName).getContent().getSize();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
+            return readBasicFileAttributes( fileName ).size();
+        } catch ( IOException e ) {
             return 0;
         }
     }
 
     @Override
-    public String[] listFiles(String directory) throws SQLException {
+    public String[] listFiles( String directory ) throws SQLException {
         try {
-        	org.apache.commons.vfs.FileObject dirObject = resolveFile(directory);
-        	if (!dirObject.exists()) {
-        		return new String[0];
-        	}
-            org.apache.commons.vfs.FileObject[] children = dirObject.getChildren();
-            String[] files = new String[children.length];
-            for (int i = 0; i < children.length; i++) {
-                files[i] = children[i].getName().getURI();
+            List<String> files = new ArrayList<String>();
+            for ( Path path : get( directory ).newDirectoryStream() ) {
+                files.add( path.toUri().toString() );
             }
-            return files;
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
+            return files.toArray( new String[ files.size() ] );
+        } catch ( NoSuchFileException e ) {
+            return new String[ 0 ];
+        } catch ( IOException e ) {
+            throw new SQLException( e );
         }
     }
 
     @Override
-    public String normalize(String fileName) throws SQLException {
-        try {
-            return resolveFile(fileName).getName().getURI();
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
-        }
+    public String normalize( String fileName ) throws SQLException {
+        return get( fileName ).toUri().toString();
     }
 
     @Override
-    public InputStream openFileInputStream(String fileName) throws IOException {
-        return resolveFile(fileName).getContent().getInputStream();
+    public InputStream openFileInputStream( String fileName ) throws IOException {
+        return get( fileName ).newInputStream();
     }
 
     /**
@@ -275,40 +291,38 @@ public class FileSystemGae extends FileSystem {
      * @return the file object
      */
     @Override
-    public FileObject openFileObject(String fileName, String mode) throws IOException {
-        org.apache.commons.vfs.FileObject fileObject = resolveFile(fileName);
-        fileObject.createFile(); // does nothing if file exists
-        return new FileObjectGae(fileObject,mode);
+    public FileObject openFileObject( String fileName, String mode ) throws IOException {
+        return new FileObjectGae( get( fileName ), mode );
     }
 
     @Override
-    public OutputStream openFileOutputStream(String fileName, boolean append) throws SQLException {
+    public OutputStream openFileOutputStream( String fileName, boolean append )
+            throws SQLException {
         try {
-            return resolveFile(fileName).getContent().getOutputStream(append);
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
+            Path filePath = get( fileName );
+            createDirs( filePath );
+            return filePath.newOutputStream( CREATE, append ? APPEND : null );
+        } catch ( IOException e ) {
+            throw new SQLException( e );
         }
     }
 
     @Override
-    public void rename(String oldName, String newName) throws SQLException {
+    public void rename( String oldName, String newName ) throws SQLException {
         try {
-            resolveFile(oldName).moveTo(resolveFile(newName));
-        } catch (IOException e) {
-            throw new SQLException(e.getMessage());
+            get( oldName ).moveTo( get( newName ) );
+        } catch ( IOException e ) {
+            throw new SQLException( e );
         }
     }
 
     @Override
-    public boolean tryDelete(String fileName) {
+    public boolean tryDelete( String fileName ) {
+        Path path = get( fileName );
         try {
-            org.apache.commons.vfs.FileObject fileObject = resolveFile(fileName);
-            fileObject.delete();
-            return fileObject.exists();
-        } catch (IOException e) {
-            e.printStackTrace(System.err);
-            return false;
+            path.deleteIfExists();
+        } catch ( IOException e ) {
         }
-        
+        return path.exists();
     }
 }

@@ -15,68 +15,90 @@
  */
 package com.newatlanta.h2.store.fs;
 
-import java.io.IOException;
+import static com.newatlanta.nio.file.StandardOpenOption.CREATE;
+import static com.newatlanta.nio.file.StandardOpenOption.DSYNC;
+import static com.newatlanta.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
+import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
 
-import org.apache.commons.vfs.FileSystemException;
-import org.apache.commons.vfs.RandomAccessContent;
-import org.apache.commons.vfs.util.RandomAccessMode;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.EnumSet;
+
 import org.h2.store.fs.FileObject;
+
+import com.newatlanta.appengine.nio.channels.GaeFileChannel;
+import com.newatlanta.nio.channels.FileChannel;
+import com.newatlanta.nio.file.Path;
+import com.newatlanta.nio.file.StandardOpenOption;
 
 public class FileObjectGae implements FileObject {
     
-    // TODO re-implement based on java.nio (com.newatlanta.nio)
-    private org.apache.commons.vfs.FileObject fileObject;
-    private RandomAccessContent content;
+    private String name;
+    private FileChannel channel;
 
-    public FileObjectGae(org.apache.commons.vfs.FileObject _fileObject, String mode) throws FileSystemException {
-        fileObject = _fileObject;
-        RandomAccessMode raMode;
-        if ( mode.equals( "r" ) ) {
-            raMode = RandomAccessMode.READ;
-        } else if ( mode.equals( "rw" ) || mode.equals( "rws" ) || mode.equals( "rwd" ) ) {
-            raMode = RandomAccessMode.READWRITE;
-        } else {
-            throw new IllegalArgumentException( "invalid mode: " + mode );
+    FileObjectGae( Path filePath, String mode ) throws IOException {
+        name = filePath.toUri().toString();
+        EnumSet<StandardOpenOption> options = EnumSet.of( READ );
+        if ( mode.contains( "w" ) ) {
+            options.add( WRITE );
+            options.add( CREATE );
+            if ( mode.contains( "s" ) ) {
+                options.add( SYNC );
+            }
+            if ( mode.contains( "d" ) ) {
+                options.add( DSYNC );
+            }
         }
-        content = fileObject.getContent().getRandomAccessContent(raMode);
+        channel = FileChannel.open( filePath, options );
     }
     
     public void close() throws IOException {
-        content.close();
+        channel.close();
     }
 
     public long getFilePointer() throws IOException {
-        return content.getFilePointer();
+        return channel.position();
     }
 
     public String getName() {
-        return fileObject.getName().getURI();
+        return name;
     }
 
     public long length() throws IOException {
-        return content.length();
+        return channel.size();
     }
 
-    public void readFully(byte[] b, int off, int len) throws IOException {
-        content.readFully(b, off, len);
+    public void readFully( byte[] b, int off, int len ) throws IOException {
+        if ( len == 0 ) {
+            return;
+        }
+        channel.read( ByteBuffer.wrap( b, off, len ) );
     }
 
-    public void seek(long pos) throws IOException {
-        content.seek(pos);
+    public void seek( long pos ) throws IOException {
+        channel.position( pos );
     }
 
-    public void setFileLength(long newLength) throws IOException {
-//        content.setLength(newLength);
+    public void setFileLength( long newLength ) throws IOException {
+        if ( newLength <= channel.size() ) {
+            channel.truncate( newLength );
+        } else if ( channel instanceof GaeFileChannel ) {
+            ((GaeFileChannel)channel).setLength( newLength );
+        } else {
+            // extend without modifying channel position
+            channel.write( ByteBuffer.allocate( 1 ), newLength - 1 );
+        }
     }
 
-    /**
-     * Force changes to the physical location.
-     */
     public void sync() throws IOException {
-        fileObject.refresh();
+        channel.force( true );
     }
 
-    public void write(byte[] b, int off, int len) throws IOException {
-        content.write(b, off, len);
+    public void write( byte[] b, int off, int len ) throws IOException {
+        if ( len == 0 ) {
+            return;
+        }
+        channel.write( ByteBuffer.wrap( b, off, len ) );
     }
 }
