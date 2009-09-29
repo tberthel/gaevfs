@@ -69,6 +69,7 @@ import com.newatlanta.nio.file.NotDirectoryException;
 import com.newatlanta.nio.file.OpenOption;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.ProviderMismatchException;
+import com.newatlanta.nio.file.StandardCopyOption;
 import com.newatlanta.nio.file.WatchKey;
 import com.newatlanta.nio.file.WatchService;
 import com.newatlanta.nio.file.DirectoryStream.Filter;
@@ -378,15 +379,35 @@ public class GaePath extends Path {
         if ( !( target instanceof GaePath ) ) {
             throw new ProviderMismatchException();
         }
-        // if directory, then lock to prevent creation of children while moving
+        if ( target.isSameFile( this ) ) {
+            return target;
+        }
+        boolean replaceExisting = false;
+        boolean atomicMove = false;
+        for ( CopyOption option : options ) {
+            if ( option == StandardCopyOption.REPLACE_EXISTING ) {
+                replaceExisting = true;
+            } else if ( option == StandardCopyOption.ATOMIC_MOVE ) {
+                atomicMove = true;
+            } else {
+                throw new UnsupportedOperationException( option.toString() );
+            }
+        }
+        if ( target.exists() ) {
+            if ( !replaceExisting ) { // TODO || non-empty directory
+                throw new FileAlreadyExistsException( toString(), null, null );
+            }
+        }
+        // TODO if directory, then lock to prevent creation of children while moving
         if ( fileObject.getType().hasChildren() ) {
         }
-        // TODO Auto-generated method stub
-        return null;
+        fileObject.moveTo( ((GaePath)target).fileObject );
+        return target;
     }
     
     @Override
     public DirectoryStream<Path> newDirectoryStream() throws IOException {
+        checkAccess( AccessMode.READ );
         if ( !fileObject.getType().hasChildren() ) {
             throw new NotDirectoryException( toString() );
         }
@@ -415,7 +436,7 @@ public class GaePath extends Path {
         checkByteChannelOpenOptions( options );
         if ( options.contains( CREATE_NEW ) ) {
             createFile( attrs ); // throws FileAlreadyExistsException
-        } else if ( options.contains( CREATE ) ) {
+        } else if ( options.contains( CREATE ) && notExists() ) {
             try {
                 createFile( attrs );
             } catch ( FileAlreadyExistsException ignore ) {
@@ -495,7 +516,7 @@ public class GaePath extends Path {
         Set<OpenOption> optionSet = checkOutputStreamOpenOptions( options );
         if ( optionSet.contains( CREATE_NEW ) ) {
             createFile(); // throws FileAlreadyExistsException
-        } else if ( optionSet.contains( CREATE ) ) {
+        } else if ( optionSet.contains( CREATE ) && notExists() ) {
             try {
                 createFile();
             } catch ( FileAlreadyExistsException ignore ) {
