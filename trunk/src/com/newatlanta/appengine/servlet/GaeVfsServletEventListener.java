@@ -15,8 +15,6 @@
  */
 package com.newatlanta.appengine.servlet;
 
-import java.util.logging.Logger;
-
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 
@@ -45,10 +43,15 @@ public class GaeVfsServletEventListener implements ServletContextListener {
             Class<?> fileSystemClass = Class.forName( "org.h2.store.fs.FileSystem" );
             fileSystemClass.getMethod( "register", fileSystemClass ).invoke( null,
                                             FileSystemGae.getInstance() );
-            Logger.getLogger( Logger.GLOBAL_LOGGER_NAME ).info( "Successfully registered GaeVFS with H2" );
+            GaeVFS.log.info( "Successfully registered GaeVFS with H2" );
         } catch ( Exception e ) {
-            Logger.getLogger( Logger.GLOBAL_LOGGER_NAME ).info( "Failed to register GaeVFS with H2: " + e );
+            GaeVFS.log.info( "Failed to register GaeVFS with H2: " + e );
         }
+        
+        // user.home is needed by H2 to locate the ".h2.server.properties" file
+        String userDir = System.getProperty( "user.dir" );
+        System.setProperty( "user.home", userDir + "/WEB-INF/user-home" );
+        GaeVFS.log.info( "Context initialized: " + userDir );
     }
 
     /**
@@ -56,5 +59,6 @@ public class GaeVfsServletEventListener implements ServletContextListener {
      */
     public void contextDestroyed( ServletContextEvent event ) {
         GaeVFS.close();
+        GaeVFS.log.info( "Context destroyed: " + System.getProperty( "user.dir" ) );
     }
 }
