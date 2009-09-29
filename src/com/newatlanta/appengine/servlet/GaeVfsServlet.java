@@ -16,8 +16,10 @@
 package com.newatlanta.appengine.servlet;
 
 import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
-import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
+import static com.newatlanta.nio.file.Files.createDirectories;
 import static com.newatlanta.nio.file.attribute.Attributes.readBasicFileAttributes;
+import static org.apache.commons.fileupload.util.Streams.asString;
+import static org.apache.commons.lang.StringEscapeUtils.escapeHtml;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -37,11 +39,8 @@ import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
-import org.apache.commons.fileupload.util.Streams;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringEscapeUtils;
 
-import com.newatlanta.nio.file.Files;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.Paths;
 import com.newatlanta.nio.file.attribute.BasicFileAttributes;
@@ -133,7 +132,7 @@ public class GaeVfsServlet extends HttpServlet {
                 while ( st.hasMoreTokens() ) {
                     Path dirPath = Paths.get( st.nextToken() );
                     if ( dirPath.notExists() ) {
-                        Files.createDirectories( dirPath );
+                        createDirectories( dirPath );
                     }
                 }
             }
@@ -217,7 +216,7 @@ public class GaeVfsServlet extends HttpServlet {
             while ( children.hasNext() ) {
                 Path child = children.next();
                 buf.append( "<TR><TD><A HREF=\"" ).append( child ).append( "\">" );
-                buf.append( StringEscapeUtils.escapeHtml( child.getName().toString() ) );
+                buf.append( escapeHtml( child.getName().toString() ) );
                 BasicFileAttributes childAttrs = readBasicFileAttributes( child );
                 if ( childAttrs.isDirectory() ) {
                     buf.append( '/' );
@@ -267,29 +266,28 @@ public class GaeVfsServlet extends HttpServlet {
                 FileItemStream item = iterator.next();
                 if ( item.isFormField() ) {
                     if ( item.getFieldName().equalsIgnoreCase( "path" ) ) {
-                        path = Streams.asString( item.openStream() );
+                        path = asString( item.openStream() );
                         if ( !path.endsWith( "/" ) ) {
                             path = path + "/";
                         }
                     } else if ( item.getFieldName().equalsIgnoreCase( "blocksize" ) ) {
-                        String s = Streams.asString( item.openStream() );
+                        String s = asString( item.openStream() );
                         if ( s.length() > 0 ) {
                             blockSize = Integer.parseInt( s );
                         }
                     }
                 } else {
                     Path filePath = Paths.get( path + item.getName() );
-                    if ( filePath.getParent().notExists() ) {
-                        Files.createDirectories( filePath.getParent() );
+                    Path parent = filePath.getParent();
+                    if ( parent.notExists() ) {
+                        createDirectories( parent );
                     }
-                    OutputStream out;
                     if ( blockSize > 0 ) {
-                        out = filePath.createFile(
-                                withBlockSize( blockSize ) ).newOutputStream();
+                        filePath.createFile( withBlockSize( blockSize ) );
                     } else {
-                        out = filePath.newOutputStream( CREATE_NEW );
+                        filePath.createFile();
                     }
-                    copyAndClose( item.openStream(), out );
+                    copyAndClose( item.openStream(), filePath.newOutputStream() );
                 }
             }
 
@@ -305,12 +303,15 @@ public class GaeVfsServlet extends HttpServlet {
     /**
      * Copy the InputStream to the OutputStream then close them both.
      */
+    private static int BUFF_SIZE = 64 * 1024; // 64KB
+    
     private static void copyAndClose( InputStream in, OutputStream out )
             throws IOException {
-        in = new BufferedInputStream( in, 64 * 1024 );
-        out = new BufferedOutputStream( out, 64 * 1024 );
+        // TODO does this buffering really make sense?
+        in = new BufferedInputStream( in, BUFF_SIZE );
+        out = new BufferedOutputStream( out, BUFF_SIZE );
         IOUtils.copy( in, out );
-        out.close();
-        in.close();
+        IOUtils.closeQuietly( out );
+        IOUtils.closeQuietly( in );
     }
 }
