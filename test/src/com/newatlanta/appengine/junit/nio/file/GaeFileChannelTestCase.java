@@ -102,6 +102,7 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         Path filePath = Paths.get( "docs/read.txt" );
         FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
                                                 withBlockSize( 8 ) );
+        assertTrue( filePath.exists() );
         assertTrue( fc.isOpen() );
         
         // read an empty file
@@ -139,6 +140,42 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         assertReadByteBuffer( fc, (ByteBuffer)dst.rewind() );
         
         fc.close();
+        assertFalse( fc.isOpen() );
+        
+        filePath.delete();
+        assertTrue( filePath.notExists() );
+        
+        fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
+                                    withBlockSize( 32 ) );
+        assertTrue( filePath.exists() );
+        assertTrue( fc.isOpen() );
+        
+        assertEquals( 1, fc.write( ByteBuffer.allocate( 1 ) ) );
+        assertEquals( 1, fc.size() );
+        long newLength = 32 * 1024;
+        ((GaeFileChannel)fc).setLength( newLength ); // equal to one block
+        assertEquals( newLength, fc.size() );
+        fc.position( 0 );
+        
+        dst = ByteBuffer.allocate( 4096 );
+        long totalBytes = 0;
+        int bytesRead = 0;
+        while ( ( bytesRead = fc.read( (ByteBuffer)dst.rewind() ) ) > 0 ) {
+            assertEquals( 4096, bytesRead );
+            totalBytes += bytesRead;
+        }
+        assertEquals( totalBytes, newLength );
+        
+        newLength += 1024;
+        fc.write( ByteBuffer.allocate( 1 ), newLength - 1 );
+        assertEquals( newLength, fc.size() );
+        
+        fc.position( 0 );
+        totalBytes = 0;
+        while ( ( bytesRead = fc.read( (ByteBuffer)dst.rewind() ) ) > 0 ) {
+            totalBytes += bytesRead;
+        }
+        assertEquals( totalBytes, newLength );
     }
 
     private static void assertReadByteBuffer( FileChannel fc, ByteBuffer dst )
