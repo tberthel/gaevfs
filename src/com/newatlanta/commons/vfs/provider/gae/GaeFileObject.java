@@ -192,15 +192,12 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return KeyFactory.createKey( ENTITY_KIND, fileName.getPath() );
     }
 
-    /**
-     * Detaches this file object from its file resource.
-     * 
-     * Called when this file is closed.  Note that the file object may be
-     * reused later, so should be able to be reattached.
-     */
     @Override
     protected void doDetach() throws FileSystemException {
-        metadata = null;
+        // don't detach if any unwritten blocks
+        if ( getType().hasChildren() || !hasDirtyBlocks() ) {
+            metadata = null;
+        }
     }
 
     /**
@@ -608,6 +605,16 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
         }
         return dirtyBlocks;
+    }
+    
+    private boolean hasDirtyBlocks() throws FileSystemException {
+        for ( Key key : getBlockKeys() ) {
+            Entity block = blockMap.get( key );
+            if ( ( block != null ) && isDirty( block, false ) ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
