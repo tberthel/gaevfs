@@ -76,6 +76,31 @@ public class GaeFileChannel extends FileChannel {
         ((GaeFileContent)fileObject.getContent()).notifyOpen( this );
     }
     
+    private GaeFileChannel() {
+    }
+    
+    /**
+     * Creates a new channel that shares this channel's contents, but with
+     * independent position.
+     * 
+     * Intended for internal use to implement read() and write() methods that
+     * don't modify the position. If this is ever exposed publicly, then the
+     * GaeFileContent.notify() method should be invoked for the new channel.
+     */
+    private GaeFileChannel duplicate() {
+        GaeFileChannel duplicate = new GaeFileChannel();
+        duplicate.fileObject = this.fileObject;
+        duplicate.options = this.options;
+        duplicate.position = this.position;
+        duplicate.index = this.index;
+        duplicate.block = this.block;
+        duplicate.blockSize = this.blockSize;
+        if ( buffer != null ) {
+            duplicate.buffer = buffer.duplicate();
+        }
+        return duplicate;
+    }
+    
     @Override
     public synchronized void force( boolean metaData ) throws IOException {
         checkOpen();
@@ -89,6 +114,7 @@ public class GaeFileChannel extends FileChannel {
             if ( eofoffset < ( blockSize >> 1 ) ) {
                 // this is the last block for the file, and the block is less than half
                 // full, so only write out the actual number of bytes in the buffer
+                eofoffset = Math.min( eofoffset, buffer.capacity() );
                 block.setProperty( CONTENT_BLOB, new Blob( ByteBuffer.allocate( eofoffset ).put(
                     (ByteBuffer)buffer.duplicate().position( 0 ).limit( eofoffset ) ).array() ) );
             } else {
@@ -153,6 +179,13 @@ public class GaeFileChannel extends FileChannel {
     public String getLockName() {
         return fileObject.getName().getPath()+ ".GaeFileChannel.lock";
     }
+    
+    /**
+     * Sets the file length without modifying the contents or position.
+     */
+    public void setLength( long newLength ) throws IOException {
+        fileObject.updateContentSize( newLength );
+    }
 
     @Override
     public long position() throws IOException {
@@ -182,12 +215,16 @@ public class GaeFileChannel extends FileChannel {
         }
         position = newPosition;
         if ( updateBuffer && ( buffer != null ) ) {
-            int offset = calcBlockOffset( position );
-            if ( offset > buffer.capacity() ) {
-                extendBuffer( offset );
-            } else {
-                buffer.position( offset );
-            }
+            setBufferPosition();
+        }
+    }
+    
+    private void setBufferPosition() throws FileSystemException {
+        int offset = calcBlockOffset( position );
+        if ( offset > buffer.capacity() ) {
+            extendBuffer( offset );
+        } else {
+            buffer.position( offset );
         }
     }
     
@@ -222,9 +259,8 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public int read( ByteBuffer dst, long position ) throws IOException {
-        // checkReadOptions();
-        // TODO return this.duplicate.position( position ).read( dst );
-        return 0;
+        // TODO this method has not been tested
+        return this.duplicate().position( position ).read( dst );
     }
     
     public synchronized int read() throws IOException {
@@ -249,13 +285,19 @@ public class GaeFileChannel extends FileChannel {
         while ( dst.hasRemaining() && ( position < fileLen ) ) {
             initBuffer();
             int r = dst.remaining();
-            if ( calcBlockIndex( position + r ) == index ) { 
+            if ( calcBlockIndex( position + r - 1 ) == index ) { 
                 // within current block, read until dst is full or to EOF
                 int eofoffset = calcBlockOffset( fileLen );
-                buffer.limit( Math.min( buffer.position() + r, eofoffset ) );
-                dst.put( buffer );
-                buffer.limit( buffer.capacity() ); // restore original limit
-                
+                int limit = Math.min( buffer.position() + r, eofoffset );
+                if ( limit > buffer.capacity() ) {
+                    buffer.limit( buffer.capacity() );
+                    dst.put( buffer );
+                    dst.position( Math.min( limit - buffer.capacity(), dst.capacity() ) );
+                } else {
+                    buffer.limit( limit );
+                    dst.put( buffer );
+                    buffer.limit( buffer.capacity() ); // restore original limit
+                }
                 int bytesRead = ( r - dst.remaining() );
                 totalBytesRead += bytesRead;
                 positionInternal( position + bytesRead, false );
@@ -361,8 +403,8 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     public int write( ByteBuffer src, long writePos ) throws IOException {
-        // TODO return this.duplicate.position( writePos ).write( src );
-        return 0;
+        // TODO this method has not been tested
+        return this.duplicate().position( writePos ).write( src );
     }
     
     public synchronized void write( int b ) throws IOException {
@@ -381,7 +423,7 @@ public class GaeFileChannel extends FileChannel {
         int bytesWritten = 0;
         while ( src.hasRemaining() ) {
             initBuffer();
-            if ( calcBlockIndex( position + src.remaining() ) == index ) {
+            if ( calcBlockIndex( position + src.remaining() - 1 ) == index ) {
                 // writing entirely within current block
                 bytesWritten += writeBuffer( src );
             } else {
@@ -415,7 +457,7 @@ public class GaeFileChannel extends FileChannel {
         Blob contentBlob = (Blob)block.getProperty( CONTENT_BLOB );
         buffer = ( contentBlob != null ? ByteBuffer.wrap( contentBlob.getBytes() )
                                        : ByteBuffer.allocate( getMinBufferSize() ) );
-        buffer.position( calcBlockOffset( position ) );
+        setBufferPosition();
     }
     
     /**
