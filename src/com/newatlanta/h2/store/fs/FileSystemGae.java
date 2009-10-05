@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import org.h2.message.Message;
 import org.h2.store.fs.FileObject;
 import org.h2.store.fs.FileSystem;
 
@@ -310,7 +311,12 @@ public class FileSystemGae extends FileSystem {
     @Override
     public void rename( String oldName, String newName ) throws SQLException {
         try {
-            get( oldName ).moveTo( get( newName ) );
+            Path oldFile = get( oldName );
+            Path newFile = get( newName );
+            if ( oldFile.isSameFile( newFile ) ) {
+                Message.throwInternalError( "rename file old=new" );
+            }
+            oldFile.moveTo( newFile );
         } catch ( IOException e ) {
             throw new SQLException( e );
         }

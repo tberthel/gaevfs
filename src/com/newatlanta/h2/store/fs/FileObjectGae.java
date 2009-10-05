@@ -21,6 +21,7 @@ import static com.newatlanta.nio.file.StandardOpenOption.READ;
 import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
 import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.EnumSet;
@@ -73,7 +74,9 @@ public class FileObjectGae implements FileObject {
         if ( len == 0 ) {
             return;
         }
-        channel.read( ByteBuffer.wrap( b, off, len ) );
+        if ( channel.read( ByteBuffer.wrap( b, off, len ) ) < 0 ) {
+            throw new EOFException();
+        }
     }
 
     public void seek( long pos ) throws IOException {
