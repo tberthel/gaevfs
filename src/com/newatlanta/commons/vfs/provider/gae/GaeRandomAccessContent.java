@@ -70,6 +70,7 @@ public class GaeRandomAccessContent implements RandomAccessContent {
         EnumSet<StandardOpenOption> options = EnumSet.of( StandardOpenOption.READ );
         if ( m == RandomAccessMode.READWRITE ) {
             options.add( StandardOpenOption.WRITE );
+            gfo.doSetLastModTime( System.currentTimeMillis() );
         }
         if ( append ) {
             options.add( StandardOpenOption.APPEND );
