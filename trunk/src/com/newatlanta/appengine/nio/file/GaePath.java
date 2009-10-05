@@ -46,6 +46,7 @@ import java.util.concurrent.locks.Lock;
 
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
+import org.apache.commons.vfs.Selectors;
 
 import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
@@ -131,8 +132,7 @@ public class GaePath extends Path {
     @Override
     public boolean exists() {
         try {
-            checkAccess();
-            return true;
+            return fileObject.exists();
         } catch ( IOException e ) {
             return false;
         }
@@ -141,10 +141,7 @@ public class GaePath extends Path {
     @Override
     public boolean notExists() {
         try {
-            checkAccess();
-            return false;
-        } catch ( NoSuchFileException e ) {
-            return true; // confirmed does not exist
+            return !fileObject.exists();
         } catch ( IOException e ) {
             return false; // unknown
         }
@@ -370,8 +367,9 @@ public class GaePath extends Path {
         if ( !( target instanceof GaePath ) ) {
             throw new ProviderMismatchException();
         }
-        // TODO Auto-generated method stub
-        return null;
+        // TODO this is not nearly complete
+        ((GaePath)target).fileObject.copyFrom( fileObject, Selectors.SELECT_SELF );
+        return target;
     }
 
     @Override
@@ -379,6 +377,7 @@ public class GaePath extends Path {
         if ( !( target instanceof GaePath ) ) {
             throw new ProviderMismatchException();
         }
+        checkAccess(); // make sure this file exists
         if ( target.isSameFile( this ) ) {
             return target;
         }
@@ -494,9 +493,6 @@ public class GaePath extends Path {
         return optionSet;
     }
 
-    /**
-     * Returns a buffered input stream.
-     */
     public InputStream newInputStream( OpenOption ... options ) throws IOException {
         for ( OpenOption option : options ) {
             if ( option != READ ) {
@@ -507,10 +503,6 @@ public class GaePath extends Path {
         return fileObject.getContent().getInputStream();
     }
     
-    /**
-     * Returns a buffered output stream. Allows only one open output stream at
-     * a time per file.
-     */
     @Override
     public OutputStream newOutputStream( OpenOption ... options ) throws IOException {
         Set<OpenOption> optionSet = checkOutputStreamOpenOptions( options );
