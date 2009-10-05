@@ -77,7 +77,7 @@ public class FileSystemGae extends FileSystem {
         try {
             get( original ).copyTo( get( copy ) );
         } catch ( IOException e ) {
-            throw new SQLException( e );
+            throw Message.convert( e );
         }
     }
 
@@ -91,7 +91,7 @@ public class FileSystemGae extends FileSystem {
         try {
             createDirs( get( fileName ) );
         } catch ( IOException e ) {
-            throw new SQLException( e );
+            throw Message.convert( e );
         }
     }
     
@@ -107,7 +107,7 @@ public class FileSystemGae extends FileSystem {
         try {
             return get( fileName ).createFile().exists();
         } catch ( IOException e ) {
-            throw new SQLException( e );
+            throw Message.convert( e );
         }
     }
 
@@ -147,7 +147,7 @@ public class FileSystemGae extends FileSystem {
         try {
             get( fileName ).deleteIfExists();
         } catch ( IOException e ) {
-            throw new SQLException( e );
+            throw Message.convert( e );
         }
     }
 
@@ -270,7 +270,7 @@ public class FileSystemGae extends FileSystem {
         } catch ( NoSuchFileException e ) {
             return new String[ 0 ];
         } catch ( IOException e ) {
-            throw new SQLException( e );
+            throw Message.convert( e );
         }
     }
 
@@ -304,7 +304,7 @@ public class FileSystemGae extends FileSystem {
             createDirs( filePath );
             return filePath.newOutputStream( CREATE, append ? APPEND : null );
         } catch ( IOException e ) {
-            throw new SQLException( e );
+            throw Message.convert( e );
         }
     }
 
@@ -318,7 +318,7 @@ public class FileSystemGae extends FileSystem {
             }
             oldFile.moveTo( newFile );
         } catch ( IOException e ) {
-            throw new SQLException( e );
+            throw Message.convert( e );
         }
     }
 
