@@ -86,6 +86,13 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
     
     /**
+     * This method is intended for testing and debugging only.
+     */
+    public static Map<Key, Entity> getBlockMap() {
+        return Collections.unmodifiableMap( blockMap );
+    }
+    
+    /**
      * Override the superclass implementation to make sure GaeVFS "shadows"
      * exist for local directories.
      */
@@ -493,7 +500,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     @Override
     protected void notifyAllStreamsClosed() {
         try {
-            blockMap.keySet().removeAll( getBlockKeys() );
+            if ( getType().hasContent() ) { // forces re-attach
+                blockMap.keySet().removeAll( getBlockKeys() );
+            }
         } catch ( FileSystemException e ) {
             GaeVFS.log.warning( e.getMessage() );
         }
@@ -507,7 +516,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         }
         // update metadata and add it to the list of entities to write
         metadata.setProperty( FILETYPE, getType().getName() );
-        doSetLastModTime( System.currentTimeMillis() );
         dirtyBlocks.add( 0, metadata );
         
         // use transaction to force write-through if specified
