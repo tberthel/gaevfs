@@ -300,7 +300,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      * Renames the file. If a folder, recursively rename the children.
      */
     @Override
-    protected void doRename( FileObject newfile ) throws FileSystemException {
+    protected void doRename( FileObject newfile ) throws IOException {
         if ( this.getType().hasChildren() ) { // rename the children
             for ( FileObject child : this.getChildren() ) {
                 String newChildPath = child.getName().getPath().replace(
@@ -309,19 +309,18 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             newfile.createFolder();
         } else {
-            GaeFileObject newGaeFile = (GaeFileObject)newfile;
-            // new file might have been detached during rename of parent folder
-            if ( newGaeFile.metadata == null ) {
-                newGaeFile.doAttach();
+            if ( this.getContent().isOpen() ) { // causes re-attach
+                throw new IOException( this.getName() + " content is open" );
             }
+            GaeFileObject newGaeFile = (GaeFileObject)newfile;
+            newGaeFile.metadata.setPropertiesFrom( this.metadata );
+            newGaeFile.metadata.removeProperty( BLOCK_KEYS );
             int numBlocks = getBlockKeys().size(); // copy contents to the new file
             for ( int i = 0; i < numBlocks; i++ ) {
                 Entity newBlock = newGaeFile.getBlock( i );
                 newBlock.setPropertiesFrom( this.getBlock( i ) );
                 setDirty( newBlock, true );
             }
-            newGaeFile.metadata.setProperty( CONTENT_SIZE,
-                                      this.metadata.getProperty( CONTENT_SIZE ) );
             newGaeFile.putContent( false, false );
             blockMap.keySet().removeAll( newGaeFile.getBlockKeys() );
         }
