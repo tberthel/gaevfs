@@ -33,6 +33,7 @@ public abstract class GaeVfsTestCase extends LocalDatastoreTestCase {
         System.setProperty( "user.dir", new File( "test/data" ).getAbsolutePath() );
         System.setProperty( "java.nio.file.spi.DefaultFileSystemProvider",
                             "com.newatlanta.appengine.nio.file.spi.GaeFileSystemProvider" );
+        System.setProperty( "java.util.logging.config.file", "test/logging.properties" );
     }
 
     @Override
