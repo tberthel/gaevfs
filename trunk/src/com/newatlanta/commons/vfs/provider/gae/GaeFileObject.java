@@ -629,8 +629,8 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
      */
     public void deleteBlocks( int from ) throws FileSystemException {
         List<Key> blockKeys = getBlockKeys();
-        List<Key> deleteKeys = blockKeys.subList( from, blockKeys.size() );
-        if ( !deleteKeys.isEmpty() ) {
+        if ( from < blockKeys.size() ) {
+            List<Key> deleteKeys = blockKeys.subList( from, blockKeys.size() );
             datastore.delete( deleteKeys );
             blockMap.keySet().removeAll( deleteKeys );
             deleteKeys.clear();
