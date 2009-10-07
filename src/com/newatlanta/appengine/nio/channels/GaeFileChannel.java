@@ -290,9 +290,11 @@ public class GaeFileChannel extends FileChannel {
                 int eofoffset = calcBlockOffset( fileLen );
                 int limit = Math.min( buffer.position() + r, eofoffset );
                 if ( limit > buffer.capacity() ) {
-                    buffer.limit( buffer.capacity() );
+                    // copy the remaining bytes in buffer to dst, then fill dst
+                    // with empty bytes until full or to the calculated limit
                     dst.put( buffer );
-                    dst.position( Math.min( limit - buffer.capacity(), dst.capacity() ) );
+                    dst.put( new byte[ Math.min( limit - buffer.capacity(),
+                                                    dst.remaining() ) ] );
                 } else {
                     buffer.limit( limit );
                     dst.put( buffer );
@@ -302,9 +304,14 @@ public class GaeFileChannel extends FileChannel {
                 totalBytesRead += bytesRead;
                 positionInternal( position + bytesRead, false );
             } else {
-                // read to the end of the current buffer
+                // read to the end of the current block
                 r = buffer.remaining();
-                dst.put( buffer );
+                if ( r == 0 ) {
+                    r = (int)( blockSize - position );
+                    dst.put( new byte[ r ] );
+                } else {
+                    dst.put( buffer );
+                }
                 totalBytesRead += r;
     
                 // move position to beginning of next buffer, repeat loop
@@ -359,10 +366,19 @@ public class GaeFileChannel extends FileChannel {
         }
         if ( size < doGetSize() ) {
             fileObject.deleteBlocks( calcBlockIndex( size - 1 ) + 1 );
+            duplicate().position( size ).truncateBuffer();
             fileObject.updateContentSize( size, true );
             fileObject.putContent( true, false );
         }
         return this;
+    }
+    
+    private void truncateBuffer() throws IOException {
+        initBuffer();
+        // zero-out buffer from position to buffer.capacity()
+        buffer.duplicate().put( new byte[ buffer.remaining() ] );
+        setDirty( true );
+        flush();
     }
     
     public static void setDirty( Entity entity, boolean dirty ) {
