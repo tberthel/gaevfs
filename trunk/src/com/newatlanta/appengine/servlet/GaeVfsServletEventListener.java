@@ -50,7 +50,7 @@ public class GaeVfsServletEventListener implements ServletContextListener {
         
         // user.home is needed by H2 to locate the ".h2.server.properties" file
         String userDir = System.getProperty( "user.dir" );
-        System.setProperty( "user.home", userDir + "/WEB-INF/user-home" );
+        System.setProperty( "user.home", userDir + "/WEB-INF/" );
         GaeVFS.log.info( "Context initialized: " + userDir );
     }
 
