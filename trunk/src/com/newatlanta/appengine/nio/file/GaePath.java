@@ -636,7 +636,7 @@ public class GaePath extends Path {
     @Override
     public URI toUri() {
         try {
-            return fileObject.getURL().toURI();
+            return new URI( fileObject.getName().getURI() );
         } catch ( Exception e ) {
             throw new IOError( e );
         }
