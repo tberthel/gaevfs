@@ -16,6 +16,7 @@
 package com.newatlanta.appengine.datastore;
 
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.url;
+import static com.google.appengine.api.memcache.Expiration.byDeltaSeconds;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -106,9 +107,17 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         this( CacheOption.WRITE_BEHIND, null );
     }
     
+    public CachingDatastoreService( CacheOption cacheOption ) {
+        this( cacheOption, null );
+    }
+    
+    public CachingDatastoreService( Expiration expiration ) {
+        this( CacheOption.WRITE_BEHIND, expiration );
+    }
+    
     public CachingDatastoreService( CacheOption cacheOption, Expiration expiration ) {
-        this.expiration = expiration;
         this.cacheOption = cacheOption;
+        this.expiration = expiration;
     }
     
     /**
@@ -201,7 +210,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         return putEntity( txn, entity );
     }
 
-    private Key getKey( Entity entity ) {
+    private static Key getKey( Entity entity ) {
         Key key = entity.getKey();
         if ( !key.isComplete() ) {
             // TODO: this path has not been tested
@@ -364,8 +373,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                 // tasks from being queued; use a new token for the next task
                 queueWatchDogTask( WATCHDOG_SECONDS * 1000, urlToken, nextToken );
                 memcache.delete( WATCHDOG_KEY ); // reset the timer
-                memcache.put( WATCHDOG_KEY, nextToken, Expiration.byDeltaSeconds(
-                                                        WATCHDOG_SECONDS * 2 ) );
+                memcache.put( WATCHDOG_KEY, nextToken, byDeltaSeconds( WATCHDOG_SECONDS * 2 ) );
                 log.info( "watchdog is alive" );
             }
         } else {
