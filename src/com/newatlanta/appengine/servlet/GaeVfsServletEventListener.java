@@ -18,8 +18,11 @@ package com.newatlanta.appengine.servlet;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 
+import org.h2.engine.Constants;
+
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.h2.store.fs.FileSystemGae;
+import com.newatlanta.nio.file.Paths;
 
 /**
  * Handles servlet lifecycle events related to GaeVFS. Must be configured within
@@ -38,19 +41,24 @@ public class GaeVfsServletEventListener implements ServletContextListener {
      * Registers with H2.
      */
     public void contextInitialized( ServletContextEvent event ) {
+        String userDir = System.getProperty( "user.dir" );
         try {
             // use reflection in case H2 is not installed
             Class<?> fileSystemClass = Class.forName( "org.h2.store.fs.FileSystem" );
             fileSystemClass.getMethod( "register", fileSystemClass ).invoke( null,
                                             FileSystemGae.getInstance() );
             GaeVFS.log.info( "Successfully registered GaeVFS with H2" );
+            
+            // user.home is needed by H2 to locate the ".h2.server.properties" file
+            String userHome = userDir + "/WEB-INF/";
+            System.setProperty( "user.home", userHome );
+            
+            // copy "h2.server.properties" to ".h2.server.properties"
+            Paths.get( userHome + Constants.SERVER_PROPERTIES_FILE.substring( 1 ) ).copyTo(
+                    Paths.get( userHome + Constants.SERVER_PROPERTIES_FILE ) );
         } catch ( Exception e ) {
             GaeVFS.log.info( "Failed to register GaeVFS with H2: " + e );
         }
-        
-        // user.home is needed by H2 to locate the ".h2.server.properties" file
-        String userDir = System.getProperty( "user.dir" );
-        System.setProperty( "user.home", userDir + "/WEB-INF/" );
         GaeVFS.log.info( "Context initialized: " + userDir );
     }
 
