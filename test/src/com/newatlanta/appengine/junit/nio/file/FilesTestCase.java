@@ -20,9 +20,9 @@ import java.io.IOException;
 import org.junit.Test;
 
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
-import com.newatlanta.nio.file.Files;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.Paths;
+import com.newatlanta.repackaged.java.nio.file.Files;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.Paths;
 
 public class FilesTestCase extends GaeVfsTestCase {
 

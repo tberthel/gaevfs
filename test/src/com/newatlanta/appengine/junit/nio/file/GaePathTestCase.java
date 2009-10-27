@@ -15,20 +15,20 @@
  */
 package com.newatlanta.appengine.junit.nio.file;
 
-import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
-import static com.newatlanta.nio.file.attribute.Attributes.readBasicFileAttributes;
-import static com.newatlanta.nio.file.attribute.PosixFilePermissions.asFileAttribute;
-import static com.newatlanta.nio.file.attribute.PosixFilePermissions.fromString;
-import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
-import static com.newatlanta.nio.file.StandardOpenOption.CREATE;
-import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
-import static com.newatlanta.nio.file.StandardOpenOption.DELETE_ON_CLOSE;
-import static com.newatlanta.nio.file.StandardOpenOption.DSYNC;
-import static com.newatlanta.nio.file.StandardOpenOption.READ;
-import static com.newatlanta.nio.file.StandardOpenOption.SPARSE;
-import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
-import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
+import static com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes.withBlockSize;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.APPEND;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.CREATE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.CREATE_NEW;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.DELETE_ON_CLOSE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.DSYNC;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.SPARSE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.SYNC;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.WRITE;
+import static com.newatlanta.repackaged.java.nio.file.attribute.Attributes.readBasicFileAttributes;
+import static com.newatlanta.repackaged.java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
+import static com.newatlanta.repackaged.java.nio.file.attribute.PosixFilePermissions.fromString;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,30 +44,32 @@ import java.util.Set;
 import org.junit.Test;
 
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
-import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
-import com.newatlanta.nio.channels.SeekableByteChannel;
-import com.newatlanta.nio.file.AccessDeniedException;
-import com.newatlanta.nio.file.AccessMode;
-import com.newatlanta.nio.file.AtomicMoveNotSupportedException;
-import com.newatlanta.nio.file.ClosedDirectoryStreamException;
-import com.newatlanta.nio.file.DirectoryNotEmptyException;
-import com.newatlanta.nio.file.DirectoryStream;
-import com.newatlanta.nio.file.FileAlreadyExistsException;
-import com.newatlanta.nio.file.Files;
-import com.newatlanta.nio.file.NoSuchFileException;
-import com.newatlanta.nio.file.OpenOption;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.Paths;
-import com.newatlanta.nio.file.StandardCopyOption;
-import com.newatlanta.nio.file.StandardOpenOption;
-import com.newatlanta.nio.file.attribute.AclFileAttributeView;
-import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
-import com.newatlanta.nio.file.attribute.DosFileAttributeView;
-import com.newatlanta.nio.file.attribute.FileAttributeView;
-import com.newatlanta.nio.file.attribute.FileOwnerAttributeView;
-import com.newatlanta.nio.file.attribute.FileTime;
-import com.newatlanta.nio.file.attribute.PosixFileAttributeView;
-import com.newatlanta.nio.file.attribute.UserDefinedFileAttributeView;
+import com.newatlanta.appengine.nio.file.attribute.GaeFileAttributeView;
+import com.newatlanta.repackaged.java.nio.channels.SeekableByteChannel;
+import com.newatlanta.repackaged.java.nio.file.AccessDeniedException;
+import com.newatlanta.repackaged.java.nio.file.AccessMode;
+import com.newatlanta.repackaged.java.nio.file.AtomicMoveNotSupportedException;
+import com.newatlanta.repackaged.java.nio.file.ClosedDirectoryStreamException;
+import com.newatlanta.repackaged.java.nio.file.DirectoryNotEmptyException;
+import com.newatlanta.repackaged.java.nio.file.DirectoryStream;
+import com.newatlanta.repackaged.java.nio.file.FileAlreadyExistsException;
+import com.newatlanta.repackaged.java.nio.file.Files;
+import com.newatlanta.repackaged.java.nio.file.LinkOption;
+import com.newatlanta.repackaged.java.nio.file.NoSuchFileException;
+import com.newatlanta.repackaged.java.nio.file.OpenOption;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.Paths;
+import com.newatlanta.repackaged.java.nio.file.StandardCopyOption;
+import com.newatlanta.repackaged.java.nio.file.StandardOpenOption;
+import com.newatlanta.repackaged.java.nio.file.attribute.AclFileAttributeView;
+import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributeView;
+import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributes;
+import com.newatlanta.repackaged.java.nio.file.attribute.DosFileAttributeView;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileAttributeView;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileOwnerAttributeView;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileTime;
+import com.newatlanta.repackaged.java.nio.file.attribute.PosixFileAttributeView;
+import com.newatlanta.repackaged.java.nio.file.attribute.UserDefinedFileAttributeView;
 
 /**
  * Tests <code>com.newatlanta.appengine.nio.file.GaePath</code>.
@@ -75,11 +77,6 @@ import com.newatlanta.nio.file.attribute.UserDefinedFileAttributeView;
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaePathTestCase extends GaeVfsTestCase {
-    
-    @Test
-    public void testHashCode() {
-        fail( "Not yet implemented" );
-    }
 
     @Test
     public void testGetFileSystem() {
@@ -273,8 +270,86 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testCopyTo() {
-        fail( "Not yet implemented" );
+    public void testCopyTo() throws IOException {
+        
+        // try to copy a file that doesn't exist
+        Path sourcePath = Paths.get( "/images/test.jpg" );
+        Path targetPath = Paths.get( "/images/target.jpg" );
+        assertTrue( sourcePath.notExists() );
+        try {
+            sourcePath.copyTo( targetPath );
+            fail( "expected NoSuchFileException" );
+        } catch ( NoSuchFileException e ) {
+        }
+        
+        // copy a local read-only file
+        sourcePath = Paths.get( "/images/large.jpg" );
+        assertTrue( sourcePath.exists() );
+        assertEquals( targetPath, sourcePath.copyTo( targetPath,
+                                            StandardCopyOption.COPY_ATTRIBUTES ) );
+        assertTrue( targetPath.exists() );
+        assertTrue( sourcePath.exists() );
+        
+        BasicFileAttributes sourceAttrs = readBasicFileAttributes( sourcePath );
+        BasicFileAttributes targetAttrs = readBasicFileAttributes( targetPath );
+        
+        assertEquals( sourceAttrs.size(), targetAttrs.size() );
+        assertEquals( sourceAttrs.lastModifiedTime(), targetAttrs.lastModifiedTime() );
+        
+        // copy a file to itself
+        assertEquals( targetPath, targetPath.copyTo( targetPath ) );
+        
+        // try to copy to a read-only file
+        try {
+            targetPath.copyTo( sourcePath );
+            fail( "expected FileAlreadyExistsException" );
+        } catch ( FileAlreadyExistsException e ) {
+        }
+        
+        // try to copy to a read-only file
+        assertTrue( sourcePath.exists() );
+        try {
+            targetPath.copyTo( sourcePath, StandardCopyOption.REPLACE_EXISTING );
+            fail( "expected AccessDeniedException" );
+        } catch ( AccessDeniedException e ) {
+        }
+        
+        // copy from GAE file to GAE file
+        sourcePath = targetPath;
+        targetPath = Paths.get( "/images/target2.jpg" );
+        assertFalse( targetPath.exists() );
+        assertEquals( targetPath, sourcePath.copyTo( targetPath ) );
+        assertTrue( targetPath.exists() );
+        
+        // copy to an existing file with REPLACE_EXISTING
+        sourcePath = Paths.get(  "/images/small.jpg" );
+        assertTrue( sourcePath.exists() );
+        assertEquals( targetPath, sourcePath.copyTo( targetPath,
+                                        StandardCopyOption.REPLACE_EXISTING ) );
+        
+        // copy to non-empty directory
+        targetPath = Paths.get( "/foo/bar" );
+        Files.createDirectories( targetPath );
+        assertTrue( targetPath.exists() );
+        targetPath = targetPath.getParent();
+        assertTrue( targetPath.exists() );
+        
+        sourcePath = Paths.get( "/images" );
+        assertTrue( sourcePath.exists() );
+        
+        try {
+            sourcePath.copyTo( targetPath, StandardCopyOption.REPLACE_EXISTING );
+            fail( "expected DirectoryNotEmptyException" );
+        } catch ( DirectoryNotEmptyException e ) {
+        }
+        
+        // copy directory
+        targetPath = Paths.get( "/foo/bar/baz" );
+        assertTrue( targetPath.notExists() );
+        assertEquals( targetPath, sourcePath.copyTo( targetPath ) );
+        assertTrue( targetPath.exists() );
+        assertTrue( readBasicFileAttributes( targetPath ).isDirectory() );
+        assertFalse( targetPath.newDirectoryStream().iterator().hasNext() );
     }
 
     @Test
@@ -310,9 +385,9 @@ public class GaePathTestCase extends GaeVfsTestCase {
         } catch ( AtomicMoveNotSupportedException e ) {
         }
         
-        // COPY_ATTRIBUTES option
+        // NOFOLLOW_LINKS option (unsupported)
         try {
-            sourcePath.moveTo( targetPath, StandardCopyOption.COPY_ATTRIBUTES );
+            sourcePath.moveTo( targetPath, LinkOption.NOFOLLOW_LINKS );
             fail( "expected UnsupportedOperationException" );
         } catch ( UnsupportedOperationException e ) {
         }
