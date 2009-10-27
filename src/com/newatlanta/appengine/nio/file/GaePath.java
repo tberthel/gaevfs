@@ -27,6 +27,8 @@ import static com.newatlanta.nio.file.StandardOpenOption.SPARSE;
 import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
 import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
+import static com.newatlanta.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static com.newatlanta.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import java.io.IOError;
 import java.io.IOException;
@@ -57,6 +59,7 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
 import com.newatlanta.nio.channels.FileChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
+import com.newatlanta.nio.file.AtomicMoveNotSupportedException;
 import com.newatlanta.nio.file.CopyOption;
 import com.newatlanta.nio.file.DirectoryNotEmptyException;
 import com.newatlanta.nio.file.DirectoryStream;
@@ -70,7 +73,6 @@ import com.newatlanta.nio.file.NotDirectoryException;
 import com.newatlanta.nio.file.OpenOption;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.ProviderMismatchException;
-import com.newatlanta.nio.file.StandardCopyOption;
 import com.newatlanta.nio.file.WatchKey;
 import com.newatlanta.nio.file.WatchService;
 import com.newatlanta.nio.file.DirectoryStream.Filter;
@@ -244,18 +246,7 @@ public class GaePath extends Path {
 
     @Override
     public void delete() throws IOException {
-        checkAccess();
-        doDelete();
-    }
-
-    @Override
-    public void deleteIfExists() throws IOException {
-        if ( exists() ) {
-            doDelete();
-        }
-    }
-    
-    private void doDelete() throws IOException {
+        checkAccess( AccessMode.WRITE );
         if ( fileObject.getType().hasChildren() ) { // directory
             getLock().lock(); // prevent rename or create children
             try {
@@ -269,6 +260,13 @@ public class GaePath extends Path {
         } else { // file
             fileObject.close();
             fileObject.delete();
+        }
+    }
+
+    @Override
+    public void deleteIfExists() throws IOException {
+        if ( exists() ) {
+            delete();
         }
     }
 
@@ -377,30 +375,44 @@ public class GaePath extends Path {
         if ( !( target instanceof GaePath ) ) {
             throw new ProviderMismatchException();
         }
-        checkAccess(); // make sure this file exists
-        if ( target.isSameFile( this ) ) {
-            return target;
-        }
+        checkAccess( AccessMode.WRITE );
         boolean replaceExisting = false;
-        boolean atomicMove = false;
         for ( CopyOption option : options ) {
-            if ( option == StandardCopyOption.REPLACE_EXISTING ) {
+            if ( option == REPLACE_EXISTING ) {
                 replaceExisting = true;
-            } else if ( option == StandardCopyOption.ATOMIC_MOVE ) {
-                atomicMove = true;
+            } else if ( option == ATOMIC_MOVE ) {
+                // paths are stored in entity keys and GAE does not allow keys to
+                // be modified after the entity is created; therefore, GaeVFS does
+                // not support rename, but must always do copy-then-delete
+                throw new AtomicMoveNotSupportedException( path, target.toString(), null );
             } else {
                 throw new UnsupportedOperationException( option.toString() );
             }
         }
         if ( target.exists() ) {
-            if ( !replaceExisting ) { // TODO || non-empty directory
-                throw new FileAlreadyExistsException( toString(), null, null );
+            if ( target.isSameFile( this ) ) {
+                return target;
             }
+            if ( !replaceExisting ) {
+                throw new FileAlreadyExistsException( path, target.toString(), null );
+            }
+            target.checkAccess( AccessMode.WRITE );
         }
-        // TODO if directory, then lock to prevent creation of children while moving
         if ( fileObject.getType().hasChildren() ) {
+            if ( fileObject.getChildren().length > 0 ) {
+                // moving a non-empty directory requires moving the children,
+                // so throw an exception per the javadocs
+                throw new DirectoryNotEmptyException( path );
+            }
+            getLock().lock(); // prevent creation of children while moving
+            try {
+                fileObject.moveTo( ((GaePath)target).fileObject );
+            } finally {
+                lock.unlock();
+            }
+        } else {
+            fileObject.moveTo( ((GaePath)target).fileObject );
         }
-        fileObject.moveTo( ((GaePath)target).fileObject );
         return target;
     }
     
