@@ -2,7 +2,7 @@
 
 	<!-- global properties -->
 	<property name="build.number" value="0.4"/>
-	<property name="build.name" value="gaevfs-${build.number}"/>
+	<property name="build.name" value="newatlanta-appengine-${build.number}"/>
 	<property name="src.dir" value="./src/"/>
     <property name="test.src.dir" value="./test/src/"/>
 	<property name="doc.dir" value="./docs"/>
@@ -12,12 +12,13 @@
 	
 	<path id="build.class.path">
 		<pathelement path="${project.lib.dir}/geronimo-servlet_2.5_spec-1.2.jar"/>
-		<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.5.jar"/>
+		<pathelement path="${webinf.lib.dir}/appengine-api-1.0-sdk-1.2.6.jar"/>
+	    <pathelement path="${webinf.lib.dir}/appengine-api-labs-1.2.6.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-fileupload-1.2.1.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-io-1.4.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-lang-2.4.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-vfs-2.0-SNAPSHOT.jar"/>
-	    <pathelement path="${webinf.lib.dir}/h2-gae-EXPERIMENTAL.jar"/>
+	    <pathelement path="${webinf.lib.dir}/h2-1.2.121.jar"/>
 	</path>
     
     <path id="test.class.path">
@@ -25,9 +26,10 @@
         <pathelement path="${project.lib.dir}/appengine-api-stubs.jar"/>
         <pathelement path="${project.lib.dir}/appengine-local-runtime.jar"/>
         <pathelement path="${project.lib.dir}/commons-vfs-2.0-SNAPSHOT-tests.jar"/>
+        <pathelement path="${project.lib.dir}/h2-tests.jar"/>
         <pathelement path="${project.lib.dir}/junit-4.6.jar"/>
         <pathelement path="${webinf.lib.dir}/commons-collections-3.2.1.jar"/>
-        <pathelement path="${webinf.lib.dir}/appengine-api-labs-1.2.5.jar"/>
+        <pathelement path="${webinf.lib.dir}/appengine-api-labs-1.2.6.jar"/>
     </path>
 	
 	<target name="clean">
@@ -54,8 +56,8 @@
             	<path refid="build.class.path"/>
            	</classpath>
         </javac>
-        <copy file="${test.src.dir}com/newatlanta/commons/vfs/provider/gae/test/test-providers.xml"
-              todir="${classes.dir}com/newatlanta/commons/vfs/provider/gae/test"/>
+        <copy file="${test.src.dir}com/newatlanta/appengine/junit/vfs/provider/test-providers.xml"
+              todir="${classes.dir}com/newatlanta/appengine/junit/vfs/provider"/>
     </target>
     
     <target name="test" depends="compile-tests" description="runs junit tests">
@@ -68,7 +70,7 @@
             </classpath>
             <formatter type="plain"/>
             <!-- always run the GaeProviderTestCase first -->
-            <test name="com.newatlanta.commons.vfs.provider.gae.test.GaeProviderTestCase"/>
+            <test name="com.newatlanta.appengine.junit.vfs.provider.GaeProviderTestCase"/>
             <test name="com.newatlanta.appengine.junit.vfs.gae.GaeFolderTestCase"/>
             <test name="com.newatlanta.appengine.junit.locks.ExclusiveLockTestCase"/>
             <test name="com.newatlanta.appengine.junit.locks.SharedLockTestCase"/>
