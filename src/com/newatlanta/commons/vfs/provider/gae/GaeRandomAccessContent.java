@@ -28,7 +28,7 @@ import org.apache.commons.vfs.RandomAccessContent;
 import org.apache.commons.vfs.util.RandomAccessMode;
 
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
-import com.newatlanta.nio.file.StandardOpenOption;
+import com.newatlanta.repackaged.java.nio.file.StandardOpenOption;
 
 /**
  * The class mimics <code>java.io.RandomAccessFile</code>, which has this description:

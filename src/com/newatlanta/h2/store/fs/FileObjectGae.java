@@ -15,11 +15,11 @@
  */
 package com.newatlanta.h2.store.fs;
 
-import static com.newatlanta.nio.file.StandardOpenOption.CREATE;
-import static com.newatlanta.nio.file.StandardOpenOption.DSYNC;
-import static com.newatlanta.nio.file.StandardOpenOption.READ;
-import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
-import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.CREATE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.DSYNC;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.SYNC;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.WRITE;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -29,9 +29,9 @@ import java.util.EnumSet;
 import org.h2.store.fs.FileObject;
 
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
-import com.newatlanta.nio.channels.FileChannel;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.StandardOpenOption;
+import com.newatlanta.repackaged.java.nio.channels.FileChannel;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.StandardOpenOption;
 
 public class FileObjectGae implements FileObject {
     

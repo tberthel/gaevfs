@@ -16,10 +16,10 @@
 package com.newatlanta.appengine.nio.channels;
 
 import static com.newatlanta.appengine.nio.channels.GaeFileLock.releaseAllLocks;
-import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
-import static com.newatlanta.nio.file.StandardOpenOption.READ;
-import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.APPEND;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.WRITE;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -39,12 +39,12 @@ import com.google.appengine.api.datastore.Entity;
 import com.newatlanta.appengine.locks.SleepTimer;
 import com.newatlanta.commons.vfs.provider.gae.GaeFileContent;
 import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
-import com.newatlanta.nio.channels.FileChannel;
-import com.newatlanta.nio.channels.FileLock;
-import com.newatlanta.nio.file.OpenOption;
+import com.newatlanta.repackaged.java.nio.channels.FileChannel;
+import com.newatlanta.repackaged.java.nio.channels.FileLock;
+import com.newatlanta.repackaged.java.nio.file.OpenOption;
 
 /**
- * Implements {@linkplain com.newatlanta.nio.channels.FileChannel} for GaeVFS.
+ * Implements {@linkplain com.newatlanta.repackaged.java.nio.channels.FileChannel} for GaeVFS.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */

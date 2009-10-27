@@ -23,10 +23,10 @@ import java.util.Map;
 import java.util.concurrent.locks.Lock;
 
 import com.newatlanta.appengine.locks.ExclusiveLock;
-import com.newatlanta.nio.channels.FileLock;
+import com.newatlanta.repackaged.java.nio.channels.FileLock;
 
 /**
- * Implements {@linkplain com.newatlanta.nio.channels.FileLock} for GaeVFS.
+ * Implements {@linkplain com.newatlanta.repackaged.java.nio.channels.FileLock} for GaeVFS.
  * 
  * <p>Platform dependencies:
  * <ul>

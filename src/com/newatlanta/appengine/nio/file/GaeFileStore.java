@@ -17,9 +17,9 @@ package com.newatlanta.appengine.nio.file;
 
 import java.io.IOException;
 
-import com.newatlanta.nio.file.FileStore;
-import com.newatlanta.nio.file.attribute.FileAttributeView;
-import com.newatlanta.nio.file.attribute.FileStoreAttributeView;
+import com.newatlanta.repackaged.java.nio.file.FileStore;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileAttributeView;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileStoreAttributeView;
 
 public class GaeFileStore extends FileStore {
     

@@ -20,14 +20,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
-import com.newatlanta.nio.file.FileStore;
-import com.newatlanta.nio.file.FileSystem;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.PathMatcher;
-import com.newatlanta.nio.file.WatchService;
-import com.newatlanta.nio.file.attribute.UserPrincipalLookupService;
-import com.newatlanta.nio.file.spi.FileSystemProvider;
+import com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes;
+import com.newatlanta.repackaged.java.nio.file.FileStore;
+import com.newatlanta.repackaged.java.nio.file.FileSystem;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.PathMatcher;
+import com.newatlanta.repackaged.java.nio.file.WatchService;
+import com.newatlanta.repackaged.java.nio.file.attribute.UserPrincipalLookupService;
+import com.newatlanta.repackaged.java.nio.file.spi.FileSystemProvider;
 
 public class GaeFileSystem extends FileSystem {
 

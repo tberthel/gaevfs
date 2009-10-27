@@ -15,9 +15,9 @@
  */
 package com.newatlanta.appengine.servlet;
 
-import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
-import static com.newatlanta.nio.file.Files.createDirectories;
-import static com.newatlanta.nio.file.attribute.Attributes.readBasicFileAttributes;
+import static com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes.withBlockSize;
+import static com.newatlanta.repackaged.java.nio.file.Files.createDirectories;
+import static com.newatlanta.repackaged.java.nio.file.attribute.Attributes.readBasicFileAttributes;
 import static org.apache.commons.fileupload.util.Streams.asString;
 import static org.apache.commons.lang.StringEscapeUtils.escapeHtml;
 
@@ -41,9 +41,9 @@ import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.apache.commons.io.IOUtils;
 
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.Paths;
-import com.newatlanta.nio.file.attribute.BasicFileAttributes;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.Paths;
+import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributes;
 
 /**
  * <code>GaeVfsServlet</code> uploads files into the GAE virtual file system (GaeVFS)
