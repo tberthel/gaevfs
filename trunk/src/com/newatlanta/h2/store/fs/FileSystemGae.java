@@ -15,12 +15,12 @@
  */
 package com.newatlanta.h2.store.fs;
 
-import static com.newatlanta.nio.file.AccessMode.WRITE;
-import static com.newatlanta.nio.file.Files.createDirectories;
-import static com.newatlanta.nio.file.Files.walkFileTree;
-import static com.newatlanta.nio.file.Paths.get;
-import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
-import static com.newatlanta.nio.file.StandardOpenOption.CREATE;
+import static com.newatlanta.repackaged.java.nio.file.AccessMode.WRITE;
+import static com.newatlanta.repackaged.java.nio.file.Files.createDirectories;
+import static com.newatlanta.repackaged.java.nio.file.Files.walkFileTree;
+import static com.newatlanta.repackaged.java.nio.file.Paths.get;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.APPEND;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.CREATE;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,13 +34,13 @@ import org.h2.message.Message;
 import org.h2.store.fs.FileObject;
 import org.h2.store.fs.FileSystem;
 
-import com.newatlanta.nio.file.FileAlreadyExistsException;
-import com.newatlanta.nio.file.FileVisitResult;
-import com.newatlanta.nio.file.NoSuchFileException;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.SimpleFileVisitor;
-import com.newatlanta.nio.file.attribute.Attributes;
-import com.newatlanta.nio.file.attribute.BasicFileAttributes;
+import com.newatlanta.repackaged.java.nio.file.FileAlreadyExistsException;
+import com.newatlanta.repackaged.java.nio.file.FileVisitResult;
+import com.newatlanta.repackaged.java.nio.file.NoSuchFileException;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.SimpleFileVisitor;
+import com.newatlanta.repackaged.java.nio.file.attribute.Attributes;
+import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributes;
 
 public class FileSystemGae extends FileSystem {
 

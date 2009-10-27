@@ -22,10 +22,10 @@ import java.util.NoSuchElementException;
 
 import org.apache.commons.vfs.FileObject;
 
-import com.newatlanta.nio.file.ClosedDirectoryStreamException;
-import com.newatlanta.nio.file.DirectoryStream;
-import com.newatlanta.nio.file.FileSystem;
-import com.newatlanta.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.ClosedDirectoryStreamException;
+import com.newatlanta.repackaged.java.nio.file.DirectoryStream;
+import com.newatlanta.repackaged.java.nio.file.FileSystem;
+import com.newatlanta.repackaged.java.nio.file.Path;
 
 public class GaeDirectoryStream implements DirectoryStream<Path> {
     

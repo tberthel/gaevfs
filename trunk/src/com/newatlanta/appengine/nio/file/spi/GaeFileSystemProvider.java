@@ -23,15 +23,15 @@ import java.util.Set;
 
 import com.newatlanta.appengine.nio.file.GaeFileSystem;
 import com.newatlanta.appengine.nio.file.GaePath;
-import com.newatlanta.nio.channels.FileChannel;
-import com.newatlanta.nio.file.FileSystem;
-import com.newatlanta.nio.file.FileSystemAlreadyExistsException;
-import com.newatlanta.nio.file.OpenOption;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.ProviderMismatchException;
-import com.newatlanta.nio.file.attribute.FileAttribute;
-import com.newatlanta.nio.file.spi.FileSystemProvider;
-import com.newatlanta.nio.file.FileSystemNotFoundException;
+import com.newatlanta.repackaged.java.nio.channels.FileChannel;
+import com.newatlanta.repackaged.java.nio.file.FileSystem;
+import com.newatlanta.repackaged.java.nio.file.FileSystemAlreadyExistsException;
+import com.newatlanta.repackaged.java.nio.file.FileSystemNotFoundException;
+import com.newatlanta.repackaged.java.nio.file.OpenOption;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.ProviderMismatchException;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileAttribute;
+import com.newatlanta.repackaged.java.nio.file.spi.FileSystemProvider;
 
 public class GaeFileSystemProvider extends FileSystemProvider {
     
