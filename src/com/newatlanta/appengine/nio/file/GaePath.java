@@ -15,20 +15,21 @@
  */
 package com.newatlanta.appengine.nio.file;
 
-import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.BASIC_VIEW;
-import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.GAE_VIEW;
-import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
-import static com.newatlanta.nio.file.StandardOpenOption.CREATE;
-import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
-import static com.newatlanta.nio.file.StandardOpenOption.DELETE_ON_CLOSE;
-import static com.newatlanta.nio.file.StandardOpenOption.DSYNC;
-import static com.newatlanta.nio.file.StandardOpenOption.READ;
-import static com.newatlanta.nio.file.StandardOpenOption.SPARSE;
-import static com.newatlanta.nio.file.StandardOpenOption.SYNC;
-import static com.newatlanta.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
-import static com.newatlanta.nio.file.StandardCopyOption.ATOMIC_MOVE;
-import static com.newatlanta.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes.BASIC_VIEW;
+import static com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes.GAE_VIEW;
+import static com.newatlanta.repackaged.java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static com.newatlanta.repackaged.java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
+import static com.newatlanta.repackaged.java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.APPEND;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.CREATE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.CREATE_NEW;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.DELETE_ON_CLOSE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.DSYNC;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.SPARSE;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.SYNC;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.WRITE;
 
 import java.io.IOError;
 import java.io.IOException;
@@ -51,39 +52,39 @@ import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.Selectors;
 
 import com.newatlanta.appengine.locks.ExclusiveLock;
-import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
-import com.newatlanta.appengine.nio.attribute.GaeFileAttributes;
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
+import com.newatlanta.appengine.nio.file.attribute.GaeFileAttributeView;
+import com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes;
 import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
 import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
-import com.newatlanta.nio.channels.FileChannel;
-import com.newatlanta.nio.file.AccessDeniedException;
-import com.newatlanta.nio.file.AccessMode;
-import com.newatlanta.nio.file.AtomicMoveNotSupportedException;
-import com.newatlanta.nio.file.CopyOption;
-import com.newatlanta.nio.file.DirectoryNotEmptyException;
-import com.newatlanta.nio.file.DirectoryStream;
-import com.newatlanta.nio.file.FileAlreadyExistsException;
-import com.newatlanta.nio.file.FileStore;
-import com.newatlanta.nio.file.FileSystem;
-import com.newatlanta.nio.file.InvalidPathException;
-import com.newatlanta.nio.file.LinkOption;
-import com.newatlanta.nio.file.NoSuchFileException;
-import com.newatlanta.nio.file.NotDirectoryException;
-import com.newatlanta.nio.file.OpenOption;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.ProviderMismatchException;
-import com.newatlanta.nio.file.WatchKey;
-import com.newatlanta.nio.file.WatchService;
-import com.newatlanta.nio.file.DirectoryStream.Filter;
-import com.newatlanta.nio.file.WatchEvent.Kind;
-import com.newatlanta.nio.file.WatchEvent.Modifier;
-import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
-import com.newatlanta.nio.file.attribute.FileAttribute;
-import com.newatlanta.nio.file.attribute.FileAttributeView;
+import com.newatlanta.repackaged.java.nio.channels.FileChannel;
+import com.newatlanta.repackaged.java.nio.file.AccessDeniedException;
+import com.newatlanta.repackaged.java.nio.file.AccessMode;
+import com.newatlanta.repackaged.java.nio.file.AtomicMoveNotSupportedException;
+import com.newatlanta.repackaged.java.nio.file.CopyOption;
+import com.newatlanta.repackaged.java.nio.file.DirectoryNotEmptyException;
+import com.newatlanta.repackaged.java.nio.file.DirectoryStream;
+import com.newatlanta.repackaged.java.nio.file.FileAlreadyExistsException;
+import com.newatlanta.repackaged.java.nio.file.FileStore;
+import com.newatlanta.repackaged.java.nio.file.FileSystem;
+import com.newatlanta.repackaged.java.nio.file.InvalidPathException;
+import com.newatlanta.repackaged.java.nio.file.LinkOption;
+import com.newatlanta.repackaged.java.nio.file.NoSuchFileException;
+import com.newatlanta.repackaged.java.nio.file.NotDirectoryException;
+import com.newatlanta.repackaged.java.nio.file.OpenOption;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.ProviderMismatchException;
+import com.newatlanta.repackaged.java.nio.file.WatchKey;
+import com.newatlanta.repackaged.java.nio.file.WatchService;
+import com.newatlanta.repackaged.java.nio.file.DirectoryStream.Filter;
+import com.newatlanta.repackaged.java.nio.file.WatchEvent.Kind;
+import com.newatlanta.repackaged.java.nio.file.WatchEvent.Modifier;
+import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributeView;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileAttribute;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileAttributeView;
 
 /**
- * Implements {@linkplain com.newatlanta.nio.file.Path} for GaeVFS.
+ * Implements {@linkplain com.newatlanta.repackaged.java.nio.file.Path} for GaeVFS.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
@@ -365,38 +366,33 @@ public class GaePath extends Path {
         if ( !( target instanceof GaePath ) ) {
             throw new ProviderMismatchException();
         }
-        // TODO this is not nearly complete
-        ((GaePath)target).fileObject.copyFrom( fileObject, Selectors.SELECT_SELF );
+        checkAccess( AccessMode.READ );
+        Set<CopyOption> optionSet = checkCopyOptions( options );
+        if ( isSameFile( target, optionSet.contains( REPLACE_EXISTING ) ) ) {
+            return target;
+        }
+        if ( fileObject.getType().hasChildren() ) {
+            target.deleteIfExists(); // fails for non-empty directory
+            target.createDirectory();
+        } else {
+            ((GaePath)target).fileObject.copyFrom( fileObject, Selectors.SELECT_SELF );
+            if ( optionSet.contains( COPY_ATTRIBUTES ) ) {
+                ((GaePath)target).fileObject.getContent().setLastModifiedTime( 
+                                    fileObject.getContent().getLastModifiedTime() );
+            }
+        }
         return target;
     }
-
+    
     @Override
     public Path moveTo( Path target, CopyOption ... options ) throws IOException {
         if ( !( target instanceof GaePath ) ) {
             throw new ProviderMismatchException();
         }
-        checkAccess( AccessMode.WRITE );
-        boolean replaceExisting = false;
-        for ( CopyOption option : options ) {
-            if ( option == REPLACE_EXISTING ) {
-                replaceExisting = true;
-            } else if ( option == ATOMIC_MOVE ) {
-                // paths are stored in entity keys and GAE does not allow keys to
-                // be modified after the entity is created; therefore, GaeVFS does
-                // not support rename, but must always do copy-then-delete
-                throw new AtomicMoveNotSupportedException( path, target.toString(), null );
-            } else {
-                throw new UnsupportedOperationException( option.toString() );
-            }
-        }
-        if ( target.exists() ) {
-            if ( target.isSameFile( this ) ) {
-                return target;
-            }
-            if ( !replaceExisting ) {
-                throw new FileAlreadyExistsException( path, target.toString(), null );
-            }
-            target.checkAccess( AccessMode.WRITE );
+        checkAccess( AccessMode.READ, AccessMode.WRITE );
+        Set<CopyOption> optionSet = checkCopyOptions( options );
+        if ( isSameFile( target, optionSet.contains( REPLACE_EXISTING ) ) ) {
+            return target;
         }
         if ( fileObject.getType().hasChildren() ) {
             if ( fileObject.getChildren().length > 0 ) {
@@ -414,6 +410,38 @@ public class GaePath extends Path {
             fileObject.moveTo( ((GaePath)target).fileObject );
         }
         return target;
+    }
+
+    private Set<CopyOption> checkCopyOptions( CopyOption ... options ) throws IOException {
+        Set<CopyOption> optionSet = new HashSet<CopyOption>();
+        for ( CopyOption option : options ) {
+            if ( option == REPLACE_EXISTING ) {
+                optionSet.add( option );
+            } else if ( option == COPY_ATTRIBUTES ) {
+                optionSet.add( option );
+            } else if ( option == ATOMIC_MOVE ) {
+                // paths are stored in entity keys and GAE does not allow keys to
+                // be modified after the entity is created; therefore, GaeVFS does
+                // not support rename, but must always do copy-then-delete
+                throw new AtomicMoveNotSupportedException( path, null, null );
+            } else {
+                throw new UnsupportedOperationException( option.toString() );
+            }
+        }
+        return optionSet;
+    }
+
+    private boolean isSameFile( Path target, boolean replaceExisting ) throws IOException {
+        if ( target.exists() ) {
+            if ( target.isSameFile( this ) ) {
+                return true;
+            }
+            if ( !replaceExisting ) {
+                throw new FileAlreadyExistsException( path, target.toString(), null );
+            }
+            target.checkAccess( AccessMode.WRITE );
+        }
+        return false;
     }
     
     @Override
