@@ -106,8 +106,8 @@ import org.h2.test.unit.TestValue;
 import org.h2.test.unit.TestValueHashMap;
 import org.junit.Test;
 
+import com.newatlanta.appengine.h2.store.fs.FileSystemGae;
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
-import com.newatlanta.h2.store.fs.FileSystemGae;
 
 public class GaeH2TestCase extends GaeVfsTestCase {
     

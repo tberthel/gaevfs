@@ -37,8 +37,8 @@ import com.google.appengine.api.datastore.dev.LocalDatastoreService;
 import com.google.appengine.tools.development.ApiProxyLocalImpl;
 import com.google.apphosting.api.ApiProxy;
 import com.newatlanta.appengine.junit.TestEnvironment;
-import com.newatlanta.commons.vfs.provider.gae.GaeFileNameParser;
-import com.newatlanta.commons.vfs.provider.gae.GaeFileSystemManager;
+import com.newatlanta.appengine.vfs.provider.GaeFileNameParser;
+import com.newatlanta.appengine.vfs.provider.GaeFileSystemManager;
 
 /**
  * Executes the Commons VFS ProviderTestSuite for GaeVFS.

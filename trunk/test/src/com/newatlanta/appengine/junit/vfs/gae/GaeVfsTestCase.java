@@ -20,7 +20,7 @@ import java.io.File;
 import org.apache.commons.vfs.FileObject;
 
 import com.newatlanta.appengine.junit.LocalDatastoreTestCase;
-import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+import com.newatlanta.appengine.vfs.provider.GaeVFS;
 
 /**
  * The base class for a GaeVFS junit testcases.

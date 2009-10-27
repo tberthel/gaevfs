@@ -28,7 +28,7 @@ import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
 import com.newatlanta.appengine.datastore.CachingDatastoreService;
-import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+import com.newatlanta.appengine.vfs.provider.GaeVFS;
 
 /**
  * Tests the ability to list, create, delete, and rename directories.
@@ -37,7 +37,7 @@ import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
  */
 public class GaeFolderTestCase extends GaeVfsTestCase {
 	
-	private static String[] rootChildren = { "/.svn", "/docs", "/images", "/temp", "/test-data", "/testFolder" };
+	private static String[] rootChildren = { "/.svn", "/data", "/docs", "/images", "/temp", "/test-data", "/testFolder" };
 	
 	private DatastoreService datastore;
 	
