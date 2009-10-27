@@ -15,11 +15,11 @@
  */
 package com.newatlanta.appengine.junit.nio.file;
 
-import static com.newatlanta.appengine.nio.attribute.GaeFileAttributes.withBlockSize;
-import static com.newatlanta.nio.file.StandardOpenOption.APPEND;
-import static com.newatlanta.nio.file.StandardOpenOption.CREATE_NEW;
-import static com.newatlanta.nio.file.StandardOpenOption.READ;
-import static com.newatlanta.nio.file.StandardOpenOption.WRITE;
+import static com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes.withBlockSize;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.APPEND;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.CREATE_NEW;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.READ;
+import static com.newatlanta.repackaged.java.nio.file.StandardOpenOption.WRITE;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -36,11 +36,11 @@ import org.junit.Test;
 
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
-import com.newatlanta.nio.channels.FileChannel;
-import com.newatlanta.nio.channels.FileLock;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.Paths;
-import com.newatlanta.nio.file.ProviderMismatchException;
+import com.newatlanta.repackaged.java.nio.channels.FileChannel;
+import com.newatlanta.repackaged.java.nio.channels.FileLock;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.Paths;
+import com.newatlanta.repackaged.java.nio.file.ProviderMismatchException;
 
 public class GaeFileChannelTestCase extends GaeVfsTestCase {
 

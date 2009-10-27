@@ -23,17 +23,17 @@ import java.util.List;
 import org.junit.Test;
 
 import com.newatlanta.appengine.junit.vfs.gae.GaeVfsTestCase;
-import com.newatlanta.nio.file.Path;
-import com.newatlanta.nio.file.Paths;
-import com.newatlanta.nio.file.attribute.AclEntry;
-import com.newatlanta.nio.file.attribute.Attributes;
-import com.newatlanta.nio.file.attribute.BasicFileAttributes;
-import com.newatlanta.nio.file.attribute.DosFileAttributes;
-import com.newatlanta.nio.file.attribute.FileStoreSpaceAttributes;
-import com.newatlanta.nio.file.attribute.FileTime;
-import com.newatlanta.nio.file.attribute.PosixFileAttributes;
-import com.newatlanta.nio.file.attribute.PosixFilePermission;
-import com.newatlanta.nio.file.attribute.UserPrincipal;
+import com.newatlanta.repackaged.java.nio.file.Path;
+import com.newatlanta.repackaged.java.nio.file.Paths;
+import com.newatlanta.repackaged.java.nio.file.attribute.AclEntry;
+import com.newatlanta.repackaged.java.nio.file.attribute.Attributes;
+import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributes;
+import com.newatlanta.repackaged.java.nio.file.attribute.DosFileAttributes;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileStoreSpaceAttributes;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileTime;
+import com.newatlanta.repackaged.java.nio.file.attribute.PosixFileAttributes;
+import com.newatlanta.repackaged.java.nio.file.attribute.PosixFilePermission;
+import com.newatlanta.repackaged.java.nio.file.attribute.UserPrincipal;
 
 public class GaeFileAttributesTestCase extends GaeVfsTestCase {
     
