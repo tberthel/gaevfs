@@ -48,6 +48,7 @@ import com.newatlanta.appengine.nio.attribute.GaeFileAttributeView;
 import com.newatlanta.nio.channels.SeekableByteChannel;
 import com.newatlanta.nio.file.AccessDeniedException;
 import com.newatlanta.nio.file.AccessMode;
+import com.newatlanta.nio.file.AtomicMoveNotSupportedException;
 import com.newatlanta.nio.file.ClosedDirectoryStreamException;
 import com.newatlanta.nio.file.DirectoryNotEmptyException;
 import com.newatlanta.nio.file.DirectoryStream;
@@ -57,6 +58,7 @@ import com.newatlanta.nio.file.NoSuchFileException;
 import com.newatlanta.nio.file.OpenOption;
 import com.newatlanta.nio.file.Path;
 import com.newatlanta.nio.file.Paths;
+import com.newatlanta.nio.file.StandardCopyOption;
 import com.newatlanta.nio.file.StandardOpenOption;
 import com.newatlanta.nio.file.attribute.AclFileAttributeView;
 import com.newatlanta.nio.file.attribute.BasicFileAttributeView;
@@ -276,8 +278,115 @@ public class GaePathTestCase extends GaeVfsTestCase {
     }
 
     @Test
-    public void testMoveTo() {
-        fail( "Not yet implemented" );
+    public void testMoveTo() throws IOException {
+        
+        // try to move a file that doesn't exist
+        Path sourcePath = Paths.get( "/images/test.jpg" );
+        Path targetPath = Paths.get( "/images/target.jpg" );
+        assertTrue( sourcePath.notExists() );
+        try {
+            sourcePath.moveTo( targetPath );
+            fail( "expected NoSuchFileException" );
+        } catch ( NoSuchFileException e ) {
+        }
+        
+        // try to move a read-only file
+        sourcePath = Paths.get( "/images/large.jpg" );
+        assertTrue( sourcePath.exists() );
+        try {
+            sourcePath.moveTo( targetPath );
+            fail( "expected AccessDeniedException" );
+        } catch ( AccessDeniedException e ) {
+        }
+        
+        sourcePath = sourcePath.copyTo( Paths.get( "/images/source.jpg" ) );
+        assertTrue( sourcePath.exists() );
+        sourcePath.checkAccess( AccessMode.WRITE );
+        
+        // ATOMIC_MOVE option
+        try {
+            sourcePath.moveTo( targetPath, StandardCopyOption.ATOMIC_MOVE );
+            fail( "expected AtomicMoveNotSupportedException" );
+        } catch ( AtomicMoveNotSupportedException e ) {
+        }
+        
+        // COPY_ATTRIBUTES option
+        try {
+            sourcePath.moveTo( targetPath, StandardCopyOption.COPY_ATTRIBUTES );
+            fail( "expected UnsupportedOperationException" );
+        } catch ( UnsupportedOperationException e ) {
+        }
+        
+        // successful file move
+        assertTrue( targetPath.notExists() );
+        assertEquals( targetPath, sourcePath.moveTo( targetPath ) );
+        assertTrue( targetPath.exists() );
+        assertTrue( sourcePath.notExists() );
+        
+        // source and target are the same file (does nothing)
+        assertEquals( targetPath, targetPath.moveTo( targetPath ) );
+        
+        sourcePath = Paths.get( "/images/small.jpg" ).copyTo( sourcePath );
+        assertTrue( sourcePath.exists() );
+        sourcePath.checkAccess( AccessMode.WRITE );
+        
+        // move to existing file without REPLACE_EXISTING
+        try {
+            assertTrue( targetPath.exists() );
+            sourcePath.moveTo( targetPath );
+            fail( "expected FileAlreadyExistsException" );
+        } catch ( FileAlreadyExistsException e ) {
+        }
+        
+        // move to existing file with REPLACE_EXISTING
+        assertTrue( targetPath.exists() );
+        assertEquals( targetPath, sourcePath.moveTo( targetPath, StandardCopyOption.REPLACE_EXISTING ) );
+        assertTrue( targetPath.exists() );
+        assertTrue( sourcePath.notExists() );
+        
+        // move to existing read-only file
+        assertEquals( sourcePath, targetPath.moveTo( sourcePath ) );
+        assertTrue( sourcePath.exists() );
+        assertTrue( targetPath.notExists() );
+        
+        targetPath = Paths.get( "/images/large.jpg" );
+        assertTrue( targetPath.exists() );
+        
+        try {
+            sourcePath.moveTo( targetPath, StandardCopyOption.REPLACE_EXISTING );
+            fail( "expected AccessDeniedException" );
+        } catch ( AccessDeniedException e ) {
+        }
+        
+        // move non-empty directory
+        sourcePath = Paths.get( "/images" );
+        assertTrue( sourcePath.exists() );
+        assertTrue( readBasicFileAttributes( sourcePath ).isDirectory() );
+        assertTrue( sourcePath.newDirectoryStream().iterator().hasNext() );
+        
+        targetPath = Paths.get( "/target" );
+        assertTrue( targetPath.notExists() );
+        
+        try {
+            sourcePath.moveTo( targetPath );
+            fail( "expected DirectoryNotEmptyException" );
+        } catch ( DirectoryNotEmptyException e ) {
+        }
+        
+        // move empty directory
+        sourcePath = Paths.get( "/source" ).createDirectory();
+        assertTrue( sourcePath.exists() );
+        assertTrue( readBasicFileAttributes( sourcePath ).isDirectory() );
+        assertFalse( sourcePath.newDirectoryStream().iterator().hasNext() );
+        
+        assertTrue( targetPath.notExists() );
+        assertEquals( targetPath, sourcePath.moveTo( targetPath ) );
+        assertTrue( targetPath.exists() );
+        assertTrue( sourcePath.notExists() );
+
+        // clean up
+        targetPath.delete();
+        assertTrue( targetPath.notExists() );
     }
 
     @Test
@@ -306,7 +415,6 @@ public class GaePathTestCase extends GaeVfsTestCase {
             dirStream.close();
         }
         
-        // TODO: this fails, probably due to Commons VFS caching of children
         dirStream = dirPath.newDirectoryStream();
         Iterator<Path> pathIter = dirStream.iterator();
         while ( pathIter.hasNext() ) {
