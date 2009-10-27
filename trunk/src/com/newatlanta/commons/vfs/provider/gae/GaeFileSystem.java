@@ -19,6 +19,7 @@ import java.util.Collection;
 
 import org.apache.commons.vfs.FileName;
 import org.apache.commons.vfs.FileObject;
+import org.apache.commons.vfs.FileSystemException;
 import org.apache.commons.vfs.FileSystemOptions;
 import org.apache.commons.vfs.provider.AbstractFileSystem;
 
@@ -44,5 +45,13 @@ public class GaeFileSystem extends AbstractFileSystem {
 
     protected FileObject createFile( FileName fileName ) {
         return new GaeFileObject( fileName, this );
+    }
+    
+    @Override
+    public synchronized FileObject resolveFile( FileName name ) throws FileSystemException {
+        if ( !"gae".equals( name.getScheme() ) ) {
+            return getFileSystemManager().resolveFile( name.toString() );
+        }
+        return super.resolveFile( name );
     }
 }

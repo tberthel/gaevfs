@@ -63,7 +63,7 @@ public class GaeDirectoryStream implements DirectoryStream<Path> {
 
         public Path next() {
             checkOpen();
-            if ( ( index++ ) >= children.length ) {
+            if ( ( ++index ) >= children.length ) {
                 throw new NoSuchElementException();
             }
             // TODO: "The Path objects are obtained as if by resolving the name
