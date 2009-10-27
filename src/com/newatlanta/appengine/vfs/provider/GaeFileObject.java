@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.newatlanta.commons.vfs.provider.gae;
+package com.newatlanta.appengine.vfs.provider;
 
 import static com.newatlanta.appengine.nio.channels.GaeFileChannel.isDirty;
 import static com.newatlanta.appengine.nio.channels.GaeFileChannel.setDirty;
+import static com.newatlanta.appengine.vfs.provider.GaeVFS.checkBlockSize;
 
-import static com.newatlanta.commons.vfs.provider.gae.GaeVFS.checkBlockSize;
 
 import java.io.IOException;
 import java.io.InputStream;

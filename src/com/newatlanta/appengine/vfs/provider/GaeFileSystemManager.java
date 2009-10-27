@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.newatlanta.commons.vfs.provider.gae;
+package com.newatlanta.appengine.vfs.provider;
 
 import java.io.File;
 import java.net.URL;

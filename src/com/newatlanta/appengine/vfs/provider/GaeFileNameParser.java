@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.newatlanta.commons.vfs.provider.gae;
+package com.newatlanta.appengine.vfs.provider;
 
 import org.apache.commons.vfs.*;
 import org.apache.commons.vfs.provider.*;

@@ -24,7 +24,7 @@ import java.util.Set;
 import org.apache.commons.vfs.FileObject;
 import org.apache.commons.vfs.FileSystemException;
 
-import com.newatlanta.commons.vfs.provider.gae.GaeFileObject;
+import com.newatlanta.appengine.vfs.provider.GaeFileObject;
 import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributes;
 import com.newatlanta.repackaged.java.nio.file.attribute.FileAttribute;
 import com.newatlanta.repackaged.java.nio.file.attribute.FileTime;
