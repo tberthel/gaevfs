@@ -20,7 +20,7 @@ import javax.servlet.ServletContextListener;
 
 import org.h2.engine.Constants;
 
-import com.newatlanta.commons.vfs.provider.gae.GaeVFS;
+import com.newatlanta.appengine.vfs.provider.GaeVFS;
 import com.newatlanta.h2.store.fs.FileSystemGae;
 import com.newatlanta.repackaged.java.nio.file.Paths;
 
