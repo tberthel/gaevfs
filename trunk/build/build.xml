@@ -18,7 +18,7 @@
 		<pathelement path="${webinf.lib.dir}/commons-io-1.4.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-lang-2.4.jar"/>
 		<pathelement path="${webinf.lib.dir}/commons-vfs-2.0-SNAPSHOT.jar"/>
-	    <pathelement path="${webinf.lib.dir}/h2-1.2.121.jar"/>
+	    <pathelement path="${webinf.lib.dir}/h2-appengine-jdk16.jar"/>
 	</path>
     
     <path id="test.class.path">
@@ -82,7 +82,11 @@
 	<target name="jar" depends="clean,compile,test" description="builds the JAR file">
 		<jar jarfile="${build.name}.jar">
 			<metainf dir="${src.dir}META-INF" includes="vfs-providers.xml"/>
-			<fileset dir="${classes.dir}" includes="**/*.class" excludes="**/*Test*"/>
+			<fileset dir="${classes.dir}">
+			    <include name="**/*.class"/>
+			    <exclude name="com/newatlanta/appengine/junit/**/*.class"/>
+			    <exclude name="com/google/apphosting/api/**/*.class"/>
+			</fileset>
 		</jar>
 	</target>
 	
