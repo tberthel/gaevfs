@@ -86,13 +86,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
     
     /**
-     * This method is intended for testing and debugging only.
-     */
-    public static Map<Key, Entity> getBlockMap() {
-        return Collections.unmodifiableMap( blockMap );
-    }
-    
-    /**
      * Override the superclass implementation to make sure GaeVFS "shadows"
      * exist for local directories.
      */
