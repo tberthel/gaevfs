@@ -108,7 +108,7 @@ public class GaeFileChannel extends FileChannel {
         fileObject.putContent( metaData, true );
     }
 
-    public synchronized void flush() throws FileSystemException, IOException {
+    private synchronized void flush() throws FileSystemException, IOException {
         if ( ( block != null ) && ( buffer != null ) && isDirty() ) {
             int eofoffset = calcBlockOffset( doGetSize() );
             if ( eofoffset < ( blockSize >> 1 ) ) {
@@ -176,7 +176,7 @@ public class GaeFileChannel extends FileChannel {
         }
     }
     
-    public String getLockName() {
+    String getLockName() {
         return fileObject.getName().getPath()+ ".GaeFileChannel.lock";
     }
     
