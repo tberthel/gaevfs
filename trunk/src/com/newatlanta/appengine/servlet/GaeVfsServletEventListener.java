@@ -22,6 +22,7 @@ import org.h2.engine.Constants;
 
 import com.newatlanta.appengine.h2.store.fs.FileSystemGae;
 import com.newatlanta.appengine.vfs.provider.GaeVFS;
+import com.newatlanta.repackaged.java.nio.file.FileAlreadyExistsException;
 import com.newatlanta.repackaged.java.nio.file.Paths;
 
 /**
@@ -53,9 +54,12 @@ public class GaeVfsServletEventListener implements ServletContextListener {
             String userHome = userDir + "/WEB-INF/";
             System.setProperty( "user.home", userHome );
             
-            // copy "h2.server.properties" to ".h2.server.properties"
-            Paths.get( userHome + Constants.SERVER_PROPERTIES_FILE.substring( 1 ) ).copyTo(
-                    Paths.get( userHome + Constants.SERVER_PROPERTIES_FILE ) );
+            try {
+                // copy "h2.server.properties" to ".h2.server.properties"
+                Paths.get( userHome + Constants.SERVER_PROPERTIES_FILE.substring( 1 ) ).copyTo(
+                            Paths.get( userHome + Constants.SERVER_PROPERTIES_FILE ) );
+            } catch ( FileAlreadyExistsException ignore ) {
+            }
         } catch ( Exception e ) {
             GaeVFS.log.info( "Failed to register GaeVFS with H2: " + e );
         }
