@@ -16,13 +16,12 @@
 package com.newatlanta.appengine.junit.nio.file;
 
 import java.io.IOException;
-import java.util.concurrent.locks.Lock;
 
 import com.google.apphosting.api.ApiProxy;
 import com.google.apphosting.api.ApiProxy.Delegate;
 import com.newatlanta.appengine.junit.TestEnvironment;
-import com.newatlanta.appengine.locks.ExclusiveLock;
 import com.newatlanta.appengine.nio.channels.GaeFileChannel;
+import com.newatlanta.repackaged.java.nio.channels.FileLock;
 
 /**
  * Simulates lock acquisition by a thread in a different JVM.
@@ -87,8 +86,7 @@ public class FileLockingThread extends Thread {
         ApiProxy.setDelegate( delegate );
 
         try {
-            Lock lock = new ExclusiveLock( fileChannel.getLockName() );
-            lock.lock();
+            FileLock lock = fileChannel.lock();
             try {
                 sleep( sleepTime );
             } catch ( InterruptedException e ) {
@@ -99,7 +97,7 @@ public class FileLockingThread extends Thread {
                 if ( closeChannel ) {
                     fileChannel.close();
                 }
-                lock.unlock();
+                lock.release();
             }
         } catch ( IOException e ) {
             e.printStackTrace();
