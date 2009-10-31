@@ -42,6 +42,13 @@ import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.labs.taskqueue.Queue;
 import com.google.appengine.api.labs.taskqueue.QueueFactory;
 
+/**
+ * Implements deferred tasks, based on the Python implementation:
+ * 
+ *    http://code.google.com/appengine/articles/deferred.html
+ *    
+ * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
+ */
 @SuppressWarnings("serial")
 public class Deferred extends HttpServlet {
     
