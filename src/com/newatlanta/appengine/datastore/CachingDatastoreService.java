@@ -15,7 +15,8 @@
  */
 package com.newatlanta.appengine.datastore;
 
-import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.url;
+import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.method;
+import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.payload;
 import static com.google.appengine.api.memcache.Expiration.byDeltaSeconds;
 
 import java.io.BufferedInputStream;
@@ -73,12 +74,11 @@ import com.google.appengine.api.memcache.StrictErrorHandler;
 public class CachingDatastoreService extends HttpServlet implements DatastoreService {
     
     private static final String QUEUE_NAME = "write-behind-task";
-    private static final String TASK_URL = "/_ah/queue/" + QUEUE_NAME;
     private static final String TASK_CONTENT_TYPE = "application/x-java-serialized-object";
     private static final String WATCHDOG_KEY = "CachingDatastoreService.watchdog";
     
-    private static DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
-    private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
+    private static final DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
+    private static final MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
     private static Queue queue;
     
     private static final ErrorHandler STRICT_ERROR_HANDLER = new StrictErrorHandler();
@@ -124,10 +124,12 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
      * Gets an entity. Returns the entity from memcache, if it exists; otherwise,
      * gets the entity from the datastore, puts it into memcache, then returns it.
      */
+    @Override
     public Entity get( Key key ) throws EntityNotFoundException {
         return get( null, key );
     }
     
+    @Override
     public Entity get( Transaction txn, Key key ) throws EntityNotFoundException {
         Entity entity = (Entity)memcache.get( key );
         if ( entity == null ) {
@@ -144,10 +146,12 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     /**
      * Don't rely on the ordering of entities returned by this method.
      */
+    @Override
     public Map<Key, Entity> get( Iterable<Key> keys ) {
         return get( null, keys );
     }
     
+    @Override
     @SuppressWarnings("unchecked")
     public Map<Key, Entity> get( Transaction txn, Iterable<Key> keys ) {
         Map<Key, Entity> entities = (Map)memcache.getAll( (Collection)keys );
@@ -178,13 +182,14 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         return entities;
     }
     
+    @Override
     public Key put( Entity entity ) {
         Key key = getKey( entity );
         memcache.setErrorHandler( STRICT_ERROR_HANDLER );
         try {
             memcache.put( key, entity, expiration );
             if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
-                queue.add( url( TASK_URL ).payload( serialize( key ), TASK_CONTENT_TYPE ) );
+                queue.add( payload( serialize( key ), TASK_CONTENT_TYPE ) );
                 return key;
             }
         } catch ( Exception e ) {
@@ -202,6 +207,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     /**
      * Don't use write-behind cache with transactions.
      */
+    @Override
     public Key put( Transaction txn, Entity entity ) {
         if ( txn == null ) {
             return put( entity );
@@ -213,11 +219,15 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     private static Key getKey( Entity entity ) {
         Key key = entity.getKey();
         if ( !key.isComplete() ) {
-            // TODO: this path has not been tested
-            KeyRange keyRange = datastore.allocateIds( key.getParent(), key.getKind(), 1 );
-            key = keyRange.getStart();
+            key = completeKey( key );
         }
         return key;
+    }
+
+    // TODO this method has not been tested
+    private static Key completeKey( Key key ) {
+        KeyRange keyRange = datastore.allocateIds( key.getParent(), key.getKind(), 1 );
+        return keyRange.getStart();
     }
     
     private Key putEntity( Transaction txn, Entity entity ) {
@@ -228,6 +238,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public List<Key> put( Iterable<Entity> entities ) {
         Map<Key, Entity> entityMap = getEntityMap( entities );
@@ -236,7 +247,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             memcache.putAll( (Map)entityMap, expiration );
             if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
                 List<Key> keyList = new ArrayList<Key>( entityMap.keySet() );
-                queue.add( url( TASK_URL ).payload( serialize( keyList ), TASK_CONTENT_TYPE ) );
+                queue.add( payload( serialize( keyList ), TASK_CONTENT_TYPE ) );
                 return keyList;
             }
         } catch ( Exception e ) {
@@ -263,6 +274,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     /**
      * Don't use write-behind cache with transactions.
      */
+    @Override
     @SuppressWarnings("unchecked")
     public List<Key> put( Transaction txn, Iterable<Entity> entities ) {
         if ( txn == null ) {
@@ -277,7 +289,9 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         for ( Entity entity : entities ) {
             Key key = entity.getKey();
             if ( !key.isComplete() ) {
-                // TODO: to be implemented
+                // TODO this could be more efficient by allocating more than
+                // one id at a time
+                key = completeKey( key );
             }
             entityMap.put( key, entity );
         }
@@ -292,18 +306,22 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
     }
     
+    @Override
     public void delete( Key ... keys ) {
         delete( null, Arrays.asList( keys ) );
     }
     
+    @Override
     public void delete( Iterable<Key> keys ) {
         delete( null, keys );
     }
     
+    @Override
     public void delete( Transaction txn, Key ... keys ) {
         delete( txn, Arrays.asList( keys ) ); 
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public void delete( Transaction txn, Iterable<Key> keys ) {
         try {
@@ -314,35 +332,43 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         memcache.deleteAll( (Collection)keys );
     }
 
+    @Override
     public KeyRange allocateIds( String kind, long num ) {
         return datastore.allocateIds( kind, num );
     }
 
+    @Override
     public KeyRange allocateIds( Key parent, String kind, long num ) {
         return datastore.allocateIds( parent, kind, num );
     }
 
+    @Override
     public Transaction beginTransaction() {
         return datastore.beginTransaction();
     }
 
+    @Override
     public Collection<Transaction> getActiveTransactions() {
         return datastore.getActiveTransactions();
     }
 
+    @Override
     public Transaction getCurrentTransaction() {
         return datastore.getCurrentTransaction();
     }
 
+    @Override
     public Transaction getCurrentTransaction( Transaction returnedIfNoTxn ) {
         return datastore.getCurrentTransaction( returnedIfNoTxn );
     }
 
-    // TODO: cache query results?
+    // TODO cache query results?
+    @Override
     public PreparedQuery prepare( Query query ) {
         return datastore.prepare( query );
     }
 
+    @Override
     public PreparedQuery prepare( Transaction txn, Query query ) {
         return datastore.prepare( txn, query );
     }
@@ -385,9 +411,8 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                                                     String nextToken ) {
         for ( int i = 0; i < 100; i++ ) {
             try {
-                return queue.add( url( TASK_URL ).method( Method.GET ).taskName(
-                        taskName ).param( "watchdog", nextToken ).countdownMillis(
-                                countdownMillis ) );
+                return queue.add( method( Method.GET ).taskName( taskName ).param(
+                        "watchdog", nextToken ).countdownMillis( countdownMillis ) );
             } catch ( TaskAlreadyExistsException e ) {
                 log.info( e.getMessage() + " " + taskName );
                 return null;
