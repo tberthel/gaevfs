@@ -65,8 +65,55 @@ import com.google.appengine.api.memcache.StrictErrorHandler;
 
 /**
  * Implements a <code>DatastoreService</code> that automatically caches entities
- * in memcache. Can be configured to use either a write-through or write-behind
- * strategy; write-behind is based on task queues.
+ * in memcache. Supports the following features:
+ * <ul>
+ * <li>Implements the <code>com.google.appengine.api.datastore.DatastoreService</code>
+ * interface; therefore, is a plug-in replacement for the standard implementation.</li>
+ * <li>Automatically caches entities in memcache for datastore reads and writes.</li>
+ * <li>Supports a write-behind option (the default) that queues all datastore writes
+ * as background tasks (except for transactions, which are always write-through
+ * directly to the datastore).</li>
+ * <li>A watchdog task makes sure the write-behind task is always available.</li>
+ * <li>If the write-behind task isn't available, defaults to write-through to insure
+ * no loss of data.
+ * <li>Supports configurable expiration of memcache entities (the default is no
+ * expiration).
+ * </ul>
+ * If you plan to use the write-behind option, first configure the write-behind task
+ * within <code>web.xml</code>:
+ * <pre>
+ * &lt;servlet>
+ *     &lt;servlet-name>CachingDatastoreService&lt;/servlet-name>
+ *     &lt;servlet-class>com.newatlanta.appengine.datastore.CachingDatastoreService&lt;/servlet-class>
+ * &lt;/servlet>
+ * &lt;servlet-mapping>
+ *     &lt;servlet-name>CachingDatastoreService&lt;/servlet-name>
+ *     &lt;url-pattern>/_ah/queue/write-behind-task&lt;/url-pattern>
+ * &lt;/servlet-mapping>
+ * </pre>
+ * Then configure the write-behind-task queue in <code>queue.xml</code> (again, only
+ * if you plan to use the write-behind option); use whatever rate you want:
+ * <pre>
+ * &lt;queue>
+ *     &lt;name>write-behind-task&lt;/name>
+ *     &lt;rate>5/s</rate>
+ * &lt;/queue>
+ * </pre>
+ * 
+ * To use the <code>CachingDatastoreService</code>, replace the following code:
+ * <p><code>
+ * DatastoreService ds = DatastoreServiceFactory().getDatastoreService();
+ * </code>
+ * <p>with this code, and then use the <code>DatastoreService</code> methods as you
+ * normally would:
+ * <p><code>
+ * DatastoreService ds = new CachingDatastoreService();
+ * </code>
+ * <p>The default <code>CachingDatastoreService</code> constructor enables the
+ * <code>CacheOptions.WRITE_BEHIND</code> option and sets the expiration to
+ * <code>null</code> (no expiration). There are additional constructors that allow
+ * you to specify <code>CacheOptions.WRITE_THROUGH</code> and/or specify a memcache
+ * expiration value.
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
@@ -184,7 +231,8 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     @Override
     public Key put( Entity entity ) {
-        Key key = getKey( entity );
+        entity = completeKey( entity );
+        Key key = entity.getKey();
         memcache.setErrorHandler( STRICT_ERROR_HANDLER );
         try {
             memcache.put( key, entity, expiration );
@@ -212,22 +260,27 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         if ( txn == null ) {
             return put( entity );
         }
-        memcache.put( getKey( entity ), entity, expiration );
+        entity = completeKey( entity );
+        memcache.put( entity.getKey(), entity, expiration );
         return putEntity( txn, entity );
     }
 
-    private static Key getKey( Entity entity ) {
+    /**
+     * Make sure the entity has a complete key. If it does, simply return it. If
+     * it doesn't, create a new entity with a complete key (based on the partial
+     * key in the entity) and return the new entity.
+     * 
+     * @return An entity with a complete key.
+     */
+    private static Entity completeKey( Entity entity ) {
         Key key = entity.getKey();
-        if ( !key.isComplete() ) {
-            key = completeKey( key );
+        if ( key.isComplete() ) {
+            return entity;
         }
-        return key;
-    }
-
-    // TODO this method has not been tested
-    private static Key completeKey( Key key ) {
         KeyRange keyRange = datastore.allocateIds( key.getParent(), key.getKind(), 1 );
-        return keyRange.getStart();
+        Entity newEntity = new Entity( keyRange.getStart() );
+        newEntity.setPropertiesFrom( entity );
+        return newEntity;
     }
     
     private Key putEntity( Transaction txn, Entity entity ) {
@@ -284,21 +337,16 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         return putEntities( txn, entities );
     }
     
-    private Map<Key, Entity> getEntityMap( Iterable<Entity> entities ) {
+    private static Map<Key, Entity> getEntityMap( Iterable<Entity> entities ) {
         Map<Key, Entity> entityMap = new HashMap<Key, Entity>();
         for ( Entity entity : entities ) {
-            Key key = entity.getKey();
-            if ( !key.isComplete() ) {
-                // TODO this could be more efficient by allocating more than
-                // one id at a time
-                key = completeKey( key );
-            }
-            entityMap.put( key, entity );
+            entity = completeKey( entity );
+            entityMap.put( entity.getKey(), entity );
         }
         return entityMap;
     }
     
-    private List<Key> putEntities( Transaction txn, Iterable<Entity> entities ) {
+    private static List<Key> putEntities( Transaction txn, Iterable<Entity> entities ) {
         try {
             return datastore.put( txn, entities );
         } catch ( DatastoreTimeoutException e ) {
@@ -362,9 +410,9 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         return datastore.getCurrentTransaction( returnedIfNoTxn );
     }
 
-    // TODO cache query results?
     @Override
     public PreparedQuery prepare( Query query ) {
+        // TODO cache query results? implement CachedPreparedQuery?
         return datastore.prepare( query );
     }
 
@@ -379,7 +427,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
      *                                                                         *
      ***************************************************************************/
     
-    private static int WATCHDOG_SECONDS = 60; // TODO: make configurable
+    private static int WATCHDOG_SECONDS = 60; // TODO make configurable
     
     @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res )
@@ -409,7 +457,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     private static TaskHandle queueWatchDogTask( long countdownMillis, String taskName,
                                                     String nextToken ) {
-        for ( int i = 0; i < 100; i++ ) {
+        do {
             try {
                 return queue.add( method( Method.GET ).taskName( taskName ).param(
                         "watchdog", nextToken ).countdownMillis( countdownMillis ) );
@@ -420,8 +468,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                 log.warning( e.getMessage() + " " + taskName );
                 // repeat loop
             }
-        }
-        return null;
+        } while( true );
     }
     
     private static boolean watchDogIsAlive() {
