@@ -15,7 +15,9 @@
  */
 package com.newatlanta.appengine.taskqueue;
 
+import static com.google.appengine.api.datastore.DatastoreServiceFactory.getDatastoreService;
 import static com.google.appengine.api.labs.taskqueue.QueueConstants.maxTaskSizeBytes;
+import static com.google.appengine.api.labs.taskqueue.QueueFactory.getQueue;
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.payload;
 
 import java.io.BufferedInputStream;
@@ -35,12 +37,9 @@ import javax.servlet.http.HttpServletResponse;
 
 import com.google.appengine.api.datastore.Blob;
 import com.google.appengine.api.datastore.DatastoreService;
-import com.google.appengine.api.datastore.DatastoreServiceFactory;
 import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
-import com.google.appengine.api.labs.taskqueue.Queue;
-import com.google.appengine.api.labs.taskqueue.QueueFactory;
 
 /**
  * Implements deferred tasks, based on the Python implementation:
@@ -57,8 +56,6 @@ public class Deferred extends HttpServlet {
     private static final String ENTITY_KIND = Deferred.class.getName();
     private static final String TASK_PROPERTY = "taskBytes";
     
-    private static final Queue queue = QueueFactory.getQueue( QUEUE_NAME );
-    private static final DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
     private static final Logger log = Logger.getLogger( Deferred.class.getName() );
     
     public interface Deferrable extends Serializable {
@@ -75,14 +72,14 @@ public class Deferred extends HttpServlet {
         // serialize the target and arguments
         byte[] taskBytes = serialize( new TaskHolder( target, args ) );
         if ( taskBytes.length <= maxTaskSizeBytes() ) {
-            queue.add( payload( taskBytes, TASK_CONTENT_TYPE ) );
+            getQueue( QUEUE_NAME ).add( payload( taskBytes, TASK_CONTENT_TYPE ) );
         } else {
             // create a datastore entity and add its key as the task payload
             Entity entity = new Entity( ENTITY_KIND );
             entity.setProperty( TASK_PROPERTY, new Blob( taskBytes ) );
-            Key key = datastore.put( entity );
+            Key key = getDatastoreService().put( entity );
             log.info( "put datastore entity: " + key );
-            queue.add( payload( serialize( key ), TASK_CONTENT_TYPE ) );
+            getQueue( QUEUE_NAME ).add( payload( serialize( key ), TASK_CONTENT_TYPE ) );
         } 
     }
     
@@ -93,6 +90,7 @@ public class Deferred extends HttpServlet {
             Object payload = deserialize( req );
             if ( payload instanceof Key ) {
                 // get TaskHolder from datastore
+                DatastoreService datastore = getDatastoreService();
                 Blob taskBlob = (Blob)datastore.get(
                                         (Key)payload ).getProperty( TASK_PROPERTY );
                 datastore.delete( (Key)payload );
