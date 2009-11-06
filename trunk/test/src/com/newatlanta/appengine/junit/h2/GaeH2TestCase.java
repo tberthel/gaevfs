@@ -131,7 +131,6 @@ public class GaeH2TestCase extends GaeVfsTestCase {
     
     private void runTest( String className ) throws Exception {
         TestAll conf = new TestAll();
-        conf.pageStore = true;
         conf.googleAppEngine = true;
         //conf.big = true;
         //conf.traceTest = true;
