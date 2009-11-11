@@ -37,14 +37,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.google.appengine.api.datastore.Blob;
-import com.google.appengine.api.datastore.DatastoreService;
-import com.google.appengine.api.datastore.DatastoreTimeoutException;
 import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
-import com.google.appengine.api.labs.taskqueue.Queue;
-import com.google.appengine.api.labs.taskqueue.TaskOptions;
-import com.google.appengine.api.labs.taskqueue.TransientFailureException;
 
 /**
  * Implements deferred tasks for GAE/J, based on the
@@ -100,8 +95,6 @@ public class Deferred extends HttpServlet {
     private static final String ENTITY_KIND = Deferred.class.getName();
     private static final String TASK_PROPERTY = "taskBytes";
     
-    private static final int OVERHEAD_BYTES = 240;
-    
     private static final Logger log = Logger.getLogger( Deferred.class.getName() );
     
     /**
@@ -141,7 +134,7 @@ public class Deferred extends HttpServlet {
      */
     public static void defer( Deferrable task ) throws IOException {
         byte[] taskBytes = serialize( task );
-        if ( taskBytes.length <= ( maxTaskSizeBytes() - OVERHEAD_BYTES ) ) {
+        if ( taskBytes.length <= maxTaskSizeBytes() ) {
             try {
                 queueTask( taskBytes );
                 return;
@@ -153,7 +146,8 @@ public class Deferred extends HttpServlet {
         // create a datastore entity and add its key as the task payload
         Entity entity = new Entity( ENTITY_KIND );
         entity.setProperty( TASK_PROPERTY, new Blob( taskBytes ) );
-        Key key = putEntity( entity );
+        Key key = getDatastoreService().put( entity );
+        log.info( "put datastore key: " + key );
         try {
             queueTask( serialize( key ) );
         } catch ( IOException e ) {
@@ -166,18 +160,12 @@ public class Deferred extends HttpServlet {
     }
     
     /**
-     * Add a task to the queue; try twice in case of transient failure.
+     * Add a task to the queue.
      * 
      * @param taskBytes The payload for the task.
      */
     private static void queueTask( byte[] taskBytes ) {
-        Queue queue = getQueue( QUEUE_NAME );
-        TaskOptions taskOptions = payload( taskBytes, TASK_CONTENT_TYPE );
-        try {
-            queue.add( taskOptions );
-        } catch ( TransientFailureException e ) {
-            queue.add( taskOptions );
-        }
+        getQueue( QUEUE_NAME ).add( payload( taskBytes, TASK_CONTENT_TYPE ) );
     }
     
     /**
@@ -216,37 +204,12 @@ public class Deferred extends HttpServlet {
     }
     
     /**
-     * Write a datastore entity; try twice in case of timeout.
-     * 
-     * @param entity The entity to write.
-     * @return The key of the written entity.
-     */
-    private static Key putEntity( Entity entity ) {
-        DatastoreService ds = getDatastoreService();
-        Key key;
-        try {
-            key = ds.put( entity );
-        } catch ( DatastoreTimeoutException e ) {
-            // try twice in case of timeout
-            key = ds.put( entity );
-        }
-        log.info( "put datastore key: " + key );
-        return key;
-    }
-    
-    /**
-     * Delete a datastore entity; try twice in case of timeout.
+     * Delete a datastore entity.
      * 
      * @param key The key of the entity to delete.
      */
     private static void deleteEntity( Key key ) {
-        DatastoreService ds = getDatastoreService();
-        try {
-            ds.delete( key );
-        } catch ( DatastoreTimeoutException e ) {
-            // try twice in case of timeout
-            ds.delete( key ); 
-        }
+        getDatastoreService().delete( key );
         log.info( "deleted datastore key: " + key );
     }
     
