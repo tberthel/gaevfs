@@ -19,7 +19,6 @@ import static com.google.appengine.api.datastore.DatastoreServiceFactory.getData
 import static com.google.appengine.api.labs.taskqueue.QueueConstants.maxTaskSizeBytes;
 import static com.google.appengine.api.labs.taskqueue.QueueFactory.getQueue;
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.payload;
-import static javax.servlet.http.HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -37,6 +36,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.google.appengine.api.datastore.Blob;
+import com.google.appengine.api.datastore.DatastoreFailureException;
 import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
@@ -106,16 +106,22 @@ public class Deferred extends HttpServlet {
         /**
          * Invoked to perform the background task.
          * 
-         * @throws PermanentTaskFailure To indicate that the task should not be retried.
-         * @throws Exception To indicate that the task should be retried.
+         * @throws PermanentTaskFailure To indicate that the task should not be
+         * retried. These exceptions are logged.
+         * 
+         * @throws ServletException To indicate that the task should be retried.
+         * These exceptions are not logged.
+         * 
+         * @throws IOException To indicate that the task should be retried. These
+         * exceptions are not logged.
          */
-        public void doTask() throws Exception;
+        public void doTask() throws ServletException, IOException;
     }
     
     /**
      * Used to indicate that a task should not be retried.
      */
-    public class PermanentTaskFailure extends Exception {
+    public class PermanentTaskFailure extends ServletException {
         /**
          * Constructs a new exception with the specified detail message.
          * 
@@ -198,8 +204,6 @@ public class Deferred extends HttpServlet {
             log.severe( e.toString() ); // don't retry task
         } catch ( PermanentTaskFailure e ) {
             log.severe( e.toString() ); // don't retry task
-        } catch ( Exception e ) {
-            res.sendError( SC_INTERNAL_SERVER_ERROR ); // don't log, retry task
         } 
     }
     
@@ -209,8 +213,13 @@ public class Deferred extends HttpServlet {
      * @param key The key of the entity to delete.
      */
     private static void deleteEntity( Key key ) {
-        getDatastoreService().delete( key );
-        log.info( "deleted datastore key: " + key );
+        try {
+            getDatastoreService().delete( key );
+            log.info( "deleted datastore key: " + key );
+        } catch ( DatastoreFailureException e ) {
+            log.warning( "failed to delete datastore key: " + key );
+            log.warning( e.toString() );
+        }
     }
     
     /**
