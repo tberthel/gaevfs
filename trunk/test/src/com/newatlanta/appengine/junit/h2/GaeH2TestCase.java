@@ -138,7 +138,7 @@ public class GaeH2TestCase extends GaeVfsTestCase {
     }
     
     // db
-    
+
     @Test
     public void testScriptSimple() throws Exception {
         runTest( TestScriptSimple.class.getName() );
@@ -243,9 +243,12 @@ public class GaeH2TestCase extends GaeVfsTestCase {
     public void testListener() throws Exception {
         runTest( TestListener.class.getName() );
     }
-    
+
     @Test
     public void testLob() throws Exception {
+        // if the TestLob.testLobDelete() test fails, it's probably because the
+        // file lastModifiedTime isn't being set properly; H2 assumes this is set
+        // only when the file is opened for writing
         runTest( TestLob.class.getName() );
     }
     
@@ -616,11 +619,6 @@ public class GaeH2TestCase extends GaeVfsTestCase {
     @Test
     public void testSecurity() throws Exception {
         runTest( TestSecurity.class.getName() );
-    }
-    
-    @Test
-    public void testShell() throws Exception {
-        runTest( TestShell.class.getName() );
     }
     
     @Test
