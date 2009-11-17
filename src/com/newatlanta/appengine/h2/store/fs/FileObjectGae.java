@@ -32,13 +32,14 @@ import com.newatlanta.appengine.nio.channels.GaeFileChannel;
 import com.newatlanta.repackaged.java.nio.channels.FileChannel;
 import com.newatlanta.repackaged.java.nio.file.Path;
 import com.newatlanta.repackaged.java.nio.file.StandardOpenOption;
+import com.newatlanta.repackaged.java.nio.file.attribute.FileAttribute;
 
 public class FileObjectGae implements FileObject {
     
     private String name;
     private FileChannel channel;
 
-    FileObjectGae( Path filePath, String mode ) throws IOException {
+    FileObjectGae( Path filePath, String mode, FileAttribute<?>... attrs ) throws IOException {
         name = filePath.toUri().toString();
         EnumSet<StandardOpenOption> options = EnumSet.of( READ );
         if ( mode.contains( "w" ) ) {
@@ -51,7 +52,7 @@ public class FileObjectGae implements FileObject {
                 options.add( DSYNC );
             }
         }
-        channel = FileChannel.open( filePath, options );
+        channel = FileChannel.open( filePath, options, attrs );
     }
     
     public void close() throws IOException {
