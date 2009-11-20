@@ -99,7 +99,6 @@ import org.h2.test.unit.TestPattern;
 import org.h2.test.unit.TestRecovery;
 import org.h2.test.unit.TestScriptReader;
 import org.h2.test.unit.TestSecurity;
-import org.h2.test.unit.TestShell;
 import org.h2.test.unit.TestStringCache;
 import org.h2.test.unit.TestStringUtils;
 import org.h2.test.unit.TestValue;
