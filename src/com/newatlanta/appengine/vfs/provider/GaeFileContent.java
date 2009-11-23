@@ -71,7 +71,6 @@ public class GaeFileContent implements FileContent {
                 }
             }
         }
-        fileObject.notifyAllStreamsClosed();
     }
 
     public Object getAttribute( String attrName ) throws FileSystemException {
@@ -111,12 +110,7 @@ public class GaeFileContent implements FileContent {
     }
     
     public void notifyClosed( Closeable closeable ) {
-        synchronized( closeableList ) {
-            closeableList.remove( closeable );
-            if ( closeableList.isEmpty() ) {
-                fileObject.notifyAllStreamsClosed();
-            }
-        }
+        closeableList.remove( closeable );
     }
 
     public long getLastModifiedTime() throws FileSystemException {
