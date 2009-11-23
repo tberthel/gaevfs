@@ -54,6 +54,9 @@ public class GaeVfsServletEventListener implements ServletContextListener {
             String userHome = userDir + "/WEB-INF/";
             System.setProperty( "user.home", userHome );
             
+            // avoid NPE from org.h2.message.TraceSystem.finalize()
+            System.setProperty( "h2.runFinalize", Boolean.FALSE.toString() );
+            
             try {
                 // copy "h2.server.properties" to ".h2.server.properties"
                 Paths.get( userHome + Constants.SERVER_PROPERTIES_FILE.substring( 1 ) ).copyTo(
