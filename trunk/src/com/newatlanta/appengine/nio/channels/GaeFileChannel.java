@@ -50,20 +50,19 @@ import com.newatlanta.repackaged.java.nio.file.OpenOption;
  */
 public class GaeFileChannel extends FileChannel {
     
-    // property keys
-    private static final String CONTENT_BLOB = "content-blob";
-    private static final String DIRTY = "dirty";
+    private static final String CONTENT_BLOB = "content-blob"; // property key
     
     private GaeFileObject fileObject;
     private Set<? extends OpenOption> options;
     
     private long position; // absolute position within the file
-    private int index; // index of the current block
+    private long index; // index of the current block
     
     private Entity block; // current block
     private int blockSize;
     
     private ByteBuffer buffer; // wraps the current block contents
+    private boolean isDirty; // buffer has been modified
     
     public GaeFileChannel( GaeFileObject fileObject, Set<? extends OpenOption> options )
             throws IOException {
@@ -105,11 +104,19 @@ public class GaeFileChannel extends FileChannel {
     public synchronized void force( boolean metaData ) throws IOException {
         checkOpen();
         flush();
-        fileObject.putContent( metaData, true );
+        if ( metaData ) {
+            fileObject.putMetaData();
+        }
+    }
+    
+    private synchronized void closeBlock() throws IOException {
+        flush();
+        block = null;
+        buffer = null;
     }
 
-    private synchronized void flush() throws FileSystemException, IOException {
-        if ( ( block != null ) && ( buffer != null ) && isDirty() ) {
+    private synchronized void flush() throws IOException {
+        if ( isDirty && ( block != null ) && ( buffer != null ) ) {
             int eofoffset = calcBlockOffset( doGetSize() );
             if ( eofoffset < ( blockSize >> 1 ) ) {
                 // this is the last block for the file, and the block is less than half
@@ -120,6 +127,8 @@ public class GaeFileChannel extends FileChannel {
             } else {
                 block.setProperty( CONTENT_BLOB, new Blob( buffer.array() ) );
             }
+            fileObject.putBlock( block );
+            isDirty = false;
         }
     }
 
@@ -176,7 +185,7 @@ public class GaeFileChannel extends FileChannel {
         }
     }
     
-    String getLockName() {
+    public String getLockName() {
         return fileObject.getName().getPath()+ ".GaeFileChannel.lock";
     }
     
@@ -206,7 +215,7 @@ public class GaeFileChannel extends FileChannel {
         return this;
     }
     
-    private void positionInternal( long newPosition, boolean updateBuffer )
+    private synchronized void positionInternal( long newPosition, boolean updateBuffer )
             throws IOException {
         int newIndex = calcBlockIndex( newPosition );
         if ( newIndex != index ) {
@@ -226,14 +235,6 @@ public class GaeFileChannel extends FileChannel {
         } else {
             buffer.position( offset );
         }
-    }
-    
-    private synchronized void closeBlock() throws IOException {
-        flush();
-        block = null;
-        buffer = null;
-        index = 0;
-        position = 0;
     }
     
     /**
@@ -263,17 +264,6 @@ public class GaeFileChannel extends FileChannel {
         return this.duplicate().position( position ).read( dst );
     }
     
-    public synchronized int read() throws IOException {
-        checkReadOptions();
-        if ( position >= doGetSize() ) {
-            return -1;
-        }
-        initBuffer();
-        int c = buffer.get() & 0xff;
-        positionInternal( position + 1, false );
-        return c;
-    }
-    
     @Override
     public synchronized int read( ByteBuffer dst ) throws IOException {
         checkReadOptions();
@@ -283,8 +273,8 @@ public class GaeFileChannel extends FileChannel {
         }
         int totalBytesRead = 0;
         while ( dst.hasRemaining() && ( position < fileLen ) ) {
-            initBuffer();
             int r = dst.remaining();
+            initBuffer( r );
             if ( calcBlockIndex( position + r - 1 ) == index ) { 
                 // within current block, read until dst is full or to EOF
                 int eofoffset = calcBlockOffset( fileLen );
@@ -318,6 +308,7 @@ public class GaeFileChannel extends FileChannel {
                 positionInternal( position + r, false );
             }
         }
+        //closeBlock();
         return totalBytesRead;
     }
 
@@ -368,37 +359,17 @@ public class GaeFileChannel extends FileChannel {
             fileObject.deleteBlocks( calcBlockIndex( size - 1 ) + 1 );
             duplicate().position( size ).truncateBuffer();
             fileObject.updateContentSize( size, true );
-            fileObject.putContent( true, false );
+            fileObject.putMetaData();
         }
         return this;
     }
     
     private void truncateBuffer() throws IOException {
-        initBuffer();
+        initBuffer( 0 );
         // zero-out buffer from position to buffer.capacity()
         buffer.duplicate().put( new byte[ buffer.remaining() ] );
-        setDirty( true );
+        isDirty = true;
         flush();
-    }
-    
-    public static void setDirty( Entity entity, boolean dirty ) {
-        entity.setProperty( DIRTY, Boolean.valueOf( dirty ) );
-    }
-    
-    private void setDirty( boolean dirty ) {
-        setDirty( block, dirty );
-    }
-    
-    public static boolean isDirty( Entity block, boolean removeProperty ) {
-        Boolean dirty = (Boolean)block.getProperty( DIRTY );
-        if ( removeProperty ) {
-            block.removeProperty( DIRTY );
-        }
-        return ( ( dirty != null ) && dirty.booleanValue() );
-    }
-    
-    private boolean isDirty() {
-        return isDirty( block, false );
     }
 
     @Override
@@ -423,23 +394,14 @@ public class GaeFileChannel extends FileChannel {
         return this.duplicate().position( writePos ).write( src );
     }
     
-    public synchronized void write( int b ) throws IOException {
-        checkWriteOptions();
-        initBuffer();
-        if ( !buffer.hasRemaining() ) {
-            extendBuffer( 1 );
-        }
-        buffer.put( (byte)b );
-        finishWrite( position + 1 ); // update content size, set dirty, position
-    }
-    
     @Override
     public synchronized int write( ByteBuffer src ) throws IOException {
         checkWriteOptions();
         int bytesWritten = 0;
         while ( src.hasRemaining() ) {
-            initBuffer();
-            if ( calcBlockIndex( position + src.remaining() - 1 ) == index ) {
+            int r = src.remaining();
+            initBuffer( r );
+            if ( calcBlockIndex( position + r - 1 ) == index ) {
                 // writing entirely within current block
                 bytesWritten += writeBuffer( src );
             } else {
@@ -450,6 +412,7 @@ public class GaeFileChannel extends FileChannel {
                 src.limit( limit );
             }
         }
+        //closeBlock();
         return bytesWritten;
     }
     
@@ -459,11 +422,13 @@ public class GaeFileChannel extends FileChannel {
             extendBuffer( buffer.position() + n );
         }
         buffer.put( src );
-        finishWrite( position + n ); // update content size, set dirty, position
+        isDirty = true;
+        fileObject.updateContentSize( position + n );
+        positionInternal( position + n, false );
         return n;
     }
     
-    private synchronized void initBuffer() throws FileSystemException {
+    private synchronized void initBuffer( int len ) throws FileSystemException {
         if ( buffer != null ) {
             return;
         }
@@ -472,8 +437,9 @@ public class GaeFileChannel extends FileChannel {
         }
         Blob contentBlob = (Blob)block.getProperty( CONTENT_BLOB );
         buffer = ( contentBlob != null ? ByteBuffer.wrap( contentBlob.getBytes() )
-                                       : ByteBuffer.allocate( getMinBufferSize() ) );
+                                    : ByteBuffer.allocate( calcBufferSize( len ) ) );
         setBufferPosition();
+        isDirty = false;
     }
     
     /**
@@ -503,18 +469,19 @@ public class GaeFileChannel extends FileChannel {
     private synchronized void extendBuffer( int len ) throws FileSystemException {
         ByteBuffer oldbuf = (ByteBuffer)buffer.rewind();
         // twice the current size, but at least as large as len
-        int newSize = Math.max( buffer.capacity() << 1, len );
-        // at least as large as the minimum size
-        newSize = Math.max( newSize, getMinBufferSize() );
-        // no larger than the block size
-        buffer = ByteBuffer.allocate( Math.min( newSize, blockSize ) );
+        buffer = ByteBuffer.allocate( calcBufferSize(
+                                        Math.max( buffer.capacity() << 1, len ) ) );
         buffer.put( oldbuf ).position( calcBlockOffset( position ) );
     }
     
-    private synchronized void finishWrite( long newPos ) throws IOException {
-        fileObject.updateContentSize( newPos );
-        setDirty( true );
-        positionInternal( newPos, false );
+    /**
+     * Buffer size is:
+     *      - at least as large as len
+     *      - at least as large as the minimum buffer size
+     *      - no larger than the file block size
+     */
+    private int calcBufferSize( int len ) throws FileSystemException {
+        return Math.min( blockSize, Math.max( len, getMinBufferSize() ) );
     }
 
     private void checkWriteOptions() throws IOException {
@@ -536,9 +503,11 @@ public class GaeFileChannel extends FileChannel {
 
     @Override
     protected void implCloseChannel() throws IOException {
-        flush();
+        closeBlock();
+        position = 0;
+        index = 0;
         if ( options.contains( WRITE ) ) {
-            fileObject.endOutput();
+            fileObject.endOutput(); // TODO is this really needed?
         }
         ((GaeFileContent)fileObject.getContent()).notifyClosed( this );
         releaseAllLocks( this ); // release all locks acquired by this channel

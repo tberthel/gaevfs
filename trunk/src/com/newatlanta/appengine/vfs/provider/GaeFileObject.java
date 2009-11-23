@@ -15,20 +15,17 @@
  */
 package com.newatlanta.appengine.vfs.provider;
 
-import static com.newatlanta.appengine.nio.channels.GaeFileChannel.isDirty;
-import static com.newatlanta.appengine.nio.channels.GaeFileChannel.setDirty;
+import static com.google.appengine.api.datastore.Entity.KEY_RESERVED_PROPERTY;
+import static com.google.appengine.api.datastore.Query.FilterOperator.GREATER_THAN_OR_EQUAL;
 import static com.newatlanta.appengine.vfs.provider.GaeVFS.checkBlockSize;
-
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.commons.vfs.FileContent;
 import org.apache.commons.vfs.FileName;
@@ -46,8 +43,9 @@ import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
-import com.google.appengine.api.datastore.Transaction;
+import com.google.appengine.api.datastore.Query;
 import com.newatlanta.appengine.datastore.CachingDatastoreService;
+import com.newatlanta.appengine.datastore.EntityKeyCollection;
 
 /**
  * Stores metadata for "files" and "folders" within GaeVFS and manages interactions
@@ -63,9 +61,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private static DatastoreService datastore = new CachingDatastoreService();
-    private static Map<Key, Entity> blockMap = Collections.synchronizedMap(
-                                                    new HashMap<Key, Entity>() );
+    private static final DatastoreService datastore = new CachingDatastoreService();
 
     private static final String ENTITY_KIND = "GaeFileObject";
 
@@ -73,7 +69,6 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     private static final String FILETYPE = "filetype";
     private static final String LAST_MODIFIED = "last-modified";
     private static final String CHILD_KEYS = "child-keys";
-    private static final String BLOCK_KEYS = "block-keys";
     private static final String CONTENT_SIZE = "content-size";
     private static final String BLOCK_SIZE = "block-size";
 
@@ -122,20 +117,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     public int getBlockSize() throws FileSystemException {
         Long blockSize = (Long)metadata.getProperty( BLOCK_SIZE );
         if ( blockSize == null ) {
-            throw new FileSystemException( "Could not get the block size of \"" +
-                                                getName() + "\"" );
+            throw new FileSystemException( "Failed to get block size" );
         }
         return blockSize.intValue();
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Key> getBlockKeys() throws FileSystemException {
-        List<Key> blockKeys = (List<Key>)metadata.getProperty( BLOCK_KEYS );
-        if ( blockKeys == null ) {
-            blockKeys = new ArrayList<Key>();
-            metadata.setUnindexedProperty( BLOCK_KEYS, blockKeys );
-        }
-        return blockKeys;
     }
 
     @SuppressWarnings("unchecked")
@@ -194,10 +178,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
 
     @Override
     protected void doDetach() throws FileSystemException {
-        // don't detach if any unwritten blocks
-        if ( getType().hasChildren() || !hasDirtyBlocks() ) {
-            metadata = null;
-        }
+        metadata = null;
     }
 
     /**
@@ -307,15 +288,15 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             GaeFileObject newGaeFile = (GaeFileObject)newfile;
             newGaeFile.metadata.setPropertiesFrom( this.metadata );
-            newGaeFile.metadata.removeProperty( BLOCK_KEYS );
-            int numBlocks = getBlockKeys().size(); // copy contents to the new file
-            for ( int i = 0; i < numBlocks; i++ ) {
-                Entity newBlock = newGaeFile.getBlock( i );
-                newBlock.setPropertiesFrom( this.getBlock( i ) );
-                setDirty( newBlock, true );
+            
+            // copy contents (blocks) to new file
+            List<Entity> newBlocks = new ArrayList<Entity>();
+            for ( Entity block : getBlocks() ) {
+                Entity newBlock = newGaeFile.getBlock( block.getKey().getId() - 1 );
+                newBlock.setPropertiesFrom( block );
+                newBlocks.add( newBlock );
             }
-            newGaeFile.putContent( false, false );
-            blockMap.keySet().removeAll( newGaeFile.getBlockKeys() );
+            newGaeFile.putContent( newBlocks );
         }
     }
 
@@ -376,11 +357,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             }
             deleteMetaData();
         } else { // file/folder is being created or modified
-            if ( getType().hasContent() ) {
-                putContent( true, false );
-            } else {
-                putMetaData();
-            }
+            putMetaData();
         }
     }
 
@@ -395,12 +372,13 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
     }
 
     /**
-     * Write the metadata to the GAE datastore. Make sure the file type is set
-     * correctly and update the last modified time.
+     * Write the metadata to the datastore. Make sure the file type is set.
      */
-    private synchronized void putMetaData() throws FileSystemException {
+    public synchronized void putMetaData() throws FileSystemException {
         metadata.setProperty( FILETYPE, getType().getName() );
-        doSetLastModTime( System.currentTimeMillis() );
+        if ( getType().hasChildren() ) {
+            doSetLastModTime( System.currentTimeMillis() );
+        }
         datastore.put( metadata );
     }
 
@@ -445,6 +423,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             throws FileSystemException {
         if ( force || ( newSize > doGetContentSize() ) ) {
             metadata.setProperty( CONTENT_SIZE, Long.valueOf( newSize ) );
+            putMetaData();
         }
     }
 
@@ -489,43 +468,26 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
                                                         bAppend ).getOutputStream();
     }
     
-    @Override
-    protected void notifyAllStreamsClosed() {
-        try {
-            if ( getType().hasContent() ) { // forces re-attach
-                blockMap.keySet().removeAll( getBlockKeys() );
-            }
-        } catch ( FileSystemException e ) {
-            GaeVFS.log.warning( e.getMessage() );
-        }
-    }
-    
-    public synchronized void putContent( boolean metaData, boolean writeThrough )
-            throws FileSystemException {
-        List<Entity> dirtyBlocks = getDirtyBlocks();
-        if ( dirtyBlocks.isEmpty() && !metaData ) {
+    private synchronized void putContent( List<Entity> blocks ) throws FileSystemException {
+        if ( blocks.isEmpty() ) {
             return; // nothing to do
         }
         // update metadata and add it to the list of entities to write
         metadata.setProperty( FILETYPE, getType().getName() );
-        dirtyBlocks.add( 0, metadata );
+        blocks.add( 0, metadata );
         
-        // use transaction to force write-through if specified
-        Transaction txn = writeThrough ? datastore.beginTransaction() : null;
-        try {
-            int max = maxBlocksPerBulkOperation();
-            for ( int from = 0; from < dirtyBlocks.size(); from += max ) {
-                int to = Math.min( from + max, dirtyBlocks.size() );
-                datastore.put( txn, dirtyBlocks.subList( from, to ) );
-            }
-            if ( txn != null ) {
-                txn.commit();
-            }
-        } finally {
-            if ( ( txn != null ) && txn.isActive() ) {
-                txn.rollback();
-            }
+        int max = maxBlocksPerBulkOperation();
+        for ( int from = 0; from < blocks.size(); from += max ) {
+            int to = Math.min( from + max, blocks.size() );
+            datastore.put( blocks.subList( from, to ) );
         }
+    }
+    
+    public void putBlock( Entity block ) {
+        if ( !block.getKey().isComplete() ) {
+            throw new IllegalArgumentException( "incomplete block key" );
+        }
+        datastore.put( block );
     }
     
     public void endOutput() throws FileSystemException {
@@ -535,7 +497,7 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             throw new FileSystemException( "vfs.provider/close-outstr.error", this, e );
         }
     }
-
+    
     /**
      * Both memcache and the datastore support a maximum of 1MB of data per
      * bulk operation; the datastore allows a maximum of 500 entities per
@@ -553,80 +515,59 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return blocksPerBulk;
     }
     
-    public Entity getBlock( int i ) throws FileSystemException {
-        List<Key> blockKeys = getBlockKeys();
-        Entity block = null;
-        if ( i < blockKeys.size() ) { // existing key
-            block = blockMap.get( blockKeys.get( i ) );
-            if ( block == null ) {
-                block = getBlock( i, blockKeys );
-                if ( block == null ) {
-                    blockKeys.remove( i );
-                    block = createBlock( blockKeys, i );
-                }
-            }
-        } else { // i >= blockKeys.size()
-            for ( int j = blockKeys.size(); j <= i; j++ ) {
-                block = createBlock( blockKeys, j );
-            }
+    /**
+     * Get the block at the specified index. The index is 0-based.
+     */
+    public Entity getBlock( long index ) throws FileSystemException {
+        Key blockKey = createBlockKey( index );
+        try {
+            return datastore.get( blockKey );
+        } catch ( EntityNotFoundException e ) {
+            return new Entity( blockKey );
         }
-        return block;
     }
     
     /**
-     * Populates the blockMap and returns the specified block.
-     * 
-     * TODO: limit the number of blocks in memory at one time? large files?
+     * Creates a key for a block entity with the file path as the kind
+     * and using the specified index; the index is 0-based.
      */
-    private Entity getBlock( int from, List<Key> blockKeys ) {
-        int to = Math.min( from + maxBlocksPerBulkOperation(), blockKeys.size() );
-        Map<Key, Entity> entityMap = datastore.get( blockKeys.subList( from, to ) );
-        for ( Map.Entry<Key, Entity> entry : entityMap.entrySet() ) {
-            if ( !blockMap.containsKey( entry.getKey() ) ) {
-                blockMap.put( entry.getKey(), entry.getValue() );
-            }
-        }
-        return blockMap.get( blockKeys.get( from ) );
-    }
-
-    private Entity createBlock( List<Key> blockKeys, int i ) {
-        Entity block = new Entity( ENTITY_KIND, "block." + i, metadata.getKey() );
-        blockKeys.add( i, block.getKey() );
-        blockMap.put( block.getKey(), block );
-        return block;
+    private Key createBlockKey( long index ) {
+        return KeyFactory.createKey( getName().getPath(), index + 1 );
     }
     
-    private List<Entity> getDirtyBlocks() throws FileSystemException {
-        List<Entity> dirtyBlocks = new ArrayList<Entity>();
-        for ( Key key : getBlockKeys() ) {
-            Entity block = blockMap.get( key );
-            if ( ( block != null ) && isDirty( block, true ) ) {
-                dirtyBlocks.add( block );
-            }
-        }
-        return dirtyBlocks;
+    private Collection<Key> getBlockKeys( long from ) throws FileSystemException {
+        return EntityKeyCollection.wrap( getBlocks( from, true ) );
     }
     
-    private boolean hasDirtyBlocks() throws FileSystemException {
-        for ( Key key : getBlockKeys() ) {
-            Entity block = blockMap.get( key );
-            if ( ( block != null ) && isDirty( block, false ) ) {
-                return true;
-            }
+    private List<Entity> getBlocks() throws FileSystemException {
+        return getBlocks( 0, false );
+    }
+    
+    /**
+     * Get blocks from the specified index. The from index is 0-based.
+     */
+    private List<Entity> getBlocks( long from, boolean keysOnly ) throws FileSystemException {
+        Query query = new Query( getName().getPath() );
+        if ( keysOnly ) {
+            query.setKeysOnly();
         }
-        return false;
+        query.addFilter( KEY_RESERVED_PROPERTY, GREATER_THAN_OR_EQUAL, createBlockKey( from ) );
+        //query.addSort( KEY_RESERVED_PROPERTY );
+        List<Entity> entityList = new ArrayList<Entity>();
+        for ( Entity e : datastore.prepare( query ).asIterable() ) {
+            entityList.add( e );
+        }
+        return entityList;
     }
 
     /**
-     * Truncate blocks from the specified index (inclusive).
+     * Truncate blocks from the specified index (inclusive). The index is 0-based,
+     * but block key id's are 1-based.
      */
-    public void deleteBlocks( int from ) throws FileSystemException {
-        List<Key> blockKeys = getBlockKeys();
-        if ( from < blockKeys.size() ) {
-            List<Key> deleteKeys = blockKeys.subList( from, blockKeys.size() );
+    public void deleteBlocks( long from ) throws FileSystemException {
+        Collection<Key> deleteKeys = getBlockKeys( from );
+        if ( !deleteKeys.isEmpty() ) {
             datastore.delete( deleteKeys );
-            blockMap.keySet().removeAll( deleteKeys );
-            deleteKeys.clear();
         }
     }
 
