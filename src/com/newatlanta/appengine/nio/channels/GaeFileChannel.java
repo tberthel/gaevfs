@@ -359,7 +359,6 @@ public class GaeFileChannel extends FileChannel {
             fileObject.deleteBlocks( calcBlockIndex( size - 1 ) + 1 );
             duplicate().position( size ).truncateBuffer();
             fileObject.updateContentSize( size, true );
-            fileObject.putMetaData();
         }
         return this;
     }
