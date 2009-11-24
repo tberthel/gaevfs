@@ -17,10 +17,6 @@ package com.newatlanta.appengine.junit.locks;
 
 import java.util.concurrent.locks.Lock;
 
-import com.google.apphosting.api.ApiProxy;
-import com.google.apphosting.api.ApiProxy.Delegate;
-import com.newatlanta.appengine.junit.TestEnvironment;
-
 /**
  * Acquires the specified lock, then sleeps for the specified time or until
  * interrupted.
@@ -31,9 +27,6 @@ public class LockingThread extends Thread {
     
     private Lock lock;
     private long sleepTime;
-    
-    @SuppressWarnings("unchecked")
-    private Delegate delegate;
     
     public static Thread createThread( Lock lock, long sleepTime ) {
         Thread lockThread = new LockingThread( lock, sleepTime );
@@ -48,16 +41,12 @@ public class LockingThread extends Thread {
     
     private LockingThread( Lock lock, long sleepTime ) {
         super( "LockThread" );
-        this.delegate = ApiProxy.getDelegate();
         this.sleepTime = sleepTime;
         this.lock = lock;
     }
 
     @Override
     public void run() {
-        ApiProxy.setEnvironmentForCurrentThread( new TestEnvironment() );
-        ApiProxy.setDelegate( delegate );
-
         lock.lock();
         try {
             sleep( sleepTime );
