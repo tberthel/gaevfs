@@ -217,7 +217,7 @@ public class GaeFileChannel extends FileChannel {
     
     private synchronized void positionInternal( long newPosition, boolean updateBuffer )
             throws IOException {
-        int newIndex = calcBlockIndex( newPosition );
+        long newIndex = calcBlockIndex( newPosition );
         if ( newIndex != index ) {
             closeBlock();
             index = newIndex;
@@ -240,8 +240,8 @@ public class GaeFileChannel extends FileChannel {
     /**
      * Given an absolute position within the file, calculate the block index.
      */
-    private int calcBlockIndex( long i ) throws FileSystemException {
-        return (int)( i / blockSize );
+    private long calcBlockIndex( long i ) throws FileSystemException {
+        return ( i / blockSize );
     }
     
     /**
@@ -411,7 +411,7 @@ public class GaeFileChannel extends FileChannel {
                 src.limit( limit );
             }
         }
-        //closeBlock();
+        //flush();
         return bytesWritten;
     }
     
@@ -510,5 +510,6 @@ public class GaeFileChannel extends FileChannel {
         }
         ((GaeFileContent)fileObject.getContent()).notifyClosed( this );
         releaseAllLocks( this ); // release all locks acquired by this channel
+        fileObject = null;
     }
 }
