@@ -45,9 +45,9 @@ public class GaeVFS {
     public static final Logger log = Logger.getLogger( GaeVFS.class.getName() );
 
     public static final int MAX_BLOCK_SIZE = 1000; // in units of KB
-    public static final int MIN_BLOCK_SIZE = 8; // in units of KB
+    public static final int MIN_BLOCK_SIZE = 2; // in units of KB
     
-    private static final int DEFAULT_BLOCK_SIZE = 1024 * 128;
+    private static final int DEFAULT_BLOCK_SIZE = 1024 * 128; // 128KB
     
     static {
         // GAE doesn't set these values; Commons VFS will fail to initialize if
