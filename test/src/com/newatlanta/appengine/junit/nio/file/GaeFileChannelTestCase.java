@@ -69,31 +69,31 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         }
     }
     
-    @Test
-    public void testReadInt() throws IOException {
-        ByteBuffer buf = getByteBuffer( 1024 * 32, (byte)'R' ); // 32KB
-        
-        Path filePath = Paths.get( "docs/readInt.txt" );
-        FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
-                                                withBlockSize( 32 ) );
-        assertTrue( fc.isOpen() );
-        
-        // read an empty file
-        assertEquals( -1, ((GaeFileChannel)fc).read() );
-        
-        assertEquals( buf.capacity(), fc.write( buf ) );
-        assertEquals( buf.capacity(), fc.write( (ByteBuffer)buf.rewind() ) );
-        assertEquals( buf.capacity() * 2, fc.size() );
-        fc.position( 0 );
-       
-        for ( int i = 0; i < ( fc.size() ); i++ ) {
-            assertEquals( 'R', ((GaeFileChannel)fc).read() );
-            assertEquals( i + 1, fc.position() );
-        }
-        
-        // read one past EOF
-        assertEquals( -1, ((GaeFileChannel)fc).read() );
-    }
+//    @Test
+//    public void testReadInt() throws IOException {
+//        ByteBuffer buf = getByteBuffer( 1024 * 32, (byte)'R' ); // 32KB
+//        
+//        Path filePath = Paths.get( "docs/readInt.txt" );
+//        FileChannel fc = FileChannel.open( filePath, EnumSet.of( READ, WRITE, CREATE_NEW ),
+//                                                withBlockSize( 32 ) );
+//        assertTrue( fc.isOpen() );
+//        
+//        // read an empty file
+//        assertEquals( -1, ((GaeFileChannel)fc).read() );
+//        
+//        assertEquals( buf.capacity(), fc.write( buf ) );
+//        assertEquals( buf.capacity(), fc.write( (ByteBuffer)buf.rewind() ) );
+//        assertEquals( buf.capacity() * 2, fc.size() );
+//        fc.position( 0 );
+//       
+//        for ( int i = 0; i < ( fc.size() ); i++ ) {
+//            assertEquals( 'R', ((GaeFileChannel)fc).read() );
+//            assertEquals( i + 1, fc.position() );
+//        }
+//        
+//        // read one past EOF
+//        assertEquals( -1, ((GaeFileChannel)fc).read() );
+//    }
     
     @Test
     public void testReadByteBuffer() throws IOException {
@@ -235,26 +235,26 @@ public class GaeFileChannelTestCase extends GaeVfsTestCase {
         }
     }
     
-    @Test
-    public void testWriteInt() throws IOException {
-        FileChannel fc = FileChannel.open( Paths.get( "docs/writeInt.txt" ),
-                    EnumSet.of( READ, WRITE, CREATE_NEW ), withBlockSize( 32 ) );
-        assertTrue( fc.isOpen() );
-        
-        // write one byte at the first position
-        ((GaeFileChannel)fc).write( 'X' );
-        assertEquals( 1, fc.size() );
-        assertEquals( 1, fc.position() );
-        
-        // write 32KB bytes, one at a time (one past first block)
-        for ( int i = 0; i < ( 32 * 1024 ); i++ ) {
-            ((GaeFileChannel)fc).write( 'Y' );
-            assertEquals( i + 2, fc.size() );
-            assertEquals( i + 2, fc.position() );
-        }
-        
-        fc.close();
-    }
+//    @Test
+//    public void testWriteInt() throws IOException {
+//        FileChannel fc = FileChannel.open( Paths.get( "docs/writeInt.txt" ),
+//                    EnumSet.of( READ, WRITE, CREATE_NEW ), withBlockSize( 32 ) );
+//        assertTrue( fc.isOpen() );
+//        
+//        // write one byte at the first position
+//        ((GaeFileChannel)fc).write( 'X' );
+//        assertEquals( 1, fc.size() );
+//        assertEquals( 1, fc.position() );
+//        
+//        // write 32KB bytes, one at a time (one past first block)
+//        for ( int i = 0; i < ( 32 * 1024 ); i++ ) {
+//            ((GaeFileChannel)fc).write( 'Y' );
+//            assertEquals( i + 2, fc.size() );
+//            assertEquals( i + 2, fc.position() );
+//        }
+//        
+//        fc.close();
+//    }
     
     @Test
     public void testWriteByteBuffer() throws IOException {
