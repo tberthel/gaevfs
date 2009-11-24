@@ -307,7 +307,9 @@ public class GaeVfsServlet extends HttpServlet {
     
     private static void copyAndClose( InputStream in, OutputStream out )
             throws IOException {
-        // TODO does this buffering really make sense?
+        // TODO what is the optimal buffer size? does it make sense to buffer
+        // both streams? different buffer sizes for upload and download? does
+        // the GaeVFS block size matter?
         in = new BufferedInputStream( in, BUFF_SIZE );
         out = new BufferedOutputStream( out, BUFF_SIZE );
         IOUtils.copy( in, out );
