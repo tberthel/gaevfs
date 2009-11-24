@@ -15,6 +15,7 @@
  */
 package com.newatlanta.appengine.h2.store.fs;
 
+import static com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes.withBlockSize;
 import static com.newatlanta.repackaged.java.nio.file.AccessMode.WRITE;
 import static com.newatlanta.repackaged.java.nio.file.Files.createDirectories;
 import static com.newatlanta.repackaged.java.nio.file.Files.walkFileTree;
@@ -44,6 +45,9 @@ import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributes;
 public class FileSystemGae extends FileSystem {
 
     private static final FileSystemGae INSTANCE = new FileSystemGae();
+    
+    // 64KB is the most efficient block size when running H2 tests
+    private static final int BLOCK_SIZE = 64;
 
     public static FileSystemGae getInstance() {
         return INSTANCE;
@@ -104,7 +108,7 @@ public class FileSystemGae extends FileSystem {
     @Override
     public boolean createNewFile( String fileName ) throws SQLException {
         try {
-            return get( fileName ).createFile().exists();
+            return get( fileName ).createFile( withBlockSize( BLOCK_SIZE ) ).exists();
         } catch ( IOException e ) {
             throw Message.convert( e );
         }
@@ -292,7 +296,7 @@ public class FileSystemGae extends FileSystem {
      */
     @Override
     public FileObject openFileObject( String fileName, String mode ) throws IOException {
-        return new FileObjectGae( get( fileName ), mode );
+        return new FileObjectGae( get( fileName ), mode, withBlockSize( BLOCK_SIZE ) );
     }
 
     @Override
@@ -302,7 +306,7 @@ public class FileSystemGae extends FileSystem {
             Path filePath = get( fileName );
             if ( filePath.notExists() ) {
                 createDirs( filePath );
-                filePath.createFile();
+                filePath.createFile( withBlockSize( BLOCK_SIZE ) );
             }
             return filePath.newOutputStream( append ? APPEND : null );
         } catch ( IOException e ) {
