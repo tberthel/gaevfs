@@ -79,7 +79,6 @@ import org.h2.test.mvcc.TestMvccMultiThreaded;
 import org.h2.test.rowlock.TestRowLocks;
 import org.h2.test.server.TestNestedLoop;
 import org.h2.test.synth.TestBtreeIndex;
-import org.h2.test.synth.TestCrashAPI;
 import org.h2.test.synth.TestFuzzOptimizations;
 import org.h2.test.synth.TestMultiThreaded;
 import org.h2.test.synth.TestRandomSQL;
@@ -516,11 +515,6 @@ public class GaeH2TestCase extends GaeVfsTestCase {
     @Test
     public void testBtreeIndex() throws Exception {
         runTest( TestBtreeIndex.class.getName() );
-    }
-    
-    @Test
-    public void testCrashAPI() throws Exception {
-        runTest( TestCrashAPI.class.getName() );
     }
     
     @Test
