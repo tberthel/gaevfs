@@ -133,16 +133,27 @@ public class Deferred extends HttpServlet {
     }
     
     /**
-     * Queue a task for background execution.
+     * Queue a task for background execution using the "deferred" queue.
      * 
      * @param task The task to be executed.
      * @throws IOException If an error occurs serializing the task.
      */
     public static void defer( Deferrable task ) throws IOException {
+        defer( task, QUEUE_NAME );
+    }
+    
+    /**
+     * Queue a task for background execution using the specified queue.
+     * 
+     * @param task The task to be executed.
+     * @param queueName The queue to be used.
+     * @throws IOException If an error occurs serializing the task.
+     */
+    public static void defer( Deferrable task, String queueName ) throws IOException {
         byte[] taskBytes = serialize( task );
         if ( taskBytes.length <= maxTaskSizeBytes() ) {
             try {
-                queueTask( taskBytes );
+                queueTask( taskBytes, queueName );
                 return;
             } catch ( IllegalArgumentException e ) {
                 log.warning( e.getMessage() + ": " + taskBytes.length );
@@ -155,7 +166,7 @@ public class Deferred extends HttpServlet {
         Key key = getDatastoreService().put( entity );
         log.info( "put datastore key: " + key );
         try {
-            queueTask( serialize( key ) );
+            queueTask( serialize( key ), queueName );
         } catch ( IOException e ) {
             deleteEntity( key ); // delete entity if error queuing task
             throw e;
@@ -170,8 +181,8 @@ public class Deferred extends HttpServlet {
      * 
      * @param taskBytes The payload for the task.
      */
-    private static void queueTask( byte[] taskBytes ) {
-        getQueue( QUEUE_NAME ).add( payload( taskBytes, TASK_CONTENT_TYPE ) );
+    private static void queueTask( byte[] taskBytes, String queueName ) {
+        getQueue( queueName ).add( payload( taskBytes, TASK_CONTENT_TYPE ) );
     }
     
     /**
