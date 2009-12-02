@@ -37,11 +37,14 @@ import com.newatlanta.repackaged.java.nio.file.Paths;
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class GaeVfsServletEventListener implements ServletContextListener {
-
+    
     /**
-     * Registers with H2.
+     * Registers with H2 and performs other initialization.
      */
     public void contextInitialized( ServletContextEvent event ) {
+        // useful for determining development versus production environment
+        System.setProperty( "appengine.server", event.getServletContext().getServerInfo() );
+        
         String userDir = System.getProperty( "user.dir" );
         try {
             // use reflection in case H2 is not installed
