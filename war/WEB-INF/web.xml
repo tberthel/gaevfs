@@ -43,6 +43,25 @@
         <servlet-name>CachingDatastoreService</servlet-name>
         <url-pattern>/_ah/queue/write-behind-task</url-pattern>
     </servlet-mapping>
+    <servlet>
+        <servlet-name>Deferred</servlet-name>
+        <servlet-class>com.newatlanta.appengine.taskqueue.Deferred</servlet-class>
+        <!--
+        <init-param>
+            <param-name>queueName</param-name>
+            <param-value>deferred</param-value>
+        </init-param>
+        <init-param>
+            <param-name>taskUrl</param-name>
+            <param-value>/_ah/queue/deferred</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+        -->
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>Deferred</servlet-name>
+        <url-pattern>/_ah/queue/deferred</url-pattern>
+    </servlet-mapping>
     <welcome-file-list>
         <welcome-file>index.html</welcome-file>
     </welcome-file-list>
