@@ -88,7 +88,10 @@ import com.google.appengine.api.labs.taskqueue.TaskOptions;
  * </pre>
  * 
  * <p>The optional init parameters are <code>queueName</code> and
- * <code>taskUrl</code>. In the following example, only the <code>queueName</code>
+ * <code>taskUrl</code>. Note that if any init parameters are specified, the
+ * <code>&lt;load-on-startup></code> element <b>must</b> also be specified.
+ * 
+ * <p>In the following example, only the <code>queueName</code>
  * is specified; note that the <code>&lt;url-pattern></code> element has also
  * been modified accordingly:
  * <pre>
@@ -99,6 +102,7 @@ import com.google.appengine.api.labs.taskqueue.TaskOptions;
  *          &lt;param-name>queueName&lt;/param-name>
  *          &lt;param-value>background&lt;/param-value>
  *     &lt;/init-param>
+ *     &lt;load-on-startup>1&lt;/load-on-startup>
  * &lt;/servlet>
  * &lt;servlet-mapping>
  *     &lt;servlet-name>Deferred&lt;/servlet-name>
@@ -122,6 +126,7 @@ import com.google.appengine.api.labs.taskqueue.TaskOptions;
  *          &lt;param-name>taskUrl&lt;/param-name>
  *          &lt;param-value>/worker/deferred&lt;/param-value>
  *     &lt;/init-param>
+ *     &lt;load-on-startup>1&lt;/load-on-startup>
  * &lt;/servlet>
  * &lt;servlet-mapping>
  *     &lt;servlet-name>Deferred&lt;/servlet-name>
