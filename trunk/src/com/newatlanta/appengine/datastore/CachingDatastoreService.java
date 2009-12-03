@@ -438,6 +438,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     private boolean watchDogIsAlive() {
         if ( !getMemcacheService().contains( WATCHDOG_KEY ) ) {
             log.warning( "write-behind task not alive" );
+            queueWatchDogTask( 0, randomUUID().toString(), randomUUID().toString() );
             return false;
         }
         return true;
