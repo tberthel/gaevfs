@@ -38,6 +38,7 @@
     <servlet>
         <servlet-name>CachingDatastoreService</servlet-name>
         <servlet-class>com.newatlanta.appengine.datastore.CachingDatastoreService</servlet-class>
+        <load-on-startup>1</load-on-startup>
     </servlet>
     <servlet-mapping>
         <servlet-name>CachingDatastoreService</servlet-name>
@@ -55,8 +56,8 @@
             <param-name>taskUrl</param-name>
             <param-value>/_ah/queue/deferred</param-value>
         </init-param>
-        <load-on-startup>1</load-on-startup>
         -->
+        <load-on-startup>1</load-on-startup>
     </servlet>
     <servlet-mapping>
         <servlet-name>Deferred</servlet-name>
