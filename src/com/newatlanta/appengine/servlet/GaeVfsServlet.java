@@ -18,10 +18,15 @@ package com.newatlanta.appengine.servlet;
 import static com.newatlanta.appengine.nio.file.attribute.GaeFileAttributes.withBlockSize;
 import static com.newatlanta.repackaged.java.nio.file.Files.createDirectories;
 import static com.newatlanta.repackaged.java.nio.file.attribute.Attributes.readBasicFileAttributes;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
+import static javax.servlet.http.HttpServletResponse.SC_FORBIDDEN;
+import static javax.servlet.http.HttpServletResponse.SC_NOT_FOUND;
+import static javax.servlet.http.HttpServletResponse.SC_NOT_MODIFIED;
 import static org.apache.commons.fileupload.util.Streams.asString;
+import static org.apache.commons.io.IOUtils.copy;
 import static org.apache.commons.lang.StringEscapeUtils.escapeHtml;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,7 +44,6 @@ import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
-import org.apache.commons.io.IOUtils;
 
 import com.newatlanta.repackaged.java.nio.file.Path;
 import com.newatlanta.repackaged.java.nio.file.Paths;
@@ -112,7 +116,9 @@ import com.newatlanta.repackaged.java.nio.file.attribute.BasicFileAttributes;
  */
 @SuppressWarnings("serial")
 public class GaeVfsServlet extends HttpServlet {
-
+    
+    private static int BUFF_SIZE = 64 * 1024; // 64KB
+    
     private boolean dirListingAllowed;
     private String uploadRedirect;
 
@@ -152,37 +158,47 @@ public class GaeVfsServlet extends HttpServlet {
 
         Path path = Paths.get( req.getRequestURI() );
         if ( path.notExists() ) {
-            res.sendError( HttpServletResponse.SC_NOT_FOUND );
+            res.sendError( SC_NOT_FOUND );
             return;
         }
 
-        if ( readBasicFileAttributes( path ).isDirectory() ) {
+        BasicFileAttributes attrs = readBasicFileAttributes( path );
+        if ( attrs.isDirectory() ) {
             if ( dirListingAllowed ) {
                 res.getWriter().write( getListHTML( path ) );
                 res.flushBuffer();
             } else {
-                res.sendError( HttpServletResponse.SC_FORBIDDEN,
-                                             "Directory listing not allowed" );
+                res.sendError( SC_FORBIDDEN, "Directory listing not allowed" );
             }
             return;
         }
 
-        // it's file, return it
-        // TODO: add support for If-Modified-Since header? caching headers?
+        // the request is for a file, return it
+        
+        long lastModified = attrs.lastModifiedTime().to( SECONDS ) * 1000;
+        long ifModifiedSince = req.getDateHeader( "If-Modified-Since" );
+        if ( lastModified == ifModifiedSince ) {
+            res.sendError( SC_NOT_MODIFIED );
+            return;
+        }
+        res.setDateHeader( "Last-Modified", lastModified );
 
         // the servlet MIME type is configurable via web.xml
         String contentType = getServletContext().getMimeType( path.getName().toString() );
         if ( contentType != null ) {
             res.setContentType( contentType );
         }
-        copyAndClose( path.newInputStream(), res.getOutputStream() );
-        res.flushBuffer();
+        
+        // IOUtils.copy() buffers the InputStream internally
+        InputStream in = path.newInputStream();
+        res.setContentLength( copy( in, res.getOutputStream() ) );
+        in.close();
     }
 
     /**
      * Return the directory listing for the specified GaeVFS folder. Copied from:
      * 
-     *      http://www.docjar.com/html/api/org/mortbay/util/Resource.java.html
+     *    http://www.docjar.com/html/api/org/mortbay/util/Resource.java.html
      * 
      * Modified to support GAE virtual file system. 
      */
@@ -253,8 +269,7 @@ public class GaeVfsServlet extends HttpServlet {
     		throws ServletException, IOException {
         // Check that we have a file upload request
         if ( !ServletFileUpload.isMultipartContent( req ) ) {
-            res.sendError( HttpServletResponse.SC_BAD_REQUEST,
-                                        "form enctype not multipart/form-data" );
+            res.sendError( SC_BAD_REQUEST, "form enctype not multipart/form-data" );
         }
         try {
             String path = "/";
@@ -287,7 +302,11 @@ public class GaeVfsServlet extends HttpServlet {
                     } else {
                         filePath.createFile();
                     }
-                    copyAndClose( item.openStream(), filePath.newOutputStream() );
+                    // IOUtils.copy() buffers the InputStream internally
+                    OutputStream out = new BufferedOutputStream(
+                                            filePath.newOutputStream(), BUFF_SIZE );
+                    copy( item.openStream(), out );
+                    out.close();
                 }
             }
 
@@ -298,22 +317,5 @@ public class GaeVfsServlet extends HttpServlet {
         } catch ( FileUploadException e ) {
             throw new ServletException( e );
         }
-    }
-
-    /**
-     * Copy the InputStream to the OutputStream then close them both.
-     */
-    private static int BUFF_SIZE = 64 * 1024; // 64KB
-    
-    private static void copyAndClose( InputStream in, OutputStream out )
-            throws IOException {
-        // TODO what is the optimal buffer size? does it make sense to buffer
-        // both streams? different buffer sizes for upload and download? does
-        // the GaeVFS block size matter?
-        in = new BufferedInputStream( in, BUFF_SIZE );
-        out = new BufferedOutputStream( out, BUFF_SIZE );
-        IOUtils.copy( in, out );
-        IOUtils.closeQuietly( out );
-        IOUtils.closeQuietly( in );
     }
 }
