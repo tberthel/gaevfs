@@ -11,136 +11,187 @@
 /*     */ package com.google.apphosting.api;
 /*     */ 
 /*     */ import java.util.Map;
+/*     */ import java.util.concurrent.Future;
+/*     */ import java.util.concurrent.TimeUnit;
 /*     */ 
 /*     */ public class ApiProxy
 /*     */ {
-/*  22 */   private static final InheritableThreadLocal<Environment> environmentThreadLocal = new InheritableThreadLocal<Environment>();
+/*  24 */   private static final InheritableThreadLocal<Environment> environmentThreadLocal = new InheritableThreadLocal<Environment>();
 /*     */   private static Delegate<Environment> delegate;
 /*     */ 
 /*     */   public static byte[] makeSyncCall(String packageName, String methodName, byte[] request)
 /*     */     throws ApiProxy.ApiProxyException
 /*     */   {
-/*  72 */     Environment env = getCurrentEnvironment();
-/*  73 */     if ((delegate == null) || (env == null))
+/*  76 */     Environment env = getCurrentEnvironment();
+/*  77 */     if ((delegate == null) || (env == null))
 /*     */     {
-/*  77 */       throw new CallNotFoundException(packageName, methodName);
+/*  81 */       throw new CallNotFoundException(packageName, methodName);
 /*     */     }
-/*  79 */     return delegate.makeSyncCall(env, packageName, methodName, request);
+/*  83 */     return delegate.makeSyncCall(env, packageName, methodName, request);
+/*     */   }
+/*     */ 
+/*     */   public static Future<byte[]> makeAsyncCall(final String packageName, final String methodName, byte[] request, ApiConfig apiConfig)
+/*     */   {
+/* 118 */     Environment env = getCurrentEnvironment();
+/* 119 */     if ((delegate == null) || (env == null))
+/*     */     {
+/* 123 */       return new Future<byte[]>() {
+/*     */         public byte[] get() {
+/* 125 */           throw new ApiProxy.CallNotFoundException(packageName, methodName);
+/*     */         }
+/*     */ 
+/*     */         public byte[] get(long deadline, TimeUnit unit) {
+/* 129 */           throw new ApiProxy.CallNotFoundException(packageName, methodName);
+/*     */         }
+/*     */ 
+/*     */         public boolean isDone() {
+/* 133 */           return true;
+/*     */         }
+/*     */ 
+/*     */         public boolean isCancelled() {
+/* 137 */           return false;
+/*     */         }
+/*     */ 
+/*     */         public boolean cancel(boolean shouldInterrupt) {
+/* 141 */           return false;
+/*     */         }
+/*     */       };
+/*     */     }
+/* 145 */     return delegate.makeAsyncCall(env, packageName, methodName, request, apiConfig);
 /*     */   }
 /*     */ 
 /*     */   public static void log(LogRecord record)
 /*     */   {
-/*  84 */     if (delegate != null)
-/*  85 */       delegate.log(getCurrentEnvironment(), record);
+/* 150 */     if (delegate != null)
+/* 151 */       delegate.log(getCurrentEnvironment(), record);
 /*     */   }
 /*     */ 
 /*     */   public static Environment getCurrentEnvironment()
 /*     */   {
-/*  94 */     return environmentThreadLocal.get();
+/* 160 */     return environmentThreadLocal.get();
 /*     */   }
 /*     */ 
 /*     */   public static void setDelegate(Delegate<Environment> aDelegate)
 /*     */   {
-/* 102 */     delegate = aDelegate;
+/* 168 */     delegate = aDelegate;
 /*     */   }
 /*     */ 
 /*     */   public static Delegate<Environment> getDelegate()
 /*     */   {
-/* 112 */     return delegate;
+/* 178 */     return delegate;
 /*     */   }
 /*     */ 
 /*     */   public static void setEnvironmentForCurrentThread(Environment environment)
 /*     */   {
-/* 125 */     environmentThreadLocal.set(environment);
+/* 191 */     environmentThreadLocal.set(environment);
 /*     */   }
 /*     */ 
 /*     */   public static void clearEnvironmentForCurrentThread()
 /*     */   {
-/* 133 */     environmentThreadLocal.set(null);
+/* 199 */     environmentThreadLocal.set(null);
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class UnknownException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public UnknownException(String packageName, String methodName, Throwable nestedException)
 /*     */     {
-/* 381 */       super("An error occurred for the API request %s.%s().", packageName, methodName, nestedException);
+/* 507 */       super("An error occurred for the API request %s.%s().", packageName, methodName, nestedException);
 /*     */     }
 /*     */ 
 /*     */     public UnknownException(String packageName, String methodName)
 /*     */     {
-/* 386 */       super("An error occurred for the API request %s.%s().", packageName, methodName);
+/* 512 */       super("An error occurred for the API request %s.%s().", packageName, methodName);
 /*     */     }
 /*     */ 
 /*     */     public UnknownException(String message)
 /*     */     {
-/* 391 */       super(message);
+/* 517 */       super(message);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class RequestTooLargeException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public RequestTooLargeException(String packageName, String methodName)
 /*     */     {
-/* 370 */       super("The request to API call %s.%s() was too large.", packageName, methodName);
+/* 496 */       super("The request to API call %s.%s() was too large.", packageName, methodName);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class OverQuotaException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public OverQuotaException(String packageName, String methodName)
 /*     */     {
-/* 363 */       super("The API call %s.%s() required more quota than is unavailable.", packageName, methodName);
+/* 489 */       super("The API call %s.%s() required more quota than is unavailable.", packageName, methodName);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
+/*     */   public static class FeatureNotEnabledException extends ApiProxy.ApiProxyException
+/*     */   {
+/*     */     public FeatureNotEnabledException(String message, String packageName, String methodName)
+/*     */     {
+/* 483 */       super(message, packageName, methodName);
+/*     */     }
+/*     */   }
+/*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class CapabilityDisabledException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public CapabilityDisabledException(String packageName, String methodName)
 /*     */     {
-/* 356 */       super("The API call %s.%s() is temporarily unavailable.", packageName, methodName);
+/* 474 */       super("The API call %s.%s() is temporarily unavailable.", packageName, methodName);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class CancelledException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public CancelledException(String packageName, String methodName)
 /*     */     {
-/* 349 */       super("The API call %s.%s() was explicitly cancelled.", packageName, methodName);
+/* 467 */       super("The API call %s.%s() was explicitly cancelled.", packageName, methodName);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class ApiDeadlineExceededException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public ApiDeadlineExceededException(String packageName, String methodName)
 /*     */     {
-/* 342 */       super("The API call %s.%s() took too long to respond and was cancelled.", packageName, methodName);
+/* 460 */       super("The API call %s.%s() took too long to respond and was cancelled.", packageName, methodName);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class ArgumentException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public ArgumentException(String packageName, String methodName)
 /*     */     {
-/* 334 */       super("An error occurred parsing (locally or remotely) the arguments to %S.%s().", packageName, methodName);
+/* 452 */       super("An error occurred parsing (locally or remotely) the arguments to %S.%s().", packageName, methodName);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class CallNotFoundException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public CallNotFoundException(String packageName, String methodName)
 /*     */     {
-/* 327 */       super("The API package '%s' or call '%s()' was not found.", packageName, methodName);
+/* 445 */       super("The API package '%s' or call '%s()' was not found.", packageName, methodName);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class RPCFailedException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     public RPCFailedException(String packageName, String methodName)
 /*     */     {
-/* 319 */       super("The remote RPC to the application server failed for the call %s.%s().", packageName, methodName);
+/* 437 */       super("The remote RPC to the application server failed for the call %s.%s().", packageName, methodName);
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class ApplicationException extends ApiProxy.ApiProxyException
 /*     */   {
 /*     */     private final int applicationError;
@@ -148,38 +199,54 @@
 /*     */ 
 /*     */     public ApplicationException(int applicationError)
 /*     */     {
-/* 299 */       this(applicationError, "");
+/* 417 */       this(applicationError, "");
 /*     */     }
 /*     */ 
 /*     */     public ApplicationException(int applicationError, String errorDetail) {
-/* 303 */       super("ApplicationError: " + applicationError + ": " + errorDetail);
-/* 304 */       this.applicationError = applicationError;
-/* 305 */       this.errorDetail = errorDetail;
+/* 421 */       super("ApplicationError: " + applicationError + ": " + errorDetail);
+/* 422 */       this.applicationError = applicationError;
+/* 423 */       this.errorDetail = errorDetail;
 /*     */     }
 /*     */ 
 /*     */     public int getApplicationError() {
-/* 309 */       return this.applicationError;
+/* 427 */       return this.applicationError;
 /*     */     }
 /*     */ 
 /*     */     public String getErrorDetail() {
-/* 313 */       return this.errorDetail;
+/* 431 */       return this.errorDetail;
 /*     */     }
 /*     */   }
 /*     */ 
+/*     */   @SuppressWarnings("serial")
 /*     */   public static class ApiProxyException extends RuntimeException
 /*     */   {
 /*     */     public ApiProxyException(String message, String packageName, String methodName)
 /*     */     {
-/* 281 */       this(String.format(message, new Object[] { packageName, methodName }));
+/* 399 */       this(String.format(message, new Object[] { packageName, methodName }));
 /*     */     }
 /*     */ 
 /*     */     private ApiProxyException(String message, String packageName, String methodName, Throwable nestedException)
 /*     */     {
-/* 286 */       super(String.format(message, new Object[] { packageName, methodName }), nestedException);
+/* 404 */       super(String.format(message, new Object[] { packageName, methodName }), nestedException);
 /*     */     }
 /*     */ 
 /*     */     public ApiProxyException(String message) {
-/* 290 */       super(message);
+/* 408 */       super(message);
+/*     */     }
+/*     */   }
+/*     */ 
+/*     */   public static final class ApiConfig
+/*     */   {
+/*     */     private Double deadlineInSeconds;
+/*     */ 
+/*     */     public Double getDeadlineInSeconds()
+/*     */     {
+/* 383 */       return this.deadlineInSeconds;
+/*     */     }
+/*     */ 
+/*     */     public void setDeadlineInSeconds(Double deadlineInSeconds)
+/*     */     {
+/* 391 */       this.deadlineInSeconds = deadlineInSeconds;
 /*     */     }
 /*     */   }
 /*     */ 
@@ -191,27 +258,27 @@
 /*     */ 
 /*     */     public LogRecord(Level level, long timestamp, String message)
 /*     */     {
-/* 256 */       this.level = level;
-/* 257 */       this.timestamp = timestamp;
-/* 258 */       this.message = message;
+/* 350 */       this.level = level;
+/* 351 */       this.timestamp = timestamp;
+/* 352 */       this.message = message;
 /*     */     }
 /*     */ 
 /*     */     public Level getLevel() {
-/* 262 */       return this.level;
+/* 356 */       return this.level;
 /*     */     }
 /*     */ 
 /*     */     public long getTimestamp()
 /*     */     {
-/* 269 */       return this.timestamp;
+/* 363 */       return this.timestamp;
 /*     */     }
 /*     */ 
 /*     */     public String getMessage() {
-/* 273 */       return this.message;
+/* 367 */       return this.message;
 /*     */     }
 /*     */ 
 /*     */     public static enum Level
 /*     */     {
-/* 247 */       debug, info, warn, error, fatal;
+/* 341 */       debug, info, warn, error, fatal;
 /*     */     }
 /*     */   }
 /*     */ 
@@ -219,6 +286,8 @@
 /*     */   {
 /*     */     public abstract byte[] makeSyncCall(E paramE, String paramString1, String paramString2, byte[] paramArrayOfByte)
 /*     */       throws ApiProxy.ApiProxyException;
+/*     */ 
+/*     */     public abstract Future<byte[]> makeAsyncCall(E paramE, String paramString1, String paramString2, byte[] paramArrayOfByte, ApiProxy.ApiConfig paramApiConfig);
 /*     */ 
 /*     */     public abstract void log(E paramE, ApiProxy.LogRecord paramLogRecord);
 /*     */   }
@@ -243,7 +312,8 @@
 /*     */   }
 /*     */ }
 
-// Location:           C:\Users\vinceb\eclipse-jee-galileo-SR1\plugins\com.google.appengine.eclipse.sdkbundle_1.2.6.v200910131704\appengine-java-sdk-1.2.6\lib\shared\appengine-local-runtime-shared.jar
+// Location:           C:\appengine-java-sdk-1.2.8\lib\shared\appengine-local-runtime-shared.jar
 // Qualified Name:     com.google.apphosting.api.ApiProxy
 // Java Class Version: 5 (49.0)
 // JD-Core Version:    0.5.1
+

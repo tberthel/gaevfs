@@ -56,7 +56,6 @@ public class GaeProviderTestCase extends AbstractProviderTestCase implements Pro
         return new ProviderTestSuite( new GaeProviderTestCase() );
     }
     
-    @SuppressWarnings("unchecked")
     public GaeProviderTestCase() {
     	// initialize GAE test environment
     	ApiProxy.setEnvironmentForCurrentThread( new TestEnvironment() );
