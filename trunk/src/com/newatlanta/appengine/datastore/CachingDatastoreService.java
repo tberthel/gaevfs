@@ -61,7 +61,6 @@ import com.google.appengine.api.labs.taskqueue.TaskOptions.Method;
 import com.google.appengine.api.memcache.Expiration;
 import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.StrictErrorHandler;
-import com.google.apphosting.api.ApiProxy;
 
 /**
  * Implements a <code>DatastoreService</code> that automatically caches entities
@@ -129,8 +128,6 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     private static Queue queue; // thread-safe
     
     static {
-        ApiProxy.getCurrentEnvironment().getAttributes().put(
-                    "com.google.appengine.server_url_key", "http://localhost:8080" );
         try {
             queue = QueueFactory.getQueue( QUEUE_NAME );
             queueWatchDogTask( 0, randomUUID().toString(), randomUUID().toString() );
