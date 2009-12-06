@@ -15,71 +15,59 @@
  */
 package com.newatlanta.appengine.locks;
 
+import static com.google.appengine.api.memcache.MemcacheServiceFactory.getMemcacheService;
+
 import com.google.appengine.api.memcache.InvalidValueException;
-import com.google.appengine.api.memcache.MemcacheService;
-import com.google.appengine.api.memcache.MemcacheServiceFactory;
-import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
 
 /**
  * <p>Implements a shared lock based on the Google App Engine <code>MemcacheService</code>,
  * specifically, the atomic <code>increment()</code> method. The lock is
  * acquired by incrementing the counter and released by decrementing it;
- * acquiring the lock never fails. The <code>isLock()</code> method can be
+ * acquiring the lock never fails. The {@link #isLocked()} method can be
  * used to determine whether the lock has been acquired by any thread.
  * 
- * <p>There are three potential issues with the current implementation of this
- * class:
+ * <p>There are three issues with the current implementation of this class
+ * (the last is the most serious):
  * <ol>
  * <li>memcache is not reliable and the counter being used as a lock may be
  * evicted at any time, releasing the lock prematurely;</li>
  * 
- * <li>any thread can invoke <code>unlock()</code> any number of times,
+ * <li>any thread can invoke {@link #unlock()} any number of times, 
  * regardless of whether that thread has ever acquired the lock, or how many
  * times it has acquired the lock--a "rogue" thread could therefore cause the
  * lock to be released prematurely; and,</li>
  *      
  * <li>there is no mechanism to insure that a lock is not held indefinitely
- * due to programming errors (failures to invoke <code>unlock()</code>) or
+ * due to programming errors (failures to invoke {@link #unlock()}) or
  * abnormal JVM termination.</li>
  * </ol>
- * <p>The reliability issue is probably best addressed by implemented persistent
- * counters backed by the GAE datastore; see the following for an example:
  * 
- *  http://blog.appenginefan.com/2009/04/efficient-global-counters-revisited.html
- *   
- * <p>It might be best to wait until Task Queues are available for GAE/J so that
- * they can be used to implement a write-behind cache for persistent counters,
- * which should be more efficient that the implementation described in the
- * above reference.
+ * <p>The last issue could be addressed as follows if there was a way to delete
+ * tasks from task queues:
+ * <ul>
+ * <li>When a lock is acquired (the counter incremented), queue a task to
+ * release the lock (decrement the counter) at some time in the future (30
+ * seconds--the maximum time a request can run?).</li>
+ * 
+ * <li>When the lock is released, delete the queued task so that it won't run.</li>
+ * 
+ * <li>If the lock is not released by the request thread, the queued task will
+ * release it.</li>
+ * </ul>
  * 
  * @author <a href="mailto:vbonfanti@gmail.com">Vince Bonfanti</a>
  */
 public class SharedLock extends AbstractLock {
 
-    private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
-
     private String key;
 
     public SharedLock( String lockName ) {
         key = lockName;
-        createCounter();
-    }
-
-    private void createCounter() {
-        if ( memcache.put( key, (long)0, null, SetPolicy.ADD_ONLY_IF_NOT_PRESENT ) ) {
-            log.info( "created " + key );
-        }
     }
 
     public boolean tryLock() {
         try {
-            Long counter;
-            // null value means counter does not exist
-            while ( ( counter = memcache.increment( key, 1 ) ) == null ) {
-                // create then increment avoids race condition, but requires
-                // three memcache calls to create a new counter
-                createCounter();
-            }
+            Long counter = getMemcacheService().increment( key, 1, (long)0 );
             log.info( "acquired " + key + " " + counter.longValue() );
             return true;
         } catch ( InvalidValueException e ) {
@@ -91,10 +79,7 @@ public class SharedLock extends AbstractLock {
     public void unlock() {
         try {
             // MemcacheService guarantees to never decrement below 0
-            Long counter = memcache.increment( key, -1 );
-            if ( counter == null ) { // counter does not exist
-                createCounter();
-            }
+            Long counter = getMemcacheService().increment( key, -1 );
             log.info( "released " + key + " " + ( counter != null ? counter.longValue() : "-" ) );
         } catch ( InvalidValueException e ) {
             log.warning( e.toString() );
@@ -106,12 +91,8 @@ public class SharedLock extends AbstractLock {
      */
     public long getCounter() {
         try {
-            Long counter;
-            // null value means counter does not exist
-            while ( ( counter = (Long)memcache.get( key ) ) == null ) {
-                createCounter();
-            }
-            return ( counter.longValue() );
+            Long counter = (Long)getMemcacheService().get( key );
+            return ( counter != null ? counter.longValue() : 0 );
         } catch ( Exception e ) {
             log.warning( e.toString() );
             return 0;
