@@ -15,10 +15,9 @@
  */
 package com.newatlanta.appengine.locks;
 
-import com.google.appengine.api.memcache.Expiration;
-import com.google.appengine.api.memcache.MemcacheService;
-import com.google.appengine.api.memcache.MemcacheServiceFactory;
-import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
+import static com.google.appengine.api.memcache.Expiration.byDeltaSeconds;
+import static com.google.appengine.api.memcache.MemcacheService.SetPolicy.ADD_ONLY_IF_NOT_PRESENT;
+import static com.google.appengine.api.memcache.MemcacheServiceFactory.getMemcacheService;
 
 /**
  * Implements an exclusive lock based on the GAE <code>MemcacheService</code> API,
@@ -44,7 +43,6 @@ import com.google.appengine.api.memcache.MemcacheService.SetPolicy;
  */
 public class ExclusiveLock extends AbstractLock {
 
-    private static MemcacheService memcache = MemcacheServiceFactory.getMemcacheService();
     private static final int EXPIRATION = 30; // seconds
 
     private String key;
@@ -92,8 +90,8 @@ public class ExclusiveLock extends AbstractLock {
     
     protected boolean acquireLock() {
         // value of -1 causes MemcacheService.increment() to fail, which is what we want
-        return memcache.put( key, (long)-1, Expiration.byDeltaSeconds( EXPIRATION ),
-                                SetPolicy.ADD_ONLY_IF_NOT_PRESENT );
+        return getMemcacheService().put( key, (long)-1, byDeltaSeconds( EXPIRATION ),
+                                            ADD_ONLY_IF_NOT_PRESENT );
     }
 
     /**
@@ -107,7 +105,7 @@ public class ExclusiveLock extends AbstractLock {
             throw new IllegalStateException( "Attempted unlock by non-owner" );
         }
         if ( --holdCount == 0 ) {
-            if ( !memcache.delete( key ) ) {
+            if ( !getMemcacheService().delete( key ) ) {
                 log.warning( "not found: " + key );
             }
             owner = null;
