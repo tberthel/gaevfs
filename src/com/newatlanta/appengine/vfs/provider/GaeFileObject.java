@@ -15,8 +15,6 @@
  */
 package com.newatlanta.appengine.vfs.provider;
 
-import static com.google.appengine.api.datastore.Entity.KEY_RESERVED_PROPERTY;
-import static com.google.appengine.api.datastore.Query.FilterOperator.GREATER_THAN_OR_EQUAL;
 import static com.newatlanta.appengine.vfs.provider.GaeVFS.checkBlockSize;
 
 import java.io.IOException;
@@ -26,6 +24,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.vfs.FileContent;
 import org.apache.commons.vfs.FileName;
@@ -43,9 +42,7 @@ import com.google.appengine.api.datastore.Entity;
 import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
-import com.google.appengine.api.datastore.Query;
 import com.newatlanta.appengine.datastore.CachingDatastoreService;
-import com.newatlanta.appengine.datastore.EntityKeyCollection;
 
 /**
  * Stores metadata for "files" and "folders" within GaeVFS and manages interactions
@@ -290,8 +287,9 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
             newGaeFile.metadata.setPropertiesFrom( this.metadata );
             
             // copy contents (blocks) to new file
-            List<Entity> newBlocks = new ArrayList<Entity>();
-            for ( Entity block : getBlocks() ) {
+            Map<Key, Entity> blocks = datastore.get( getBlockKeys( 0 ) );
+            List<Entity> newBlocks = new ArrayList<Entity>( blocks.size());
+            for ( Entity block : blocks.values() ) {
                 Entity newBlock = newGaeFile.getBlock( block.getKey().getId() - 1 );
                 newBlock.setPropertiesFrom( block );
                 newBlocks.add( newBlock );
@@ -535,29 +533,13 @@ public class GaeFileObject extends AbstractFileObject implements Serializable {
         return KeyFactory.createKey( getName().getPath(), index + 1 );
     }
     
-    private Collection<Key> getBlockKeys( long from ) throws FileSystemException {
-        return EntityKeyCollection.wrap( getBlocks( from, true ) );
-    }
-    
-    private List<Entity> getBlocks() throws FileSystemException {
-        return getBlocks( 0, false );
-    }
-    
-    /**
-     * Get blocks from the specified index. The from index is 0-based.
-     */
-    private List<Entity> getBlocks( long from, boolean keysOnly ) throws FileSystemException {
-        Query query = new Query( getName().getPath() );
-        if ( keysOnly ) {
-            query.setKeysOnly();
+    private List<Key> getBlockKeys( long from ) throws FileSystemException {
+        long eofBlockIndex = doGetContentSize() / getBlockSize();
+        List<Key> keys = new ArrayList<Key>();
+        for ( long i = from; i <= eofBlockIndex; i++ ) {
+            keys.add( createBlockKey( i ) );
         }
-        query.addFilter( KEY_RESERVED_PROPERTY, GREATER_THAN_OR_EQUAL, createBlockKey( from ) );
-        //query.addSort( KEY_RESERVED_PROPERTY );
-        List<Entity> entityList = new ArrayList<Entity>();
-        for ( Entity e : datastore.prepare( query ).asIterable() ) {
-            entityList.add( e );
-        }
-        return entityList;
+        return keys;
     }
 
     /**
