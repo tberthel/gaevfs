@@ -16,11 +16,15 @@
 package com.newatlanta.appengine.datastore;
 
 import static com.google.appengine.api.datastore.DatastoreServiceFactory.getDatastoreService;
+import static com.google.appengine.api.datastore.KeyFactory.keyToString;
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.method;
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.payload;
 import static com.google.appengine.api.memcache.Expiration.byDeltaSeconds;
+import static com.google.appengine.api.memcache.MemcacheService.SetPolicy.ADD_ONLY_IF_NOT_PRESENT;
 import static com.google.appengine.api.memcache.MemcacheServiceFactory.getMemcacheService;
 import static java.util.UUID.randomUUID;
+import static org.apache.commons.codec.binary.Base64.decodeBase64;
+import static org.apache.commons.codec.binary.Base64.encodeBase64;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -127,6 +131,8 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     private static Queue queue; // thread-safe
     
+    private static boolean isDevServer; // GAE development server
+    
     static {
         try {
             queue = QueueFactory.getQueue( QUEUE_NAME );
@@ -174,7 +180,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         MemcacheService memcache = getMemcacheService();
         Entity entity = (Entity)memcache.get( key );
         if ( entity == null ) {
-            entity = getDatastoreService().get( txn, key );
+            entity = getDatastoreService().get( txn, key ); // throws EntityNotFoundException
             memcache.put( key, entity, expiration );
         }
         return entity;
@@ -223,7 +229,10 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         try {
             memcache.put( key, entity, expiration );
             if ( ( cacheOption == CacheOption.WRITE_BEHIND ) && watchDogIsAlive() ) {
-                queue.add( payload( serialize( key ), TASK_CONTENT_TYPE ) );
+                // queue write-behind task only if not already one queued for this key
+                if ( memcache.put( keyToString( key ), null, null, ADD_ONLY_IF_NOT_PRESENT ) ) {
+                    queue.add( payload( serialize( key ), TASK_CONTENT_TYPE ) );
+                }
                 return key;
             }
         } catch ( Exception e ) {
@@ -296,6 +305,9 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                                             new BufferedOutputStream( bytesOut ) );
         objectOut.writeObject( object );
         objectOut.close();
+        if ( isDevServer ) {
+            return encodeBase64( bytesOut.toByteArray() );
+        }
         return bytesOut.toByteArray();
     }
 
@@ -393,6 +405,11 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     private static int WATCHDOG_SECONDS = 60; // TODO make configurable
     
     @Override
+    public void init() {
+        isDevServer = getServletContext().getServerInfo().contains( "Development" );
+    }
+    
+    @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res )
             throws ServletException, IOException {
         /**
@@ -463,17 +480,20 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
             log.warning( e.toString() );
             return;
         }
+        MemcacheService memcache = getMemcacheService();
         List<Key> keys;
         if ( payload instanceof Key ) {
             keys = new ArrayList<Key>();
             keys.add( (Key)payload );
+            // delete flag that prevents multiple tasks from being queued
+            memcache.delete( keyToString( (Key)payload ) );
         } else if ( payload instanceof List ) {
             keys = (List)payload;
         } else {
             log.warning( payload.getClass().getName() );
             return;
         }
-        Map<String, Entity> entityMap = (Map)getMemcacheService().getAll( (List)keys );
+        Map<String, Entity> entityMap = (Map)memcache.getAll( (List)keys );
         if ( ( entityMap != null ) && !entityMap.isEmpty() ) {
             try {
                 if ( getDatastoreService().put( entityMap.values() ).size() != entityMap.size() ) {
@@ -498,6 +518,9 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
         byte[] bytesIn = new byte[ req.getContentLength() ];
         req.getInputStream().readLine( bytesIn, 0, bytesIn.length );
+        if ( isDevServer ) {
+            bytesIn = decodeBase64( bytesIn );
+        }
         ObjectInputStream objectIn = new ObjectInputStream( new BufferedInputStream( 
                                         new ByteArrayInputStream( bytesIn ) ) );
         try {
