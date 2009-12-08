@@ -1,2 +1,15 @@
-com.newatlanta.commons.vfs.cache
-com.newatlanta.commons.vfs.provider.gae
+com.newatlanta.appengine.datastore
+com.newatlanta.appengine.debug
+com.newatlanta.appengine.h2.store.fs
+com.newatlanta.appengine.locks
+com.newatlanta.appengine.nio.channels
+com.newatlanta.appengine.nio.file
+com.newatlanta.appengine.nio.file.attribute
+com.newatlanta.appengine.nio.file.spi
+com.newatlanta.appengine.servlet
+com.newatlanta.appengine.taskqueue
+com.newatlanta.appengine.vfs.provider
+com.newatlanta.repackaged.java.nio.channels
+com.newatlanta.repackaged.java.nio.file
+com.newatlanta.repackaged.java.nio.file.attribute
+com.newatlanta.repackaged.java.nio.file.spi
