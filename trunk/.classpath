@@ -9,8 +9,8 @@
 	<classpathentry kind="lib" path="war/WEB-INF/lib/commons-vfs-2.0-SNAPSHOT.jar"/>
 	<classpathentry kind="lib" path="war/WEB-INF/lib/commons-logging-1.1.1.jar"/>
 	<classpathentry kind="lib" path="war/WEB-INF/lib/commons-codec-1.4.jar"/>
-	<classpathentry kind="lib" path="war/WEB-INF/lib/h2-1.2.125-jdk16-tests.jar"/>
-	<classpathentry kind="lib" path="war/WEB-INF/lib/h2-1.2.125-jdk16.jar"/>
+	<classpathentry kind="lib" path="war/WEB-INF/lib/h2-1.2.126-jdk16-tests.jar"/>
+	<classpathentry kind="lib" path="war/WEB-INF/lib/h2-1.2.126-jdk16.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
 	<classpathentry kind="con" path="com.google.appengine.eclipse.core.GAE_CONTAINER"/>
