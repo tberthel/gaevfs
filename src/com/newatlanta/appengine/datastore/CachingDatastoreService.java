@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 New Atlanta Communications, LLC
+ * Copyright 2009-2010 New Atlanta Communications, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -129,9 +129,10 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     private static final Logger log = Logger.getLogger( CachingDatastoreService.class.getName() );
     
-    private static Queue queue; // thread-safe
+    private static final boolean isDevelopment = System.getProperty(
+            "com.google.appengine.runtime.environment" ).equalsIgnoreCase( "Development" );
     
-    private static boolean isDevServer; // GAE development server
+    private static Queue queue; // thread-safe
     
     static {
         try {
@@ -305,7 +306,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                                             new BufferedOutputStream( bytesOut ) );
         objectOut.writeObject( object );
         objectOut.close();
-        if ( isDevServer ) {
+        if ( isDevelopment ) { // workaround for issue #2097
             return encodeBase64( bytesOut.toByteArray() );
         }
         return bytesOut.toByteArray();
@@ -403,11 +404,6 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
      ***************************************************************************/
     
     private static int WATCHDOG_SECONDS = 60; // TODO make configurable
-    
-    @Override
-    public void init() {
-        isDevServer = getServletContext().getServerInfo().contains( "Development" );
-    }
     
     @Override
     public void doGet( HttpServletRequest req, HttpServletResponse res )
@@ -518,7 +514,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
         byte[] bytesIn = new byte[ req.getContentLength() ];
         req.getInputStream().readLine( bytesIn, 0, bytesIn.length );
-        if ( isDevServer ) {
+        if ( isDevelopment ) { // workaround for issue #2097
             bytesIn = decodeBase64( bytesIn );
         }
         ObjectInputStream objectIn = new ObjectInputStream( new BufferedInputStream( 
