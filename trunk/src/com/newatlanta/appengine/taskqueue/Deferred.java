@@ -173,8 +173,8 @@ public class Deferred extends HttpServlet {
     /**
      * The <code>Deferrable</code> interface should be implemented by any class
      * whose instances are intended to be executed as background tasks. The
-     * implementation class must define a no-arguments method of no arguments
-     * named {@link Deferrable#doTask()}.
+     * implementation class must define a method with no arguments named
+     * {@link Deferrable#doTask()}.
      */
     public interface Deferrable extends Serializable {
         /**
