@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 New Atlanta Communications, LLC
+ * Copyright 2009-2010 New Atlanta Communications, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import static com.google.appengine.api.labs.taskqueue.QueueFactory.getQueue;
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.url;
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Builder.withDefaults;
 import static com.google.appengine.api.labs.taskqueue.TaskOptions.Method.POST;
+import static org.apache.commons.codec.binary.Base64.decodeBase64;
+import static org.apache.commons.codec.binary.Base64.encodeBase64;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -161,6 +163,9 @@ public class Deferred extends HttpServlet {
     private static final String TASK_URL_INIT_PARAM = "taskUrl";
     
     private static final Logger log = Logger.getLogger( Deferred.class.getName() );
+    
+    private static final boolean isDevelopment = System.getProperty(
+            "com.google.appengine.runtime.environment" ).equalsIgnoreCase( "Development" );
     
     private static String queueName = DEFAULT_QUEUE_NAME;
     private static String taskUrl;
@@ -456,6 +461,9 @@ public class Deferred extends HttpServlet {
                                                 new BufferedOutputStream( bytesOut ) );
             objectOut.writeObject( obj );
             objectOut.close();
+            if ( isDevelopment ) { // workaround for issue #2097
+                return encodeBase64( bytesOut.toByteArray() );
+            }
             return bytesOut.toByteArray();
         } catch ( IOException e ) {
             throw new QueueFailureException( e );
@@ -494,6 +502,9 @@ public class Deferred extends HttpServlet {
     private static Object deserialize( byte[] bytesIn ) {
         ObjectInputStream objectIn = null;
         try {
+            if ( isDevelopment ) { // workaround for issue #2097
+                bytesIn = decodeBase64( bytesIn );
+            }
             objectIn = new ObjectInputStream( new BufferedInputStream(
                                         new ByteArrayInputStream( bytesIn ) ) );
             return objectIn.readObject();
