@@ -48,6 +48,7 @@ import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.labs.taskqueue.QueueFailureException;
 import com.google.appengine.api.labs.taskqueue.TaskHandle;
 import com.google.appengine.api.labs.taskqueue.TaskOptions;
+import com.google.appengine.api.utils.SystemProperty;
 
 /**
  * Implements background tasks for
@@ -163,9 +164,6 @@ public class Deferred extends HttpServlet {
     private static final String TASK_URL_INIT_PARAM = "taskUrl";
     
     private static final Logger log = Logger.getLogger( Deferred.class.getName() );
-    
-    private static final boolean isDevelopment = System.getProperty(
-            "com.google.appengine.runtime.environment" ).equalsIgnoreCase( "Development" );
     
     private static String queueName = DEFAULT_QUEUE_NAME;
     private static String taskUrl;
@@ -461,7 +459,7 @@ public class Deferred extends HttpServlet {
                                                 new BufferedOutputStream( bytesOut ) );
             objectOut.writeObject( obj );
             objectOut.close();
-            if ( isDevelopment ) { // workaround for issue #2097
+            if ( isDevelopment() ) { // workaround for issue #2097
                 return encodeBase64( bytesOut.toByteArray() );
             }
             return bytesOut.toByteArray();
@@ -502,7 +500,7 @@ public class Deferred extends HttpServlet {
     private static Object deserialize( byte[] bytesIn ) {
         ObjectInputStream objectIn = null;
         try {
-            if ( isDevelopment ) { // workaround for issue #2097
+            if ( isDevelopment() ) { // workaround for issue #2097
                 bytesIn = decodeBase64( bytesIn );
             }
             objectIn = new ObjectInputStream( new BufferedInputStream(
@@ -519,5 +517,10 @@ public class Deferred extends HttpServlet {
             } catch ( IOException ignore ) {
             }
         }
+    }
+    
+    private static boolean isDevelopment() {
+        return ( SystemProperty.environment.value() ==
+                    SystemProperty.Environment.Value.Development );
     }
 }

@@ -65,6 +65,7 @@ import com.google.appengine.api.labs.taskqueue.TaskOptions.Method;
 import com.google.appengine.api.memcache.Expiration;
 import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.StrictErrorHandler;
+import com.google.appengine.api.utils.SystemProperty;
 
 /**
  * Implements a <code>DatastoreService</code> that automatically caches entities
@@ -129,9 +130,6 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
     
     private static final Logger log = Logger.getLogger( CachingDatastoreService.class.getName() );
     
-    private static final boolean isDevelopment = System.getProperty(
-            "com.google.appengine.runtime.environment" ).equalsIgnoreCase( "Development" );
-    
     private static Queue queue; // thread-safe
     
     static {
@@ -141,6 +139,11 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         } catch ( Exception e ) {
             log.warning( e.getMessage() + " " + QUEUE_NAME );
         }
+    }
+    
+    private static boolean isDevelopment() {
+        return ( SystemProperty.environment.value() ==
+                    SystemProperty.Environment.Value.Development );
     }
     
     public enum CacheOption {
@@ -306,7 +309,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
                                             new BufferedOutputStream( bytesOut ) );
         objectOut.writeObject( object );
         objectOut.close();
-        if ( isDevelopment ) { // workaround for issue #2097
+        if ( isDevelopment() ) { // workaround for issue #2097
             return encodeBase64( bytesOut.toByteArray() );
         }
         return bytesOut.toByteArray();
@@ -514,7 +517,7 @@ public class CachingDatastoreService extends HttpServlet implements DatastoreSer
         }
         byte[] bytesIn = new byte[ req.getContentLength() ];
         req.getInputStream().readLine( bytesIn, 0, bytesIn.length );
-        if ( isDevelopment ) { // workaround for issue #2097
+        if ( isDevelopment() ) { // workaround for issue #2097
             bytesIn = decodeBase64( bytesIn );
         }
         ObjectInputStream objectIn = new ObjectInputStream( new BufferedInputStream( 
